@@ -61,7 +61,10 @@ describe("frozen Capsule contracts", () => {
     ]);
   });
 
-  it("serializes denied responses and Receipts without secrets or host paths", () => {
+  // Pins the frozen shape only: it catches a leaky field added to the type
+  // or factory. The admission tests (Issue #3) must reuse this forbidden
+  // list against real /api responses, where actual leaks would show up.
+  it("pins denied response and Receipt shapes to safe fields only", () => {
     const receipt = makeDeniedDecisionReceipt();
     const denied: DeniedRunResponse = {
       runId: receipt.runId,
@@ -119,7 +122,9 @@ describe("fake seam factories", () => {
     expect(compiler.calls).toHaveLength(1);
   });
 
-  it("proves Runner call count stays zero when the Runner is never invoked", async () => {
+  // Verifies the fake's recorder works; the real "call count = 0 on denial"
+  // evidence lives in the admission and Runner tests (Issues #3 and #6).
+  it("fake runner records calls and mount plans", async () => {
     const runner = makeFakeCapsuleRunner();
     expect(runner.calls).toHaveLength(0);
 
