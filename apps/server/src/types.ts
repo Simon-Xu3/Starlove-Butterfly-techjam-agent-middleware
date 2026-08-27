@@ -105,10 +105,12 @@ export const DEMO_SESSION_HEADER = "x-demo-session";
 
 export type HumanPrincipalId = "user-a" | "user-b";
 
-export const DEMO_SESSION_PRINCIPALS: Record<string, HumanPrincipalId> = {
+export const DEMO_SESSION_PRINCIPALS: Readonly<
+  Record<string, HumanPrincipalId>
+> = Object.freeze({
   "demo-session-a": "user-a",
   "demo-session-b": "user-b",
-};
+});
 
 export interface HumanPrincipal {
   id: HumanPrincipalId;
@@ -155,13 +157,12 @@ export interface PrincipalResourceEntitlement {
 }
 
 // The static demo Entitlement matrix seeded by the version 2 migration.
-export const DEMO_ENTITLEMENT_MATRIX: ReadonlyArray<{
-  principalId: HumanPrincipalId;
-  resourceId: string;
-}> = [
-  { principalId: "user-a", resourceId: "orders-incident" },
-  { principalId: "user-b", resourceId: "payments-incident" },
-];
+export const DEMO_ENTITLEMENT_MATRIX: ReadonlyArray<
+  Readonly<{ principalId: HumanPrincipalId; resourceId: string }>
+> = Object.freeze([
+  Object.freeze({ principalId: "user-a", resourceId: "orders-incident" }),
+  Object.freeze({ principalId: "user-b", resourceId: "payments-incident" }),
+]);
 
 // Stable safe denial vocabulary. UI and tests depend on these exact strings;
 // internal filesystem details must never replace them.
