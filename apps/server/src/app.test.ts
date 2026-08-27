@@ -14,7 +14,12 @@ import {
 import { loadConfig } from "./config.js";
 import { InMemoryReceiptStore } from "./receipt-store.js";
 import { JsonStore } from "./store.js";
-import type { AgentRunner, RunnerRequest, RunnerResult } from "./types.js";
+import type {
+  AgentRunner,
+  RunnerRequest,
+  RunnerResult,
+  ValidatedRunMountPlan,
+} from "./types.js";
 import { WorkspaceManager } from "./workspace.js";
 
 const sessionA = { "x-demo-session": "demo-session-a" };
@@ -145,6 +150,28 @@ describe("demo session identity", () => {
       });
       expect(accepted.statusCode).toBe(200);
     }
+    await app.close();
+  });
+
+  it("rejects duplicated session headers instead of picking one", async () => {
+    const { app } = await makeTestApp();
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/agents",
+      headers: { "x-demo-session": ["demo-session-a", "demo-session-b"] },
+    });
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it("still requires a session after the outer token passes", async () => {
+    const { app } = await makeTestApp({ appAuthToken: "a-strong-test-token" });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/agents",
+      headers: { authorization: "Bearer a-strong-test-token" },
+    });
+    expect(response.statusCode).toBe(401);
     await app.close();
   });
 
@@ -473,6 +500,60 @@ describe("Run admission", () => {
     expect(response.statusCode).toBe(403);
     expect(response.json().reason).toBe("invalid_resource_path");
     expect(fake.calls).toHaveLength(0);
+    await app.close();
+  });
+
+  it("admits only one of two concurrent Capsule requests and writes one Receipt", async () => {
+    let finish!: (result: RunnerResult) => void;
+    const pending = new Promise<RunnerResult>((resolve) => {
+      finish = resolve;
+    });
+    const plansSeen: Array<ValidatedRunMountPlan | undefined> = [];
+    const blockingRunner = {
+      supportsMountPlans: true as const,
+      async run(
+        request: RunnerRequest,
+        plan?: ValidatedRunMountPlan,
+      ): Promise<RunnerResult> {
+        void request;
+        plansSeen.push(plan);
+        return pending;
+      },
+      cancel: async () => false,
+      isAvailable: async () => true,
+    };
+    const { app, service, receipts } = await makeTestApp({
+      runtimeProvider: "container",
+      runner: blockingRunner,
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+    });
+    const agent = await createAgent(app);
+
+    const inject = () =>
+      app.inject({
+        method: "POST",
+        url: "/api/agents/" + agent.id + "/messages",
+        headers: { ...json, ...sessionA },
+        payload: JSON.stringify({
+          content: "analyse orders",
+          resourceIds: ["orders-incident"],
+        }),
+      });
+    const [first, second] = await Promise.all([inject(), inject()]);
+    const codes = [first.statusCode, second.statusCode].sort();
+    expect(codes).toEqual([202, 409]);
+
+    const admitted = first.statusCode === 202 ? first : second;
+    const runId = admitted.json().run.id;
+    expect(receipts.getReceiptsForRun(runId)).toHaveLength(1);
+    // The Runner call happens in the async execution phase.
+    await expect.poll(() => plansSeen.length).toBe(1);
+    expect(plansSeen[0]?.resourceId).toBe("orders-incident");
+
+    finish({ output: "done", threadId: null, usage: null });
+    await expect
+      .poll(() => service.getRun(runId, "user-a").status)
+      .toBe("completed");
     await app.close();
   });
 
