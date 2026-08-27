@@ -20,6 +20,7 @@ server-owned incident bundles: an authorized bundle can be read by a real
 Agent Run, while an unauthorized bundle is rejected before the Runtime starts.
 
 - [Approved planning brief](docs/planning/resource-capsule-brief.md)
+- [Product user flow and authorization model](docs/planning/scopedrun-user-flow.md)
 - [Formal working specification](.scratch/run-scoped-resource-capsule/spec.md)
 - [Implementation tickets](https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues?q=is%3Aissue%20state%3Aopen%20label%3Ascopedrun)
 - [Collaboration board](https://github.com/users/MarcusMa06-code/projects/4)

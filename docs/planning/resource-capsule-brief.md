@@ -61,8 +61,10 @@ piece of information retained from an earlier authorized Run.
   readonly mounting.
 - **Resource Registry:** the server-owned static mapping from Resource ID to
   resource metadata and source path.
-- **Resource Grant:** an Agent-specific read authorization for one Protected
-  Resource.
+- **Principal Resource Entitlement:** a principal's server-owned long-lived
+  upper bound for delegating one Protected Resource.
+- **Run Delegation:** a principal's explicit zero-or-one Resource choice for
+  one new Run; it is the actual scope made visible to that Run.
 - **Authorization Decision:** the allow or deny result produced during Run
   admission.
 - **ValidatedRunMountPlan:** the immutable, server-produced mount contract
@@ -73,6 +75,10 @@ piece of information retained from an earlier authorized Run.
 Agent workspace and Resource Capsule are distinct concepts. An Agent workspace
 remains persistent Agent-owned working state; a Resource Capsule is a
 Run-scoped set of authorized readonly mounts.
+
+The canonical human journey and the distinction between standing Entitlement
+and per-Run Delegation are in
+[`scopedrun-user-flow.md`](scopedrun-user-flow.md).
 
 ## Confirmed MVP decisions
 
@@ -95,8 +101,10 @@ Run-scoped set of authorized readonly mounts.
 - Extend its request body from `content` to `content` plus `resourceIds`.
 - Treat an omitted or empty `resourceIds` list as an ordinary baseline Run.
 - A Capsule Run must select exactly one Resource ID.
-- Re-resolve the current principal, Agent ownership, Resource Grant status, and
-  grant generation for every new Capsule Run.
+- Treat the selected Resource ID as a user-created Run Delegation, not as an
+  Agent request for standing access.
+- Re-resolve the current principal, Agent ownership, Principal Resource
+  Entitlement status, and Entitlement generation for every new Capsule Run.
 - For a well-formed Capsule request that fails admission, create a terminal Run
   with status `denied` and persist a deny Decision Receipt.
 - Return HTTP `403` with `runId`, `receiptId`, `status`, and a safe reason.
@@ -112,7 +120,8 @@ Run-scoped set of authorized readonly mounts.
 - Increment the JSON database schema version once and migrate existing version
   1 data compatibly.
 - Add `ownerPrincipalId` to each Agent.
-- Persist Resource Grants with: `agentId`, `resourceId`, `permission` (`read`),
+- Persist Principal Resource Entitlements with: `principalId`, `resourceId`,
+  `permission` (`read`),
   `status`, `generation`, `createdAt`, and `revokedAt`.
 - Persist Decision Receipts with: `receiptId`, `runId`,
   `humanPrincipalId`, `agentId`, `resourceId`, `decision`, `reason`,
@@ -131,12 +140,13 @@ Run-scoped set of authorized readonly mounts.
 - Accept Resource IDs from clients, never source paths, target paths, mount
   modes, owners, or principals.
 - Provide minimal operations to list safe Resource metadata visible to the
-  current demo principal, list an Agent's grants, grant or re-grant read access,
-  revoke access, and retrieve a Run's Receipt.
-- Apply Agent ownership checks to Agent-scoped Resource, Grant, Run, Message,
-  and Receipt operations.
-- Keep grant mutation within the current principal's owned Agent for this mock
-  demo. This is a reproducible MVP control, not a general authorization model.
+  current demo principal, list current Entitlements, grant or re-grant read
+  access, revoke access, and retrieve a Run's Receipt.
+- Apply Agent ownership checks to Agent-scoped Resource, Run, Message, and
+  Receipt operations.
+- Keep Entitlement policy server-owned for this mock demo. The user may choose
+  only from that upper bound for one Run; this is not a general authorization
+  model.
 - Increment generation monotonically for each new grant or re-grant so a
   Receipt identifies the authorization generation used by a Run.
 
@@ -176,7 +186,8 @@ Run-scoped set of authorized readonly mounts.
 
 ### Revoke and thread memory
 
-- Check the current Resource Grant status and generation for every new Run.
+- Check the current Principal Resource Entitlement status and generation and
+  the explicit Run Delegation for every new Run.
 - A revoke prevents future mount-plan creation and future Runner starts.
 - Do not claim immediate revocation of an already running bind mount.
 - Do not delete historical Runs, Messages, Receipts, workspaces, or Codex
@@ -232,19 +243,20 @@ Run-scoped set of authorized readonly mounts.
 - demo Principal resolver;
 - Agent ownership checks;
 - static Protected Resource Registry;
-- Resource Grant service and persistence;
+- Principal Resource Entitlement service and persistence;
 - Resource path validator;
 - mount-plan compiler;
 - `ContainerCodexRunner` readonly mount integration;
 - Decision Receipt persistence and APIs;
-- minimal Resource Picker; and
+- minimal Resource Picker, with optional safe metadata-only suggestions; and
 - minimal Receipt view.
 
 ## API decisions
 
 - Preserve `POST /api/agents/:id/messages` and add `resourceIds` to its body.
 - Keep identity in the server-resolved demo session header, never the body.
-- Provide minimal APIs for visible Resources, Agent Grants, grant/re-grant,
+- Provide minimal APIs for visible Resources, Principal Entitlements,
+  grant/re-grant,
   revoke, and Receipt lookup.
 - Use `GET /api/runs/:runId/receipts` as the evidence lookup seam.
 - Return only safe Resource metadata to the client; never expose host source

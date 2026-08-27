@@ -23,10 +23,12 @@ intercepts every Codex tool, network request, MCP call, or HTTP call.
 ## Solution
 
 Add a Run-scoped Resource Capsule to the existing message admission flow. A
-Capsule Run selects exactly one directory Resource by Resource ID. The Fastify
-request boundary resolves a mock Human Principal, verifies Agent ownership,
-checks the current read Grant, resolves the Resource through a server-owned
-Registry, validates its canonical host path, and compiles an immutable readonly
+Capsule Run selects exactly one directory Resource by Resource ID. That value
+is the Human Principal's explicit Run Delegation, not a request for the Agent
+to gain standing access. The Fastify request boundary resolves a mock Human
+Principal, verifies Agent ownership and the current Principal Resource
+Entitlement, resolves the Resource through a server-owned Registry, validates
+its canonical host path, and compiles an immutable readonly
 `ValidatedRunMountPlan` before invoking the Runtime.
 
 Only `ContainerCodexRunner` may execute a Capsule Run. It mounts the validated
@@ -37,15 +39,35 @@ called for that Run. Ordinary Runs that select no Resource retain their current
 behavior, including support for the local-process profile and multi-turn Codex
 sessions.
 
-The MVP includes two mock principals, two static fixture Resources, one read
-Grant, allow/deny/revoke/unsupported-runtime behavior, a minimal Resource
-Picker, a minimal Receipt view, automated tests, and real-container evidence.
+The MVP includes two mock principals, two static fixture Resources, a static
+read Entitlement matrix, explicit per-Run Delegation, allow/deny/revoke/
+unsupported-runtime behavior, a minimal Resource Picker, a minimal Receipt
+view, automated tests, and real-container evidence.
+
+## Canonical product flow
+
+The detailed source of truth is
+`docs/planning/scopedrun-user-flow.md`. It defines the required distinction:
+
+- a Principal Resource Entitlement is the server-owned upper bound of what a
+  person may delegate;
+- a Run Delegation is that person's explicit zero-or-one Resource choice for a
+  new Run; and
+- only the intersection of current Entitlement, Agent ownership, explicit
+  Delegation, and server validation can become a container mount.
+
+The Resource Picker is a human approval step. A Resource Advisor may make
+metadata-only suggestions, but cannot read protected contents, change an
+Entitlement, or authorize/mount a Resource. The manual picker remains the
+complete supported MVP. The MVP supports readonly access only.
 
 ## User Stories
 
 1. As a demo user, I want to select an approved incident Resource for a Run, so that my Agent can analyze the necessary files.
 2. As a demo user, I want Resource selection to use an opaque Resource ID, so that I never send a host path from the browser.
 3. As a demo user, I want the Resource Picker to show safe Resource metadata, so that I can choose a fixture without learning server paths.
+3a. As a demo user, I want a suggested Resource to remain a suggestion until I explicitly approve it for this Run.
+3b. As a reviewer, I want the Advisor to use only entitled safe metadata, so that recommendation cannot leak or authorize protected contents.
 4. As a demo user, I want exactly one directory Resource in a Capsule Run, so that the two-day MVP remains understandable and testable.
 5. As a demo user, I want an ordinary Run with no selected Resource to behave as it did before, so that existing Playground workflows continue to work.
 6. As a demo user, I want an allowed Capsule Run to read the selected directory, so that the Agent can complete the requested analysis.
@@ -107,11 +129,12 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
   of mock identity.
 - Request bodies must not accept `userId`, `ownerId`, or `principalId`.
 - New Agents receive the resolved `ownerPrincipalId`.
-- Agent-scoped CRUD, lifecycle, Message, Run, Grant, and Receipt operations
-  enforce ownership. Collection results are scoped to the current principal.
+- Agent-scoped CRUD, lifecycle, Message, Run, and Receipt operations enforce
+  ownership. Collection results are scoped to the current principal.
 - Existing version 1 Agents migrate to `ownerPrincipalId: "user-a"`.
-- Grant and revoke operations are allowed only for an Agent owned by the
-  current demo principal. This is an MVP control, not general RBAC.
+- Principal Resource Entitlements are server-owned policy. A current principal
+  may delegate only an entitled Resource to a Run; this is an MVP control, not
+  general RBAC.
 
 ### HTTP contracts
 
@@ -120,6 +143,8 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
 - Omitted or empty `resourceIds` means baseline Run; exactly one syntactically
   valid ID means Capsule Run; more than one ID or a path-shaped/invalid ID is a
   `400` validation failure with no Run or Receipt.
+- For a Capsule Run, the selected ID is the explicit Run Delegation. A request
+  never creates or expands a Principal Resource Entitlement.
 - A syntactically valid Capsule request that fails ownership, Registry, Grant,
   Runtime-profile, or canonical-path admission creates a terminal denied Run
   and deny Receipt, then returns `403` with `runId`, `receiptId`,
@@ -128,9 +153,9 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
   Message.
 - Successful admission retains the existing asynchronous `202` response and
   Run polling behavior.
-- Provide minimal principal-scoped operations to list safe Resources, list an
-  Agent's Grants, grant or re-grant read access, revoke access, and query
-  Receipts.
+- Provide minimal principal-scoped operations to list safe eligible Resources,
+  list current Entitlements, grant or re-grant read access, revoke access, and
+  query Receipts.
 - `GET /api/runs/:runId/receipts` is the Receipt evidence seam. A Capsule Run
   has one authorization Receipt; a baseline Run returns no Capsule Receipt.
 - Resource responses expose IDs and safe display metadata, never canonical host
@@ -144,9 +169,11 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
 - Keep the existing atomic one-active-Run-per-Agent admission behavior.
 - For every Capsule Run, resolve the Human Principal and current Agent, then
   call `authorizeResources(principal, agentId, resourceIds)` before Runtime
-  invocation.
+  invocation. The submitted Resource ID is the human's explicit Run
+  Delegation.
 - Authorization checks Agent ownership, exact Resource cardinality, current
-  Grant status, `permission: "read"`, and current generation.
+  Principal Resource Entitlement status, `permission: "read"`, and current
+  generation.
 - Unknown Resources, absent Grants, revoked Grants, stale decisions, and
   ownership mismatches fail closed.
 - An Authorization Decision contains only the server-trusted information needed
@@ -165,16 +192,17 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
 - Preserve existing Agents, Messages, Runs, workspace paths, and Codex thread
   identifiers.
 - Add `ownerPrincipalId` to Agents and add `denied` to terminal Run statuses.
-- Persist Grants with `agentId`, `resourceId`, `permission: "read"`, `status`,
-  `generation`, `createdAt`, and nullable `revokedAt`.
+- Persist Principal Resource Entitlements with `principalId`, `resourceId`,
+  `permission: "read"`, `status`, `generation`, `createdAt`, and nullable
+  `revokedAt`.
 - Persist Receipts with `receiptId`, `runId`, `humanPrincipalId`, `agentId`,
   `resourceId`, `decision`, safe `reason`, nullable `grantGeneration`,
   `runnerStarted`, and `createdAt`.
 - A Receipt never contains an auth token, demo session value, secret, full
   prompt, Resource body, or host source path.
-- Historical Grants, Runs, Messages, Receipts, workspaces, and Codex threads
-  remain after revoke. Re-grant updates the current authorization generation
-  without rewriting historical Receipts.
+- Historical Entitlements, Runs, Messages, Receipts, workspaces, and Codex
+  threads remain after revoke. Re-grant updates the current authorization
+  generation without rewriting historical Receipts.
 
 ### Protected Resource Registry and fixtures
 
@@ -192,7 +220,8 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
 - Safe client metadata may include Resource ID, display name, and directory
   type, but not host path or file contents.
 - The initial reproducible fixture state has two principals, two Resources, and
-  one active read Grant for Agent A to `orders-incident`.
+  a static Entitlement matrix: `user-a` may delegate `orders-incident`; `user-b`
+  may delegate `payments-incident`.
 
 ### Path validation and mount-plan contract
 
@@ -235,20 +264,23 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
 
 - Persist one Decision Receipt for each syntactically valid Capsule Run after
   principal resolution, whether allow or deny.
-- The Receipt correlates Human Principal, Agent, Run, Resource, decision,
-  reason, applicable Grant generation, Runner-start evidence, and timestamp.
+- The Receipt correlates Human Principal, Agent, Run, explicit Resource
+  Delegation, decision, reason, applicable Entitlement generation,
+  Runner-start evidence, and timestamp.
 - The minimal Receipt UI displays the safe correlation fields and reason but no
   host path, prompt, token, secret, or Resource body.
-- The Resource Picker submits only `resourceIds` and supports the one-Resource
-  cardinality. It must preserve the ability to submit an ordinary Run without a
-  Resource.
+- The Resource Picker supports an explicit accept/remove/manual-choice step and
+  submits only the approved `resourceIds` value. It supports one Resource and
+  must preserve the ability to submit an ordinary Run without a Resource.
+- Any Resource Advisor is limited to safe metadata for Resources already
+  eligible to the principal; it cannot authorize or auto-submit a selection.
 - A `403` denied response is rendered as a terminal denied Run and Receipt, not
   discarded as an unstructured UI error.
 
 ### Revocation and known security boundary
 
-- Each new Run rechecks current Grant status and generation; no prior allow
-  decision or mount plan is reusable.
+- Each new Run rechecks current Entitlement status and generation plus its
+  explicit Run Delegation; no prior allow decision or mount plan is reusable.
 - Revoke affects future admission only. It does not hot-unmount an active bind
   mount and does not delete historical data.
 - Revoke does not guarantee that a model forgets data legitimately included in
@@ -282,8 +314,8 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
   persistence, Receipt persistence, and Runner call count.
 - **Authorization seam:** exercise
   `authorizeResources(principal, agentId, resourceIds)` for owner mismatch,
-  unknown Resource, missing/revoked/current Grant, permission, cardinality, and
-  generation behavior.
+  unknown Resource, missing/revoked/current Entitlement, explicit Delegation,
+  permission, cardinality, and generation behavior.
 - **Mount Plan seam:** exercise
   `compileMountPlan(runId, authorizationDecision)` for canonical containment,
   traversal-shaped IDs, arbitrary absolute paths, symlink escape, missing or
@@ -322,7 +354,7 @@ Picker, a minimal Receipt view, automated tests, and real-container evidence.
 
 - Production OAuth or any claim that demo sessions are secure authentication.
 - General RBAC or a general policy language.
-- Write Grants.
+- Write access or write delegation.
 - Individual file Resources.
 - Multiple Resources in one Capsule Run.
 - Generic MCP or HTTP tool interception.

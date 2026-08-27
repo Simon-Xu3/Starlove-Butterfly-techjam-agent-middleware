@@ -194,6 +194,7 @@
           <li><a href="#one-line">一句话理解</a></li>
           <li><a href="#before-after">旧项目 vs 新计划</a></li>
           <li><a href="#why">为什么必须做这个</a></li>
+          <li><a href="#product-flow">用户到底怎样使用它</a></li>
           <li><a href="#how">允许与拒绝怎样发生</a></li>
           <li><a href="#build">团队接下来怎么做</a></li>
           <li><a href="#limits">我们没有承诺什么</a></li>
@@ -249,7 +250,7 @@
           </div>
         </div>
         <p class="warning card">
-          <strong>最容易误会的一点：</strong>当前分支的最新提交 <code>1142b9a</code> 没有实现上面的产品功能。它只完成“准备好正确地实现”的工作：设计、规格、拆票、GitHub 看板和 AI coding 工作规则。<br />
+          <strong>最容易误会的一点：</strong>截至规划迁移提交 <code>1142b9a</code>，没有实现上面的产品功能；本阅读页所在提交 <code>827525f</code> 也只增加了文档。它们完成的是“准备好正确地实现”的工作：设计、规格、拆票、GitHub 看板和 AI coding 工作规则。<br />
           <strong>所以：</strong>现在不是“功能已完成”，而是“我们终于知道要做什么、谁做什么、如何证明它真的有效”。
         </p>
       </section>
@@ -276,8 +277,27 @@
         </p>
       </section>
 
+      <section id="product-flow">
+        <span class="tag">第 4 步：你作为用户到底怎样用它</span>
+        <h2>“有权使用”不等于“这次自动交给 Agent”</h2>
+        <p class="big-answer">用户权限是上限；本次任务的明确批准，才是 Agent 这次真正看得见的范围。</p>
+        <div class="flow">
+          <div class="step"><span class="number">1</span><div><strong>写任务。</strong>例如：“分析订单服务昨晚为什么失败。”</div></div>
+          <div class="step"><span class="number">2</span><div><strong>看可选资料包。</strong>系统只列出你有资格委托的安全资料名称和简介，不显示真实文件路径或内容。</div></div>
+          <div class="step"><span class="number">3</span><div><strong>可选：获得建议。</strong>Advisor 可以根据任务和这些安全简介建议 <code>orders-incident</code>；建议不是授权，Agent 不能自动接受它。</div></div>
+          <div class="step"><span class="number">4</span><div><strong>你明确批准。</strong>你可以选一个资料包、移除建议，或一个也不选。选一个才是 Capsule Run；不选就是旧的普通 Run。</div></div>
+          <div class="step"><span class="number">5</span><div><strong>服务器再检查一次。</strong>确认你仍有权限、你拥有当前 Agent、资料安全、容器支持，然后才启动。</div></div>
+          <div class="step"><span class="number">6</span><div><strong>这次 Run 结束，委托结束。</strong>容器只读看到你批准的一个资料包；下一次 Run 要重新选择和检查。</div></div>
+        </div>
+        <div class="grid" style="margin-top: 16px">
+          <div class="card good"><strong>我们想要</strong><br />人可以控制本次 Agent 的资料范围；AI 可以帮助找资料，但不能替人开门。</div>
+          <div class="card bad"><strong>我们不想要</strong><br />“Alice 有订单资料权限，所以 Alice 的 Agent 自动拿到所有订单资料”。这不是最小权限。</div>
+        </div>
+        <p class="warning card"><strong>MVP 的刻意限制：</strong>一次只批准一个目录资料包，而且只读。写权限、多资料包、自动扩大范围都不做。</p>
+      </section>
+
       <section id="how">
-        <span class="tag">第 4 步：它具体怎样工作</span>
+        <span class="tag">第 5 步：它具体怎样工作</span>
         <h2>允许时：7 个小动作</h2>
         <div class="flow">
           <div class="step"><span class="number">1</span><div>用户在网页选择一个资源 ID，例如 <code>orders-incident</code>。用户永远不发送电脑上的真实路径。</div></div>
@@ -406,6 +426,7 @@
               <tr><td><code>b0545fd</code></td><td>把工作拆成可并行的实施任务。</td><td><span class="pill now">完成</span></td></tr>
               <tr><td><code>b5f133b</code> / <code>d4285bd</code></td><td>合并两份相近规划，去掉重复文件，保留单一来源。</td><td><span class="pill now">完成</span></td></tr>
               <tr><td><code>1142b9a</code></td><td>把 tickets 迁移到 GitHub Issues 和 Project 看板。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>827525f</code></td><td>增加这份中文 ELI5 阅读页；从 <code>main</code> 到这里仍没有产品代码变更。</td><td><span class="pill now">完成</span></td></tr>
               <tr><td>下一批</td><td>按 #2–#10 真正修改产品代码、测试和 demo。</td><td><span class="pill plan">尚未开始</span></td></tr>
             </tbody>
           </table>
@@ -418,7 +439,7 @@
       </aside>
 
       <p class="small" style="margin: 26px 4px 0">
-        依据：项目 <code>origin/main..1142b9a</code> 的提交历史、规划 brief、正式 Spec、ADR 和 GitHub Issues。阅读页不替代这些来源；它负责把它们翻成先能理解、再能行动的中文。
+        依据：项目 <code>origin/main..827525f</code> 的提交历史、规划 brief、正式 Spec、ADR 和 GitHub Issues。阅读页不替代这些来源；它负责把它们翻成先能理解、再能行动的中文。
       </p>
     </main>
   </body>

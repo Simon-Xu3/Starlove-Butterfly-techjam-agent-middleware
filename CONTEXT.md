@@ -44,9 +44,25 @@ and observable lifecycle.
 The product capability currently being developed. A Resource Capsule is scoped
 to a specific Run rather than treated as unscoped global state.
 
-The exact resources contained by a capsule and its lifecycle semantics are not
-yet defined in this context document. Use the approved specification and ADRs
-once those decisions exist.
+One Capsule contains only the Resource explicitly delegated to that Run after
+the current principal's Entitlement, Agent ownership, and server validation
+are checked. Use the approved specification and ADRs for the exact contract.
+
+### Protected Resource
+
+A server-owned directory eligible for controlled readonly mounting.
+
+### Principal Resource Entitlement
+
+The server-owned upper bound of which Protected Resources a Human Principal
+may delegate. It is not the set of Resources automatically visible to an
+Agent.
+
+### Run Delegation
+
+The Human Principal's explicit choice of zero or one entitled Protected
+Resource for one new Run. It ends with that Run and determines the candidate
+Resource filesystem view.
 
 ### Control plane
 
@@ -61,6 +77,12 @@ interact with Runs. It is part of the same product context as the control plane.
 ### Runtime provider
 
 The execution boundary used by the control plane to run Codex-backed work.
+
+### Resource Advisor
+
+An optional advisory feature that suggests eligible Resources from task text
+and safe Resource metadata. It cannot inspect protected contents, change an
+Entitlement, or create a Run Delegation.
 
 ### Agent workspace
 
