@@ -20,8 +20,10 @@ import {
 import {
   DEMO_ENTITLEMENT_MATRIX,
   DEMO_SESSION_PRINCIPALS,
+  isCapsuleCapableRunner,
   resolveDemoPrincipalId,
   toProtectedResource,
+  type AgentRunner,
   type DeniedRunResponse,
   type RunStatus,
   type SendMessageBody,
@@ -134,6 +136,14 @@ describe("fake seam factories", () => {
   it("fake runner records calls and mount plans", async () => {
     const runner = makeFakeCapsuleRunner();
     expect(runner.calls).toHaveLength(0);
+    expect(isCapsuleCapableRunner(runner)).toBe(true);
+
+    const planIgnoringRunner: AgentRunner = {
+      run: async () => ({ output: "x", threadId: null, usage: null }),
+      cancel: async () => false,
+      isAvailable: async () => true,
+    };
+    expect(isCapsuleCapableRunner(planIgnoringRunner)).toBe(false);
 
     const run = makeAgentRun();
     await runner.run(

@@ -375,12 +375,22 @@ export interface MountPlanCompiler {
 // Runner never receives a plan (runtime_profile_unsupported is denied before
 // the Runtime). supportsMountPlans is a required discriminant so a runner
 // that would silently ignore the plan cannot satisfy this interface by
-// structural accident; admission can also guard at runtime with
-// "supportsMountPlans" in runner.
+// structural accident.
 export interface CapsuleCapableRunner extends AgentRunner {
   readonly supportsMountPlans: true;
   run(
     request: RunnerRequest,
     validatedMountPlan?: ValidatedRunMountPlan,
   ): Promise<RunnerResult>;
+}
+
+// The sanctioned guard before crossing the Runtime seam with a plan. A bare
+// `"supportsMountPlans" in runner` check does not narrow AgentRunner, which
+// pushes implementers toward unchecked casts — use this predicate instead.
+export function isCapsuleCapableRunner(
+  runner: AgentRunner,
+): runner is CapsuleCapableRunner {
+  return (
+    (runner as Partial<CapsuleCapableRunner>).supportsMountPlans === true
+  );
 }
