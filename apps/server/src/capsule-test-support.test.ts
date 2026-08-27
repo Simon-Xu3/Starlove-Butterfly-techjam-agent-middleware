@@ -20,6 +20,7 @@ import {
 import {
   DEMO_ENTITLEMENT_MATRIX,
   DEMO_SESSION_PRINCIPALS,
+  resolveDemoPrincipalId,
   toProtectedResource,
   type DeniedRunResponse,
   type RunStatus,
@@ -53,8 +54,14 @@ describe("frozen Capsule contracts", () => {
   });
 
   it("maps the two demo sessions and freezes the Entitlement matrix", () => {
-    expect(DEMO_SESSION_PRINCIPALS["demo-session-a"]).toBe("user-a");
-    expect(DEMO_SESSION_PRINCIPALS["demo-session-b"]).toBe("user-b");
+    expect(resolveDemoPrincipalId("demo-session-a")).toBe("user-a");
+    expect(resolveDemoPrincipalId("demo-session-b")).toBe("user-b");
+    expect(resolveDemoPrincipalId("demo-session-c")).toBeUndefined();
+    expect(resolveDemoPrincipalId(undefined)).toBeUndefined();
+    for (const prototypeKey of ["constructor", "__proto__", "toString"]) {
+      expect(resolveDemoPrincipalId(prototypeKey)).toBeUndefined();
+      expect(DEMO_SESSION_PRINCIPALS[prototypeKey]).toBeUndefined();
+    }
     expect(DEMO_ENTITLEMENT_MATRIX).toEqual([
       { principalId: "user-a", resourceId: "orders-incident" },
       { principalId: "user-b", resourceId: "payments-incident" },

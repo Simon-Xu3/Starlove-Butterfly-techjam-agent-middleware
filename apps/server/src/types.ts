@@ -106,12 +106,28 @@ export const DEMO_SESSION_HEADER = "x-demo-session";
 
 export type HumanPrincipalId = "user-a" | "user-b";
 
+// Null prototype so header lookups cannot resolve Object.prototype keys
+// ("constructor", "__proto__", ...).
 export const DEMO_SESSION_PRINCIPALS: Readonly<
   Record<string, HumanPrincipalId>
-> = Object.freeze({
-  "demo-session-a": "user-a",
-  "demo-session-b": "user-b",
-});
+> = Object.freeze(
+  Object.assign(Object.create(null) as Record<string, HumanPrincipalId>, {
+    "demo-session-a": "user-a" as const,
+    "demo-session-b": "user-b" as const,
+  }),
+);
+
+// The sanctioned way to turn an X-Demo-Session header value into a
+// principal id. Anything unknown (missing header, arrays, prototype keys)
+// resolves to undefined, which admission must reject.
+export function resolveDemoPrincipalId(
+  value: unknown,
+): HumanPrincipalId | undefined {
+  return typeof value === "string" &&
+    Object.hasOwn(DEMO_SESSION_PRINCIPALS, value)
+    ? DEMO_SESSION_PRINCIPALS[value]
+    : undefined;
+}
 
 export interface HumanPrincipal {
   id: HumanPrincipalId;
