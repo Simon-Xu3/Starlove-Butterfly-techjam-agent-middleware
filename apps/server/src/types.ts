@@ -52,15 +52,28 @@ export interface AgentRun {
   createdAt: string;
 }
 
-export interface Database {
-  version: 1 | 2;
+export interface DatabaseV1 {
+  version: 1;
   agents: Agent[];
   messages: Message[];
   runs: AgentRun[];
-  // Present from version 2 on; the migration (Issue #4) initializes them.
-  entitlements?: PrincipalResourceEntitlement[] | undefined;
-  receipts?: DecisionReceipt[] | undefined;
 }
+
+// Version 2 requires the Capsule collections — a v2 file without them no
+// longer typechecks, and the discriminant cannot be flipped in place, so
+// the migration (Issue #4) must construct a complete DatabaseV2 value.
+// Agent.ownerPrincipalId stays optional at the type level; readers resolve
+// ownership through AgentOwnershipReader, which fails closed on undefined.
+export interface DatabaseV2 {
+  version: 2;
+  agents: Agent[];
+  messages: Message[];
+  runs: AgentRun[];
+  entitlements: PrincipalResourceEntitlement[];
+  receipts: DecisionReceipt[];
+}
+
+export type Database = DatabaseV1 | DatabaseV2;
 
 export interface CreateAgentInput {
   name: string;
