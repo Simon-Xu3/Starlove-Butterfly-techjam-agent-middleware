@@ -235,14 +235,18 @@ export interface FixtureFileBaseline {
 export async function captureFixtureBaseline(
   resourceDirectory: string,
 ): Promise<FixtureFileBaseline[]> {
-  const names = (await readdir(resourceDirectory)).sort();
-  return Promise.all(
+  // Ignore dotfiles (Finder drops .DS_Store into browsed directories) and
+  // anything that is not a regular file, so local captures keep matching the
+  // committed manifest.
+  const names = (await readdir(resourceDirectory))
+    .filter((name) => !name.startsWith("."))
+    .sort();
+  const captures = await Promise.all(
     names.map(async (name) => {
       const filePath = path.join(resourceDirectory, name);
-      const [body, stats] = await Promise.all([
-        readFile(filePath),
-        stat(filePath),
-      ]);
+      const stats = await stat(filePath);
+      if (!stats.isFile()) return null;
+      const body = await readFile(filePath);
       return {
         path: name,
         bytes: stats.size,
@@ -251,4 +255,5 @@ export async function captureFixtureBaseline(
       };
     }),
   );
+  return captures.filter((capture) => capture !== null);
 }
