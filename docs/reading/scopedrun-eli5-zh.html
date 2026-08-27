@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ScopedRun：五分钟完全理解版</title>
+    <style>
+      :root {
+        --ink: #152238;
+        --muted: #52627a;
+        --paper: #f6f8fc;
+        --card: #ffffff;
+        --line: #d9e1ee;
+        --accent: #5546d8;
+        --accent-soft: #ebe9ff;
+        --good: #0e7a55;
+        --good-soft: #e3f7ee;
+        --warn: #9a5d00;
+        --warn-soft: #fff2d8;
+        --bad: #a63838;
+        --bad-soft: #ffe8e8;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--paper);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+        font-size: 18px;
+        line-height: 1.65;
+      }
+
+      main { width: min(900px, calc(100% - 32px)); margin: 0 auto 80px; }
+      header {
+        padding: 48px 0 24px;
+        display: grid;
+        gap: 18px;
+      }
+      h1, h2, h3 { line-height: 1.22; }
+      h1 { margin: 0; font-size: clamp(2.1rem, 7vw, 4rem); letter-spacing: -0.04em; }
+      h2 { margin: 0 0 12px; font-size: 1.55rem; }
+      h3 { margin: 18px 0 6px; font-size: 1.15rem; }
+      p { margin: 0 0 12px; }
+      a { color: var(--accent); font-weight: 700; }
+      code {
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: #edf1f7;
+        font-size: .92em;
+      }
+
+      .eyebrow, .tag {
+        display: inline-block;
+        width: fit-content;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #3c2db5;
+        font-weight: 800;
+        padding: 4px 10px;
+        font-size: .82rem;
+      }
+      .status {
+        border: 2px solid var(--good);
+        background: var(--good-soft);
+        border-radius: 14px;
+        padding: 16px 18px;
+        font-weight: 700;
+      }
+      .big-answer {
+        border-left: 7px solid var(--accent);
+        padding: 6px 0 6px 20px;
+        font-size: 1.28rem;
+        font-weight: 750;
+      }
+      .toc, section, details {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 24px;
+        margin: 18px 0;
+        box-shadow: 0 8px 26px rgba(27, 42, 67, .04);
+      }
+      .toc ol {
+        margin: 8px 0 0;
+        padding-left: 24px;
+        columns: 2;
+      }
+      .toc li { margin: 6px 0; }
+      .grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        background: #fff;
+      }
+      .before { border-top: 5px solid #8390a5; }
+      .after { border-top: 5px solid var(--accent); }
+      .good { background: var(--good-soft); border-color: #9fdbc7; }
+      .bad { background: var(--bad-soft); border-color: #f0bbbb; }
+      .warning { background: var(--warn-soft); border-color: #f0cf87; }
+      .flow {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .step {
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        gap: 12px;
+        align-items: start;
+        border-radius: 13px;
+        padding: 12px;
+        background: #f8f9fd;
+      }
+      .number {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: white;
+        background: var(--accent);
+        font-weight: 800;
+      }
+      .plain-list { padding-left: 24px; margin: 8px 0; }
+      .plain-list li { margin: 8px 0; }
+      .comparison { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      .comparison th, .comparison td {
+        padding: 11px;
+        vertical-align: top;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+      }
+      .comparison th { color: var(--muted); font-size: .9rem; }
+      .pill { font-size: .78rem; padding: 2px 8px; border-radius: 999px; font-weight: 800; }
+      .pill.plan { background: var(--warn-soft); color: var(--warn); }
+      .pill.now { background: var(--good-soft); color: var(--good); }
+      details { padding: 0; overflow: hidden; }
+      summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 18px 22px;
+        font-size: 1.08rem;
+        font-weight: 800;
+      }
+      summary::-webkit-details-marker { display: none; }
+      details > div { padding: 0 22px 20px; }
+      .checklist label {
+        display: flex;
+        gap: 10px;
+        align-items: start;
+        margin: 12px 0;
+        cursor: pointer;
+      }
+      input[type="checkbox"] { margin-top: 7px; width: 20px; height: 20px; accent-color: var(--accent); }
+      .next {
+        background: var(--ink);
+        color: white;
+        border-radius: 18px;
+        padding: 24px;
+        margin-top: 20px;
+      }
+      .next a { color: #c9c4ff; }
+      .small { color: var(--muted); font-size: .9rem; }
+      @media (max-width: 650px) {
+        body { font-size: 17px; }
+        main { width: min(100% - 20px, 900px); }
+        header { padding-top: 28px; }
+        .grid { grid-template-columns: 1fr; }
+        .toc ol { columns: 1; }
+        section, .toc { padding: 19px; border-radius: 14px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="eyebrow">ScopedRun · 中文 ELI5 阅读版</span>
+        <h1>我们到底要做什么？</h1>
+        <p class="big-answer">
+          让 Agent 每次开始工作时，只能看见这一次被人明确允许的文件夹。
+        </p>
+        <div class="status">
+          现在的真实状态：计划、规格、分工和 GitHub 看板已完成；产品代码还没有开始改。
+        </div>
+      </header>
+
+      <nav class="toc" aria-label="目录">
+        <strong>用 10 分钟读完：</strong>
+        <ol>
+          <li><a href="#one-line">一句话理解</a></li>
+          <li><a href="#before-after">旧项目 vs 新计划</a></li>
+          <li><a href="#why">为什么必须做这个</a></li>
+          <li><a href="#how">允许与拒绝怎样发生</a></li>
+          <li><a href="#build">团队接下来怎么做</a></li>
+          <li><a href="#limits">我们没有承诺什么</a></li>
+        </ol>
+      </nav>
+
+      <section id="one-line">
+        <span class="tag">第 1 步：先抓住核心</span>
+        <h2>把 Agent 想成一个临时进房间的小机器人</h2>
+        <p>
+          以前：机器人进房间后，主要依赖 UI 和提示词告诉它“不要碰某些东西”。
+        </p>
+        <p>
+          ScopedRun：门卫在开门<strong>之前</strong>检查它的通行证。通过后，房间里只出现被批准的一个只读文件夹；没有被批准的文件夹，房间里根本不存在。
+        </p>
+        <div class="grid">
+          <div class="card good">
+            <strong>目标</strong><br />
+            允许 <code>orders-incident</code> 时，Agent 可以读它。
+          </div>
+          <div class="card bad">
+            <strong>目标</strong><br />
+            没允许 <code>payments-incident</code> 时，Agent 连看都看不到它。
+          </div>
+        </div>
+      </section>
+
+      <section id="before-after">
+        <span class="tag">第 2 步：什么变了</span>
+        <h2>从最基础的版本，到现在的最新提交</h2>
+        <div class="grid">
+          <div class="card before">
+            <h3>基础版本：Agent Launchpad</h3>
+            <p>它已经是一个能跑的 Agent 平台：</p>
+            <ul class="plain-list">
+              <li>网页里创建 Agent、聊天、继续同一对话</li>
+              <li>Fastify 服务处理请求和异步 Run</li>
+              <li>持久保存 Agent 工作区和 Codex 对话</li>
+              <li>用 Docker / Colima / Podman 跑一次 Agent 工作</li>
+            </ul>
+            <p class="small">但它是单用户 demo：没有“谁是谁”、没有资源授权、没有审计收据。</p>
+          </div>
+          <div class="card after">
+            <h3>最新计划：ScopedRun</h3>
+            <p>在原有平台上新增一条“资源入场检查线”：</p>
+            <ul class="plain-list">
+              <li>识别 demo 用户是谁</li>
+              <li>确认这个用户是否拥有该 Agent</li>
+              <li>确认该 Agent 是否被授权读这个资源</li>
+              <li>只把批准的目录只读挂载进容器</li>
+              <li>留下不泄露敏感信息的决定收据</li>
+            </ul>
+          </div>
+        </div>
+        <p class="warning card">
+          <strong>最容易误会的一点：</strong>当前分支的最新提交 <code>1142b9a</code> 没有实现上面的产品功能。它只完成“准备好正确地实现”的工作：设计、规格、拆票、GitHub 看板和 AI coding 工作规则。<br />
+          <strong>所以：</strong>现在不是“功能已完成”，而是“我们终于知道要做什么、谁做什么、如何证明它真的有效”。
+        </p>
+      </section>
+
+      <section id="why">
+        <span class="tag">第 3 步：为什么不只做一个按钮？</span>
+        <h2>因为“叫 Agent 不要看”不是真的限制</h2>
+        <p>
+          Agent 能运行命令、找目录、读文件。网页不显示某个资源，或 prompt 写着“不要读它”，都只是提醒，不是门锁。
+        </p>
+        <table class="comparison">
+          <thead>
+            <tr><th>办法</th><th>为什么不够</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>网页选择器</td><td>直接调用 API 或走别的执行路径时，网页可以被绕过。</td></tr>
+            <tr><td>提示词规则</td><td>模型遵守提示词不等于操作系统拒绝文件访问。</td></tr>
+            <tr><td>事后日志</td><td>日志只能告诉你“发生过什么”，不能阻止已经发生的读取。</td></tr>
+            <tr><td><strong>ScopedRun</strong></td><td><strong>在 Agent 启动前改变它实际看得见的文件系统。</strong></td></tr>
+          </tbody>
+        </table>
+        <p>
+          这就是这个 hackathon 项目真正要展示的 middleware：不是给 Agent 加一句建议，而是在控制层和容器边界加一道可验证的门。
+        </p>
+      </section>
+
+      <section id="how">
+        <span class="tag">第 4 步：它具体怎样工作</span>
+        <h2>允许时：7 个小动作</h2>
+        <div class="flow">
+          <div class="step"><span class="number">1</span><div>用户在网页选择一个资源 ID，例如 <code>orders-incident</code>。用户永远不发送电脑上的真实路径。</div></div>
+          <div class="step"><span class="number">2</span><div>服务器从 <code>X-Demo-Session</code> 请求头识别 demo 用户，例如 <code>user-a</code>。这只是 demo 身份，不是生产登录。</div></div>
+          <div class="step"><span class="number">3</span><div>服务器确认：这个用户拥有这台 Agent。</div></div>
+          <div class="step"><span class="number">4</span><div>服务器确认：这台 Agent 有当前有效的“读取这个资源”的 Grant（授权）。</div></div>
+          <div class="step"><span class="number">5</span><div>服务器从自己的 Resource Registry 找到资源，检查真实路径没有 <code>..</code>、软链接逃逸或越界。</div></div>
+          <div class="step"><span class="number">6</span><div>服务器生成一张不可修改的“挂载计划”：把该目录只读放到容器内 <code>/resources/orders-incident</code>。</div></div>
+          <div class="step"><span class="number">7</span><div>容器启动。Agent 读取被允许的资料；服务器保存一张安全的 Decision Receipt（决定收据）。</div></div>
+        </div>
+
+        <h2 style="margin-top: 28px">拒绝时：最重要的是“不启动”</h2>
+        <div class="grid">
+          <div class="card bad">
+            <strong>例子：</strong><code>user-a</code> 的 Agent 想读没有授权的 <code>payments-incident</code>。<br /><br />
+            服务器创建一个状态为 <code>denied</code> 的 Run，返回安全的 <code>403</code> 和一张拒绝收据。
+          </div>
+          <div class="card good">
+            <strong>必须能证明：</strong><br />
+            Runner 调用次数 = 0。<br />
+            容器没有启动。<br />
+            <code>payments-incident</code> 没有出现在挂载清单里。
+          </div>
+        </div>
+        <p>
+          这比“Agent 读了以后再提醒它不该读”强得多：拒绝是在执行前发生的。
+        </p>
+      </section>
+
+      <section>
+        <span class="tag">第 5 步：几个名字不要混</span>
+        <h2>5 个最重要的积木</h2>
+        <div class="grid">
+          <div class="card"><strong>Human Principal</strong><br />这次 demo 里正在操作的人，例如 <code>user-a</code>。</div>
+          <div class="card"><strong>Agent ownership</strong><br />“这台 Agent 属于谁”。别人不能拿走它操作。</div>
+          <div class="card"><strong>Protected Resource</strong><br />可被严格控制的服务器目录，例如事故资料包。</div>
+          <div class="card"><strong>Resource Grant</strong><br />“这台 Agent 能否读这个目录”的可撤销许可。</div>
+          <div class="card"><strong>Decision Receipt</strong><br />一张安全的小收据：谁、哪个 Agent、选了什么、允许还是拒绝、Runner 是否启动。</div>
+        </div>
+        <p class="small">还有一个关键名词：<strong>ValidatedRunMountPlan</strong>。它是服务器签发给容器的只读挂载计划；浏览器和 Agent 都不能自己写这张计划。</p>
+      </section>
+
+      <section id="build">
+        <span class="tag">第 6 步：我们接下来不是乱写代码</span>
+        <h2>先证明门锁能锁，再造房间</h2>
+        <p>
+          这是两天 hackathon。最大的风险不是“代码不漂亮”，而是最后发现容器的只读挂载无法证明。因此项目故意把最危险的验证提前。
+        </p>
+        <div class="card warning">
+          <strong>第一个不可跳过的 Gate（前两小时）：真实容器 Kill Test</strong>
+          <ul class="plain-list">
+            <li>允许的 <code>orders-incident</code> 可以读取</li>
+            <li>未授权的 <code>payments-incident</code> 在容器中不存在</li>
+            <li>尝试写入允许目录会失败（只读）</li>
+            <li>宿主机文件的 hash 和修改时间没有变化</li>
+            <li>Runner 不接受调用方随便传来的路径或挂载参数</li>
+          </ul>
+          <p>如果这五项无法证明，团队就应该调整方案，而不是把 UI 或 prompt 当成“安全”。</p>
+        </div>
+
+        <h3>GitHub 上的工作顺序</h3>
+        <table class="comparison">
+          <thead><tr><th>阶段</th><th>GitHub Issue</th><th>实际在做什么</th></tr></thead>
+          <tbody>
+            <tr><td>先冻结共同语言</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/2">#2</a></td><td>类型、测试夹具和五个团队接口先定死，避免五个人各写一套。</td></tr>
+            <tr><td>并行做核心</td><td>#3–#7</td><td>身份/入口、资源与 Grant、路径验证、容器挂载、收据与 UI，分别有 owner。</td></tr>
+            <tr><td>Day 1 集成</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/8">#8</a></td><td>把五条线真正接起来，跑 allow / deny / revoke / 不支持运行时。</td></tr>
+            <tr><td>Day 2 冻结</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/9">#9</a></td><td>只修规格内的问题，准备真实证据和演示。</td></tr>
+            <tr><td>最后交付</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/10">#10</a></td><td>检查、README、架构图、三分钟 demo。</td></tr>
+          </tbody>
+        </table>
+        <p>
+          看板在这里：<a href="https://github.com/users/MarcusMa06-code/projects/4">ScopedRun — Resource Capsule</a>。GitHub Issue 是唯一的 ticket 来源；不再维护重复的本地任务文件。
+        </p>
+      </section>
+
+      <section id="limits">
+        <span class="tag">第 7 步：诚实的边界</span>
+        <h2>我们在证明什么，又没有证明什么</h2>
+        <div class="grid">
+          <div class="card good">
+            <h3>我们要证明</h3>
+            <ul class="plain-list">
+              <li>未授权的服务器目录不会进入这一次容器 Run 的文件系统。</li>
+              <li>拒绝发生在 Runner 启动前。</li>
+              <li>允许的目录以只读方式挂载。</li>
+              <li>每次决定都有不泄密的证据收据。</li>
+            </ul>
+          </div>
+          <div class="card bad">
+            <h3>我们不声称</h3>
+            <ul class="plain-list">
+              <li>生产级 OAuth、RBAC 或多租户隔离。</li>
+              <li>拦截所有网络、MCP、HTTP 或任何工具调用。</li>
+              <li>撤销后立即卸载一个已经在运行的容器。</li>
+              <li>让模型忘记它先前合法读过的内容。</li>
+            </ul>
+          </div>
+        </div>
+        <p>
+          “撤销”只影响<strong>未来的新 Run</strong>。旧 Run、旧对话和历史收据会保留；这是产品有意说清楚的限制。
+        </p>
+      </section>
+
+      <details open>
+        <summary>如果我只记住 5 件事，应该是哪 5 件？</summary>
+        <div class="checklist">
+          <label><input type="checkbox" /> <span>我们不是重做 Agent 平台；我们是在它已有的 Run 入口和容器启动处加一条资源门禁。</span></label>
+          <label><input type="checkbox" /> <span>核心保证是：没授权的服务器目录不会出现在这一次 Agent Run 的容器里。</span></label>
+          <label><input type="checkbox" /> <span>普通聊天不选资源时，原来的功能必须照常工作。</span></label>
+          <label><input type="checkbox" /> <span>拒绝必须在执行前发生，Runner 调用次数必须是 0。</span></label>
+          <label><input type="checkbox" /> <span>现在完成的是清晰计划和分工；下一阶段才是实现和证据。</span></label>
+        </div>
+      </details>
+
+      <details>
+        <summary>提交历史到底增加了什么？</summary>
+        <div>
+          <table class="comparison">
+            <thead><tr><th>提交</th><th>含义</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td><code>55a6d5b</code></td><td>安装 AI coding 的工程技能。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>fc80275</code></td><td>配置 Agent 如何阅读上下文、规格与任务。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>111c74d</code></td><td>写出“为什么选 ScopedRun”的规划 brief。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>33b8c80</code></td><td>把行为、API、边界和测试写成正式规格。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>b0545fd</code></td><td>把工作拆成可并行的实施任务。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>b5f133b</code> / <code>d4285bd</code></td><td>合并两份相近规划，去掉重复文件，保留单一来源。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>1142b9a</code></td><td>把 tickets 迁移到 GitHub Issues 和 Project 看板。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td>下一批</td><td>按 #2–#10 真正修改产品代码、测试和 demo。</td><td><span class="pill plan">尚未开始</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <aside class="next">
+        <strong>现在只做这一件事：</strong><br />
+        打开 <a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/2">Issue #2：Contracts and Fixtures Freeze</a>，把它当作“所有人先说同一种语言”的第一张票。与此同时，安排一人优先执行真实容器 Kill Test；这两件事决定后面两天会不会顺利。
+      </aside>
+
+      <p class="small" style="margin: 26px 4px 0">
+        依据：项目 <code>origin/main..1142b9a</code> 的提交历史、规划 brief、正式 Spec、ADR 和 GitHub Issues。阅读页不替代这些来源；它负责把它们翻成先能理解、再能行动的中文。
+      </p>
+    </main>
+  </body>
+</html>
