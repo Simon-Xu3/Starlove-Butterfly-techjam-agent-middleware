@@ -17,11 +17,17 @@ await writeCodexConfig(config);
 // replaces both; P5/P2 replace the in-memory Receipt store.
 const stubAuthorizer: ResourceAuthorizer = {
   async authorizeResources(principal, agentId, resourceIds) {
+    // Honor the frozen seam precondition (exactly one ID) instead of
+    // fabricating a resourceId, matching what the real P3 authorizer will do.
+    const [resourceId, ...rest] = resourceIds;
+    if (resourceId === undefined || rest.length > 0) {
+      throw new Error("authorizeResources expects exactly one resourceId");
+    }
     return {
       decision: "deny",
       principalId: principal.id,
       agentId,
-      resourceId: resourceIds[0] ?? "unknown",
+      resourceId,
       reason: "entitlement_missing",
       grantGeneration: null,
     };
