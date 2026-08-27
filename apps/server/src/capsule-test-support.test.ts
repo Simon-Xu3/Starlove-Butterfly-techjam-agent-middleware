@@ -74,7 +74,9 @@ describe("frozen Capsule contracts", () => {
 
   // Pins the frozen shape only: it catches a leaky field added to the type
   // or factory. The admission tests (Issue #3) must reuse this forbidden
-  // list against real /api responses, where actual leaks would show up.
+  // list against real denied /api responses and Receipts, where actual
+  // leaks would show up. The prompt needle is key-quoted because a 202
+  // AcceptedRunResponse legitimately contains an AgentRun.prompt value.
   it("pins denied response and Receipt shapes to safe fields only", () => {
     const receipt = makeDeniedDecisionReceipt();
     const denied: DeniedRunResponse = {
@@ -91,7 +93,7 @@ describe("frozen Capsule contracts", () => {
       path.sep + "Users" + path.sep,
       "demo-session",
       "Bearer",
-      "prompt",
+      '"prompt":',
     ]) {
       expect(serialized).not.toContain(forbidden);
     }
