@@ -19,9 +19,14 @@ const updateAgentBody = createAgentBody.partial().refine(
   (value) => Object.keys(value).length > 0,
   "At least one field is required",
 );
-const messageBody = z.object({
-  content: z.string().trim().min(1).max(50_000),
-});
+// Strict until Capsule admission (Issue #3) lands: a request carrying
+// resourceIds must fail closed as a 400, not be silently stripped and run
+// as an unaudited baseline Run.
+const messageBody = z
+  .object({
+    content: z.string().trim().min(1).max(50_000),
+  })
+  .strict();
 
 export async function createApp(
   config: AppConfig,
