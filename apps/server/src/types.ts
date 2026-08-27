@@ -266,6 +266,13 @@ export interface SendMessageBody {
   resourceIds?: string[];
 }
 
+// The 202 body when admission succeeds (baseline and allowed Capsule Runs
+// alike) — the existing sendMessage result, now named.
+export interface AcceptedRunResponse {
+  run: AgentRun;
+  message: Message;
+}
+
 // The 403 body for an admission denial. The Run is persisted as a terminal
 // denied Run; the Runner is never called.
 export interface DeniedRunResponse {

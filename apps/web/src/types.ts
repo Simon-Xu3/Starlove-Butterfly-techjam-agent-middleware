@@ -111,6 +111,12 @@ export interface SendMessageBody {
   resourceIds?: string[];
 }
 
+// The 202 body when admission succeeds (baseline and allowed Capsule Runs).
+export interface AcceptedRunResponse {
+  run: AgentRun;
+  message: Message;
+}
+
 // The 403 body when a Capsule Run is denied. Rendered as a terminal denied
 // Run with its Receipt, never discarded as a generic error.
 export interface DeniedRunResponse {
