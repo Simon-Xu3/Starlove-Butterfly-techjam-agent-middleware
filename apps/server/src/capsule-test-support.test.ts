@@ -1,4 +1,6 @@
+import { appendFile, cp, mkdtemp, rm, utimes } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -155,18 +157,36 @@ describe("fixture baselines", () => {
     }
   });
 
-  it("records hash and modification-time baselines independently", async () => {
-    const first = await captureFixtureBaseline(
-      path.join(FIXTURES_ROOT, "orders-incident"),
-    );
-    const second = await captureFixtureBaseline(
-      path.join(FIXTURES_ROOT, "orders-incident"),
-    );
-    expect(first.length).toBeGreaterThan(0);
-    for (const [index, file] of first.entries()) {
-      expect(typeof file.mtimeMs).toBe("number");
-      expect(file.sha256).toBe(second[index]?.sha256);
-      expect(file.mtimeMs).toBe(second[index]?.mtimeMs);
+  it("detects content and modification-time changes independently", async () => {
+    const scratch = await mkdtemp(path.join(tmpdir(), "capsule-baseline-"));
+    try {
+      await cp(path.join(FIXTURES_ROOT, "orders-incident"), scratch, {
+        recursive: true,
+      });
+      const before = await captureFixtureBaseline(scratch);
+      expect(before.length).toBeGreaterThan(0);
+
+      const target = before[0]!;
+      await appendFile(path.join(scratch, target.path), "tampered\n");
+      // Push mtime clearly forward so coarse filesystem timestamps cannot
+      // hide the write.
+      const future = new Date(Date.now() + 5_000);
+      await utimes(path.join(scratch, target.path), future, future);
+
+      const after = await captureFixtureBaseline(scratch);
+      const tampered = after.find((file) => file.path === target.path);
+      expect(tampered).toBeDefined();
+      expect(tampered?.sha256).not.toBe(target.sha256);
+      expect(tampered?.mtimeMs).not.toBe(target.mtimeMs);
+      expect(tampered?.bytes).toBeGreaterThan(target.bytes);
+
+      const untouched = after.filter((file) => file.path !== target.path);
+      for (const file of untouched) {
+        const original = before.find((entry) => entry.path === file.path);
+        expect(file.sha256).toBe(original?.sha256);
+      }
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
     }
   });
 });
