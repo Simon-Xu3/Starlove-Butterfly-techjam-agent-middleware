@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { RESOURCE_TARGET_PREFIX } from "./types.js";
 import type {
   AgentOwnershipReader,
   AgentRun,
@@ -53,9 +54,14 @@ export function makeProtectedResource(
 export function makeRegisteredResource(
   overrides: Partial<RegisteredResource> = {},
 ): RegisteredResource {
+  // Derive the path from the post-override id so an identity override keeps
+  // the record self-consistent (an explicit path override still wins).
+  const id = overrides.id ?? "orders-incident";
   return {
-    ...makeProtectedResource(),
-    canonicalSourcePath: path.join(FIXTURES_ROOT, "orders-incident"),
+    id,
+    displayName: makeProtectedResource().displayName,
+    kind: "directory",
+    canonicalSourcePath: path.join(FIXTURES_ROOT, id),
     ...overrides,
   };
 }
@@ -105,12 +111,13 @@ export function makeDenyDecision(
 export function makeMountPlan(
   overrides: Partial<ValidatedRunMountPlan> = {},
 ): ValidatedRunMountPlan {
+  const resourceId = overrides.resourceId ?? "orders-incident";
   return {
     runId: "run-1",
     agentId: "agent-a",
-    resourceId: "orders-incident",
-    sourcePath: path.join(FIXTURES_ROOT, "orders-incident"),
-    targetPath: "/resources/orders-incident",
+    resourceId,
+    sourcePath: path.join(FIXTURES_ROOT, resourceId),
+    targetPath: RESOURCE_TARGET_PREFIX + resourceId,
     readOnly: true,
     grantGeneration: 1,
     ...overrides,

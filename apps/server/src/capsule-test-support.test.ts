@@ -21,6 +21,7 @@ import {
   DEMO_ENTITLEMENT_MATRIX,
   DEMO_SESSION_PRINCIPALS,
   isCapsuleCapableRunner,
+  RESOURCE_TARGET_PREFIX,
   resolveDemoPrincipalId,
   toProtectedResource,
   type AgentRunner,
@@ -112,7 +113,14 @@ describe("frozen Capsule contracts", () => {
   it("keeps the mount plan readonly with a generated /resources target", () => {
     const plan = makeMountPlan();
     expect(plan.readOnly).toBe(true);
-    expect(plan.targetPath).toBe("/resources/" + plan.resourceId);
+    expect(plan.targetPath).toBe(RESOURCE_TARGET_PREFIX + plan.resourceId);
+
+    // Identity overrides keep source and target consistent with the new id.
+    const other = makeMountPlan({ resourceId: "payments-incident" });
+    expect(other.targetPath).toBe(RESOURCE_TARGET_PREFIX + "payments-incident");
+    expect(other.sourcePath.endsWith("payments-incident")).toBe(true);
+    const resource = makeRegisteredResource({ id: "payments-incident" });
+    expect(resource.canonicalSourcePath.endsWith("payments-incident")).toBe(true);
   });
 });
 
