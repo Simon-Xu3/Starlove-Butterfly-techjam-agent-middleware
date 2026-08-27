@@ -89,7 +89,7 @@ describe("frozen Capsule contracts", () => {
 
   it("keeps the mount plan readonly with a generated /resources target", () => {
     const plan = makeMountPlan();
-    expect(plan.readonly).toBe(true);
+    expect(plan.readOnly).toBe(true);
     expect(plan.targetPath).toBe("/resources/" + plan.resourceId);
   });
 });
@@ -130,7 +130,7 @@ describe("fake seam factories", () => {
       makeMountPlan({ runId: run.id }),
     );
     expect(runner.calls).toHaveLength(1);
-    expect(runner.calls[0]?.validatedMountPlan?.readonly).toBe(true);
+    expect(runner.calls[0]?.validatedMountPlan?.readOnly).toBe(true);
   });
 });
 

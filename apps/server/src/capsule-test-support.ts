@@ -108,7 +108,7 @@ export function makeMountPlan(
     resourceId: "orders-incident",
     sourcePath: path.join(FIXTURES_ROOT, "orders-incident"),
     targetPath: "/resources/orders-incident",
-    readonly: true,
+    readOnly: true,
     grantGeneration: 1,
     ...overrides,
   };

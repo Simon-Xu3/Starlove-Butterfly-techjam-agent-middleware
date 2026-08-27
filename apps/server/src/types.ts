@@ -198,14 +198,16 @@ export const RESERVED_MOUNT_TARGETS = ["/workspace", "/codex-home"] as const;
 export const RESOURCE_TARGET_PREFIX = "/resources/";
 
 // The immutable output of compileMountPlan. Only P3's compiler produces it;
-// no API or UI ever accepts source, target, or mode values.
+// no API or UI ever accepts source, target, or mode values. readOnly is the
+// spec's "readonly flag" (deliberately camelCased to avoid colliding with the
+// TypeScript readonly modifier).
 export interface ValidatedRunMountPlan {
   readonly runId: string;
   readonly agentId: string;
   readonly resourceId: string;
   readonly sourcePath: string;
   readonly targetPath: string;
-  readonly readonly: true;
+  readonly readOnly: true;
   readonly grantGeneration: number;
 }
 
