@@ -258,7 +258,10 @@ export function makeFakeCapsuleRunner(
     supportsMountPlans: true,
     calls: [],
     cancelledAgentIds: [],
-    async run(request, validatedMountPlan) {
+    async run(
+      request: RunnerRequest,
+      validatedMountPlan?: ValidatedRunMountPlan,
+    ) {
       runner.calls.push({
         request: { ...request },
         validatedMountPlan: validatedMountPlan
