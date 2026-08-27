@@ -79,5 +79,5 @@ defines that relationship.
 - Keep formal project documentation under `docs/`.
 - Store the current Spec at
   `.scratch/run-scoped-resource-capsule/spec.md`.
-- Store the current Tickets at
-  `.scratch/run-scoped-resource-capsule/issues/<NN>-<slug>.md`.
+- Track current Tickets as `scopedrun`-labelled GitHub Issues in
+  `Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware`.

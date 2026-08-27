@@ -21,7 +21,8 @@ Agent Run, while an unauthorized bundle is rejected before the Runtime starts.
 
 - [Approved planning brief](docs/planning/resource-capsule-brief.md)
 - [Formal working specification](.scratch/run-scoped-resource-capsule/spec.md)
-- [Implementation tickets](.scratch/run-scoped-resource-capsule/issues/)
+- [Implementation tickets](https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues?q=is%3Aissue%20state%3Aopen%20label%3Ascopedrun)
+- [Collaboration board](https://github.com/users/MarcusMa06-code/projects/4)
 - [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
 
 The first implementation action is a go/no-go container validation. The team

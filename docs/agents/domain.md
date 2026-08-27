@@ -70,7 +70,7 @@ Use this form:
 - Put Skill workflow configuration under `docs/agents/`.
 - Put the current working Spec at
   `.scratch/run-scoped-resource-capsule/spec.md`.
-- Put the current working Tickets at
-  `.scratch/run-scoped-resource-capsule/issues/<NN>-<slug>.md`.
-- Treat `.scratch/` files as Git-tracked working artifacts shared by the team,
-  not as formal project documentation.
+- Put current working Tickets in GitHub Issues, using the `scopedrun` label and
+  the GitHub Project described in `docs/agents/issue-tracker.md`.
+- Treat `.scratch/` as a Git-tracked home for the working Spec, not a ticket
+  tracker.
