@@ -105,6 +105,36 @@ describe("HTTP boundary", () => {
     await app.close();
   });
 
+  it("applies the token guard to the routed path, not the raw URL", async () => {
+    const { app } = await makeTestApp({ appAuthToken: "a-strong-test-token" });
+    // /%61pi/system decodes to /api/system in the router; the guard must
+    // still demand the token instead of being dodged by the raw target.
+    const encoded = await app.inject({ method: "GET", url: "/%61pi/system" });
+    expect(encoded.statusCode).toBe(401);
+
+    // Sanity: the same route with the token works, and the real exempt
+    // route stays open.
+    const withToken = await app.inject({
+      method: "GET",
+      url: "/api/system",
+      headers: { authorization: "Bearer a-strong-test-token" },
+    });
+    expect(withToken.statusCode).toBe(200);
+    const health = await app.inject({ method: "GET", url: "/api/health" });
+    expect(health.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it("does not let an encoded path dodge session identity", async () => {
+    const { app } = await makeTestApp();
+    const encoded = await app.inject({
+      method: "GET",
+      url: "/%61pi/agents",
+    });
+    expect(encoded.statusCode).toBe(401);
+    await app.close();
+  });
+
   it("preserves Fastify client error status codes", async () => {
     const { app } = await makeTestApp();
     const malformed = await app.inject({

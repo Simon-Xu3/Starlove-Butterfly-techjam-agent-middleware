@@ -62,14 +62,17 @@ export async function createApp(
   });
 
   app.addHook("onRequest", async (request, reply) => {
-    // Compare the path without its query string so /api/health?probe=1
-    // stays exempt.
-    const pathname = request.url.split("?")[0] ?? request.url;
+    // Match the routed pattern, not the raw URL: find-my-way decodes and
+    // normalizes the target before routing, so a raw target like
+    // /%61pi/system would dodge a request.url check yet still reach
+    // /api/system. routeOptions.url is the matched route pattern (undefined
+    // for an unmatched 404, which is safe to leave to the not-found path).
+    const routePath = request.routeOptions?.url;
     if (
       !config.authToken ||
-      !pathname.startsWith("/api/") ||
-      pathname === "/api/health" ||
-      pathname === "/api/auth"
+      !routePath?.startsWith("/api/") ||
+      routePath === "/api/health" ||
+      routePath === "/api/auth"
     ) {
       return;
     }
@@ -90,8 +93,9 @@ export async function createApp(
   // workstreams register later. Handlers still call requireDemoPrincipal
   // themselves for the resolved principal value.
   app.addHook("onRequest", async (request) => {
-    const pathname = request.url.split("?")[0] ?? request.url;
-    if (!pathname.startsWith("/api/") || IDENTITY_EXEMPT_ROUTES.has(pathname)) {
+    // Same routed-pattern match as the token guard, for the same reason.
+    const routePath = request.routeOptions?.url;
+    if (!routePath?.startsWith("/api/") || IDENTITY_EXEMPT_ROUTES.has(routePath)) {
       return;
     }
     requireDemoPrincipal(request);
