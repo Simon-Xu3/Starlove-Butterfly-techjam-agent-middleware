@@ -1,5 +1,35 @@
 # Volc Agent Launchpad
 
+## Our TechJam project: ScopedRun
+
+This team has selected **Track 1: Agent Launchpad — Design and Build
+Lightweight Agent Middleware**. Our proposed middleware is **ScopedRun**, a
+run-scoped resource capsule that compiles a human's explicit resource grant
+into the filesystem view of one Agent Run.
+
+The core guarantee is deliberately narrow and testable:
+
+> Resources that are not authorized for a Run do not enter that Runtime's
+> mount namespace. Authorized resources appear only with their approved access
+> mode.
+
+ScopedRun will enforce this in the Fastify control plane and container launch
+path, rather than relying on a resource picker, prompt instructions, or the
+Agent to police itself. The first demo will use two mock users and two
+server-owned incident bundles: an authorized bundle can be read by a real
+Agent Run, while an unauthorized bundle is rejected before the Runtime starts.
+
+- [Approved planning brief](docs/planning/resource-capsule-brief.md)
+- [Product user flow and authorization model](docs/planning/scopedrun-user-flow.md)
+- [Formal working specification](.scratch/run-scoped-resource-capsule/spec.md)
+- [Implementation tickets](https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues?q=is%3Aissue%20state%3Aopen%20label%3Ascopedrun)
+- [Collaboration board](https://github.com/users/MarcusMa06-code/projects/4)
+- [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
+
+The first implementation action is a go/no-go container validation. The team
+will prove the stated namespace guarantee on the intended Runtime before
+opening wider workstreams.
+
 A minimal Agent platform for three-day middleware hackathons. It provides Agent
 CRUD, a browser Playground, persistent workspaces, and Codex CLI backed by the
 Volcengine Ark Responses API.
