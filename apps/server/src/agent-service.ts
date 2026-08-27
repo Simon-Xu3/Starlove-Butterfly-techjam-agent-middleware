@@ -365,6 +365,15 @@ export class AgentService {
       if (!storedAgent) {
         throw new HttpError(404, "Agent not found");
       }
+      // Re-check inside the serialized mutate: if the Agent turned stopped
+      // or busy during the async authorization, a concurrency failure (409)
+      // is due — do not mint a denied Run/Receipt for an unavailable Agent.
+      if (storedAgent.status === "stopped") {
+        throw new HttpError(409, "Start the Agent before sending a message");
+      }
+      if (storedAgent.status === "busy") {
+        throw new HttpError(409, "This Agent is already running");
+      }
       database.runs.push(run);
       database.messages.push(message);
       storedAgent.updatedAt = timestamp;
