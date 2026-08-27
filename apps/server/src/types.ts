@@ -327,6 +327,10 @@ export interface EntitlementReader {
 }
 
 // Seam: P1's admission flow calls this before any Runtime invocation.
+// Precondition: HTTP validation has already 400'd malformed requests, so
+// resourceIds holds exactly one syntactically valid ID here. A violation is
+// a programmer error — implementations should throw, not return a deny
+// decision (denials are reserved for auditable authorization outcomes).
 export interface ResourceAuthorizer {
   authorizeResources(
     principal: HumanPrincipal,
