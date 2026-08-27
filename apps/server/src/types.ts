@@ -19,8 +19,9 @@ export interface Agent {
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
-  // Required once the version 2 migration (Issue #4) has run; v1 data lacks it.
-  ownerPrincipalId?: HumanPrincipalId;
+  // Required once the version 2 migration (Issue #4) has run; v1 data lacks
+  // it. The migration assigns "user-a" to pre-existing Agents (spec).
+  ownerPrincipalId?: HumanPrincipalId | undefined;
 }
 
 export interface Message {
@@ -57,8 +58,8 @@ export interface Database {
   messages: Message[];
   runs: AgentRun[];
   // Present from version 2 on; the migration (Issue #4) initializes them.
-  entitlements?: PrincipalResourceEntitlement[];
-  receipts?: DecisionReceipt[];
+  entitlements?: PrincipalResourceEntitlement[] | undefined;
+  receipts?: DecisionReceipt[] | undefined;
 }
 
 export interface CreateAgentInput {
@@ -264,7 +265,7 @@ export type DecisionReceipt = AllowDecisionReceipt | DenyDecisionReceipt;
 // with no Run or Receipt.
 export interface SendMessageBody {
   content: string;
-  resourceIds?: string[];
+  resourceIds?: string[] | undefined;
 }
 
 // The 202 body when admission succeeds (baseline and allowed Capsule Runs

@@ -113,7 +113,7 @@ export type DecisionReceipt = AllowDecisionReceipt | DenyDecisionReceipt;
 // baseline Run; exactly one ID is a Capsule Run.
 export interface SendMessageBody {
   content: string;
-  resourceIds?: string[];
+  resourceIds?: string[] | undefined;
 }
 
 // The 202 body when admission succeeds (baseline and allowed Capsule Runs).
