@@ -9,10 +9,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
   AgentRun,
+  AllowDecisionReceipt,
   AllowedAuthorizationDecision,
   AuthorizationDecision,
-  DecisionReceipt,
   DeniedAuthorizationDecision,
+  DenyDecisionReceipt,
   HumanPrincipal,
   MountPlanCompiler,
   MountPlanResult,
@@ -115,8 +116,8 @@ export function makeMountPlan(
 }
 
 export function makeDecisionReceipt(
-  overrides: Partial<DecisionReceipt> = {},
-): DecisionReceipt {
+  overrides: Partial<AllowDecisionReceipt> = {},
+): AllowDecisionReceipt {
   return {
     receiptId: "receipt-1",
     runId: "run-1",
@@ -127,6 +128,24 @@ export function makeDecisionReceipt(
     reason: "allowed",
     grantGeneration: 1,
     runnerStarted: true,
+    createdAt: "2026-08-27T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function makeDeniedDecisionReceipt(
+  overrides: Partial<DenyDecisionReceipt> = {},
+): DenyDecisionReceipt {
+  return {
+    receiptId: "receipt-1",
+    runId: "run-1",
+    humanPrincipalId: "user-a",
+    agentId: "agent-a",
+    resourceId: "payments-incident",
+    decision: "deny",
+    reason: "entitlement_missing",
+    grantGeneration: null,
+    runnerStarted: false,
     createdAt: "2026-08-27T00:00:00.000Z",
     ...overrides,
   };

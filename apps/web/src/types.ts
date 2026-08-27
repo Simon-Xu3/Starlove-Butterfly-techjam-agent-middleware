@@ -76,18 +76,33 @@ export type CapsuleDecision = "allow" | "deny";
 
 export type CapsuleDecisionReason = "allowed" | CapsuleDenialReason;
 
-export interface DecisionReceipt {
+// Discriminated on decision, mirroring the server contract: an allow
+// Receipt always carries a generation, a deny Receipt never started the
+// Runner.
+interface DecisionReceiptBase {
   receiptId: string;
   runId: string;
   humanPrincipalId: HumanPrincipalId;
   agentId: string;
   resourceId: string;
-  decision: CapsuleDecision;
-  reason: CapsuleDecisionReason;
-  grantGeneration: number | null;
-  runnerStarted: boolean;
   createdAt: string;
 }
+
+export interface AllowDecisionReceipt extends DecisionReceiptBase {
+  decision: "allow";
+  reason: "allowed";
+  grantGeneration: number;
+  runnerStarted: boolean;
+}
+
+export interface DenyDecisionReceipt extends DecisionReceiptBase {
+  decision: "deny";
+  reason: CapsuleDenialReason;
+  grantGeneration: number | null;
+  runnerStarted: false;
+}
+
+export type DecisionReceipt = AllowDecisionReceipt | DenyDecisionReceipt;
 
 // POST /api/agents/:agentId/messages body. Omitted or empty resourceIds is a
 // baseline Run; exactly one ID is a Capsule Run.

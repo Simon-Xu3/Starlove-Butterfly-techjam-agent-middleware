@@ -213,21 +213,36 @@ export interface ValidatedRunMountPlan {
 
 // One Receipt per syntactically valid Capsule Run after principal
 // resolution, allow or deny. Never contains a token, demo session value,
-// secret, full prompt, Resource body, or host source path.
-export interface DecisionReceipt {
+// secret, full prompt, Resource body, or host source path. Discriminated on
+// decision so illegal states (allow without a generation, deny with
+// runnerStarted) cannot typecheck.
+interface DecisionReceiptBase {
   receiptId: string;
   runId: string;
   humanPrincipalId: HumanPrincipalId;
   agentId: string;
   resourceId: string;
-  decision: CapsuleDecision;
-  reason: CapsuleDecisionReason;
-  grantGeneration: number | null;
-  // True only when the authorized Runner invocation was attempted; always
-  // false for pre-Runtime denial.
-  runnerStarted: boolean;
   createdAt: string;
 }
+
+export interface AllowDecisionReceipt extends DecisionReceiptBase {
+  decision: "allow";
+  reason: "allowed";
+  grantGeneration: number;
+  // True only when the authorized Runner invocation was attempted (it stays
+  // true even if the Runtime later fails).
+  runnerStarted: boolean;
+}
+
+export interface DenyDecisionReceipt extends DecisionReceiptBase {
+  decision: "deny";
+  reason: CapsuleDenialReason;
+  grantGeneration: number | null;
+  // Denial always happens before the Runtime seam.
+  runnerStarted: false;
+}
+
+export type DecisionReceipt = AllowDecisionReceipt | DenyDecisionReceipt;
 
 // HTTP contracts for POST /api/agents/:agentId/messages.
 // Omitted or empty resourceIds = baseline Run (existing behavior).

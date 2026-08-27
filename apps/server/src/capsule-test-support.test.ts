@@ -8,7 +8,7 @@ import {
   captureFixtureBaseline,
   makeAgentRun,
   makeAllowDecision,
-  makeDecisionReceipt,
+  makeDeniedDecisionReceipt,
   makeDenyDecision,
   makeFakeAuthorizer,
   makeFakeCapsuleRunner,
@@ -60,13 +60,7 @@ describe("frozen Capsule contracts", () => {
   });
 
   it("serializes denied responses and Receipts without secrets or host paths", () => {
-    const receipt = makeDecisionReceipt({
-      decision: "deny",
-      reason: "entitlement_missing",
-      resourceId: "payments-incident",
-      grantGeneration: null,
-      runnerStarted: false,
-    });
+    const receipt = makeDeniedDecisionReceipt();
     const denied: DeniedRunResponse = {
       runId: receipt.runId,
       receiptId: receipt.receiptId,
