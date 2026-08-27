@@ -8,12 +8,14 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
+  AgentOwnershipReader,
   AgentRun,
   AllowDecisionReceipt,
   AllowedAuthorizationDecision,
   AuthorizationDecision,
   DeniedAuthorizationDecision,
   DenyDecisionReceipt,
+  HumanPrincipalId,
   HumanPrincipal,
   MountPlanCompiler,
   MountPlanResult,
@@ -170,6 +172,18 @@ export function makeAgentRun(overrides: Partial<AgentRun> = {}): AgentRun {
 // Fake seam implementations. Each records its calls so tests can assert the
 // evidence the spec demands, most importantly "Runner call count = 0 on
 // denial".
+
+export function makeFakeOwnershipReader(
+  ownerByAgentId: Record<string, HumanPrincipalId> = { "agent-a": "user-a" },
+): AgentOwnershipReader {
+  return {
+    getOwnerPrincipalId(agentId) {
+      return Object.hasOwn(ownerByAgentId, agentId)
+        ? ownerByAgentId[agentId]
+        : undefined;
+    },
+  };
+}
 
 export interface FakeResourceAuthorizer extends ResourceAuthorizer {
   calls: Array<{

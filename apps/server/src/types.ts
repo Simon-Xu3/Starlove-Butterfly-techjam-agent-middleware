@@ -337,6 +337,13 @@ export interface EntitlementMutationResponse {
   entitlement: PrincipalResourceEntitlement;
 }
 
+// Seam: ownership resolution for the authorizer. An undefined owner
+// (unknown Agent, or v1 data the Issue #4 migration has not touched) must
+// fail closed as ownership_denied — never treated as "no owner, allow".
+export interface AgentOwnershipReader {
+  getOwnerPrincipalId(agentId: string): HumanPrincipalId | undefined;
+}
+
 // Seam: P2 exposes Registry and Entitlement lookups; P3 consumes them.
 export interface ResourceRegistryReader {
   getResource(resourceId: string): RegisteredResource | undefined;
