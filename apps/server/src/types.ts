@@ -288,6 +288,22 @@ export interface ListResourcesResponse {
   resources: ProtectedResource[];
 }
 
+// Principal-scoped Entitlement operations (P2's routes). The principal comes
+// only from the resolved demo session — request bodies never carry
+// principalId, ownerId, or userId (spec user story 18). Grant and re-grant
+// share the same body; re-grant bumps the generation monotonically.
+export interface ListEntitlementsResponse {
+  entitlements: PrincipalResourceEntitlement[];
+}
+
+export interface EntitlementMutationBody {
+  resourceId: string;
+}
+
+export interface EntitlementMutationResponse {
+  entitlement: PrincipalResourceEntitlement;
+}
+
 // Seam: P2 exposes Registry and Entitlement lookups; P3 consumes them.
 export interface ResourceRegistryReader {
   getResource(resourceId: string): RegisteredResource | undefined;

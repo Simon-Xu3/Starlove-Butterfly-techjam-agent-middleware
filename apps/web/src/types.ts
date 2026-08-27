@@ -129,6 +129,32 @@ export interface ListResourcesResponse {
   resources: ProtectedResource[];
 }
 
+// Entitlement record mirrored from the server contract. Contains no host
+// path and is safe to render.
+export interface PrincipalResourceEntitlement {
+  principalId: HumanPrincipalId;
+  resourceId: string;
+  permission: "read";
+  status: "active" | "revoked";
+  generation: number;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export interface ListEntitlementsResponse {
+  entitlements: PrincipalResourceEntitlement[];
+}
+
+// Grant, re-grant, and revoke all send only the Resource ID; identity comes
+// from the demo session header.
+export interface EntitlementMutationBody {
+  resourceId: string;
+}
+
+export interface EntitlementMutationResponse {
+  entitlement: PrincipalResourceEntitlement;
+}
+
 export interface SystemInfo {
   arkConfigured: boolean;
   arkBaseUrl: string;
