@@ -62,11 +62,14 @@ export async function createApp(
   });
 
   app.addHook("onRequest", async (request, reply) => {
+    // Compare the path without its query string so /api/health?probe=1
+    // stays exempt.
+    const pathname = request.url.split("?")[0] ?? request.url;
     if (
       !config.authToken ||
-      !request.url.startsWith("/api/") ||
-      request.url === "/api/health" ||
-      request.url === "/api/auth"
+      !pathname.startsWith("/api/") ||
+      pathname === "/api/health" ||
+      pathname === "/api/auth"
     ) {
       return;
     }
