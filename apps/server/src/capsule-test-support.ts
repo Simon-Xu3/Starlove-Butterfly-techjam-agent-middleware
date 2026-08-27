@@ -275,25 +275,33 @@ export interface FixtureFileBaseline {
 export async function captureFixtureBaseline(
   resourceDirectory: string,
 ): Promise<FixtureFileBaseline[]> {
-  // Ignore dotfiles (Finder drops .DS_Store into browsed directories) and
-  // anything that is not a regular file, so local captures keep matching the
-  // committed manifest.
-  const names = (await readdir(resourceDirectory))
-    .filter((name) => !name.startsWith("."))
+  // Recursive so tampering inside subdirectories is visible. Only
+  // .DS_Store is exempt (Finder drops it into browsed directories); every
+  // other file — dotfiles included — is evidence. bytes comes from the same
+  // read as the hash so one capture cannot mix two file versions.
+  const entries = await readdir(resourceDirectory, {
+    withFileTypes: true,
+    recursive: true,
+  });
+  const relativePaths = entries
+    .filter((entry) => entry.isFile() && entry.name !== ".DS_Store")
+    .map((entry) =>
+      path.relative(resourceDirectory, path.join(entry.parentPath, entry.name)),
+    )
     .sort();
-  const captures = await Promise.all(
-    names.map(async (name) => {
-      const filePath = path.join(resourceDirectory, name);
-      const stats = await stat(filePath);
-      if (!stats.isFile()) return null;
-      const body = await readFile(filePath);
+  return Promise.all(
+    relativePaths.map(async (relativePath) => {
+      const filePath = path.join(resourceDirectory, relativePath);
+      const [body, stats] = await Promise.all([
+        readFile(filePath),
+        stat(filePath),
+      ]);
       return {
-        path: name,
-        bytes: stats.size,
+        path: relativePath,
+        bytes: body.byteLength,
         sha256: createHash("sha256").update(body).digest("hex"),
         mtimeMs: stats.mtimeMs,
       };
     }),
   );
-  return captures.filter((capture) => capture !== null);
 }

@@ -1,4 +1,4 @@
-import { appendFile, cp, mkdtemp, rm, utimes } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -223,6 +223,14 @@ describe("fixture baselines", () => {
         const original = before.find((entry) => entry.path === file.path);
         expect(file.sha256).toBe(original?.sha256);
       }
+
+      // A new file smuggled into a subdirectory must show up too.
+      await mkdir(path.join(scratch, "notes"));
+      await writeFile(path.join(scratch, "notes", "leak.txt"), "smuggled\n");
+      const withNested = await captureFixtureBaseline(scratch);
+      expect(withNested.map((file) => file.path)).toContain(
+        path.join("notes", "leak.txt"),
+      );
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
