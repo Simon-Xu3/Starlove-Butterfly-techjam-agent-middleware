@@ -206,8 +206,21 @@ export function makeFakeAuthorizer(
   const authorizer: FakeResourceAuthorizer = {
     calls: [],
     async authorizeResources(principal, agentId, resourceIds) {
-      authorizer.calls.push({ principal, agentId, resourceIds });
-      return decision;
+      // Enforce the frozen seam precondition so an admission bug that
+      // forwards 0 or 2 ids fails in tests, not in production.
+      if (resourceIds.length !== 1) {
+        throw new Error(
+          "authorizeResources precondition violated: expected exactly one resourceId",
+        );
+      }
+      // Snapshot inputs and clone the output so later mutations cannot
+      // rewrite recorded evidence or earlier returns.
+      authorizer.calls.push({
+        principal: { ...principal },
+        agentId,
+        resourceIds: [...resourceIds],
+      });
+      return structuredClone(decision);
     },
   };
   return authorizer;
@@ -223,8 +236,8 @@ export function makeFakeMountPlanCompiler(
   const compiler: FakeMountPlanCompiler = {
     calls: [],
     async compileMountPlan(runId, decision) {
-      compiler.calls.push({ runId, decision });
-      return result;
+      compiler.calls.push({ runId, decision: structuredClone(decision) });
+      return structuredClone(result);
     },
   };
   return compiler;
@@ -246,8 +259,13 @@ export function makeFakeCapsuleRunner(
     calls: [],
     cancelledAgentIds: [],
     async run(request, validatedMountPlan) {
-      runner.calls.push({ request, validatedMountPlan });
-      return result;
+      runner.calls.push({
+        request: { ...request },
+        validatedMountPlan: validatedMountPlan
+          ? structuredClone(validatedMountPlan)
+          : undefined,
+      });
+      return structuredClone(result);
     },
     async cancel(agentId) {
       runner.cancelledAgentIds.push(agentId);

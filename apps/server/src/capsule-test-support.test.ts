@@ -136,6 +136,17 @@ describe("fake seam factories", () => {
     expect(authorizer.calls).toHaveLength(1);
     expect(authorizer.calls[0]?.resourceIds).toEqual(["payments-incident"]);
 
+    // The frozen precondition: exactly one id, everything else throws.
+    await expect(
+      authorizer.authorizeResources(makeHumanPrincipal(), "agent-a", []),
+    ).rejects.toThrow("exactly one resourceId");
+    await expect(
+      authorizer.authorizeResources(makeHumanPrincipal(), "agent-a", [
+        "orders-incident",
+        "payments-incident",
+      ]),
+    ).rejects.toThrow("exactly one resourceId");
+
     const compiler = makeFakeMountPlanCompiler({
       ok: false,
       reason: "invalid_resource_path",
