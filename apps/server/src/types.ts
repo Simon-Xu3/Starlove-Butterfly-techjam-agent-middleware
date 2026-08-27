@@ -293,8 +293,12 @@ export interface MountPlanCompiler {
 // Seam: a Capsule Run passes the validated plan to the container Runner.
 // Baseline Runs omit the plan and keep existing behavior; the host-process
 // Runner never receives a plan (runtime_profile_unsupported is denied before
-// the Runtime).
+// the Runtime). supportsMountPlans is a required discriminant so a runner
+// that would silently ignore the plan cannot satisfy this interface by
+// structural accident; admission can also guard at runtime with
+// "supportsMountPlans" in runner.
 export interface CapsuleCapableRunner extends AgentRunner {
+  readonly supportsMountPlans: true;
   run(
     request: RunnerRequest,
     validatedMountPlan?: ValidatedRunMountPlan,

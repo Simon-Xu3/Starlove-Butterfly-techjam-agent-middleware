@@ -202,6 +202,7 @@ export function makeFakeCapsuleRunner(
   result: RunnerResult = { output: "demo output", threadId: null, usage: null },
 ): FakeCapsuleRunner {
   const runner: FakeCapsuleRunner = {
+    supportsMountPlans: true,
     calls: [],
     cancelledAgentIds: [],
     async run(request, validatedMountPlan) {
