@@ -14,9 +14,12 @@ import type {
   AllowDecisionReceipt,
   AllowedAuthorizationDecision,
   AuthorizationDecision,
+  DecisionReceipt,
   DeniedAuthorizationDecision,
   DenyDecisionReceipt,
+  EntitlementReader,
   HumanPrincipalId,
+  ReceiptReader,
   HumanPrincipal,
   MountPlanCompiler,
   MountPlanResult,
@@ -24,6 +27,7 @@ import type {
   ProtectedResource,
   RegisteredResource,
   ResourceAuthorizer,
+  ResourceRegistryReader,
   RunnerRequest,
   RunnerResult,
   ValidatedRunMountPlan,
@@ -179,6 +183,47 @@ export function makeAgentRun(overrides: Partial<AgentRun> = {}): AgentRun {
 // Fake seam implementations. Each records its calls so tests can assert the
 // evidence the spec demands, most importantly "Runner call count = 0 on
 // denial".
+
+export function makeFakeRegistryReader(
+  resources: RegisteredResource[] = [makeRegisteredResource()],
+): ResourceRegistryReader {
+  return {
+    getResource(resourceId) {
+      const found = resources.find((resource) => resource.id === resourceId);
+      return found ? { ...found } : undefined;
+    },
+    listResources() {
+      return resources.map((resource) => ({ ...resource }));
+    },
+  };
+}
+
+export function makeFakeEntitlementReader(
+  entitlements: PrincipalResourceEntitlement[] = [makeEntitlement()],
+): EntitlementReader {
+  return {
+    getCurrentEntitlement(principalId, resourceId) {
+      const found = entitlements.find(
+        (entitlement) =>
+          entitlement.principalId === principalId &&
+          entitlement.resourceId === resourceId,
+      );
+      return found ? { ...found } : undefined;
+    },
+  };
+}
+
+export function makeFakeReceiptReader(
+  receipts: DecisionReceipt[] = [makeDecisionReceipt()],
+): ReceiptReader {
+  return {
+    getReceiptsForRun(runId) {
+      return receipts
+        .filter((receipt) => receipt.runId === runId)
+        .map((receipt) => structuredClone(receipt));
+    },
+  };
+}
 
 export function makeFakeOwnershipReader(
   ownerByAgentId: Record<string, HumanPrincipalId> = { "agent-a": "user-a" },

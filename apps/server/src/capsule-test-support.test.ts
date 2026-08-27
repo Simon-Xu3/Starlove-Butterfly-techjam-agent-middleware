@@ -12,7 +12,10 @@ import {
   makeDenyDecision,
   makeFakeAuthorizer,
   makeFakeCapsuleRunner,
+  makeFakeEntitlementReader,
   makeFakeMountPlanCompiler,
+  makeFakeReceiptReader,
+  makeFakeRegistryReader,
   makeHumanPrincipal,
   makeMountPlan,
   makeRegisteredResource,
@@ -156,6 +159,25 @@ describe("fake seam factories", () => {
     const result = await compiler.compileMountPlan("run-1", makeAllowDecision());
     expect(result.ok).toBe(false);
     expect(compiler.calls).toHaveLength(1);
+  });
+
+  it("fake readers answer registry, entitlement, and receipt lookups", () => {
+    const registry = makeFakeRegistryReader();
+    expect(registry.getResource("orders-incident")?.id).toBe("orders-incident");
+    expect(registry.getResource("unknown")).toBeUndefined();
+    expect(registry.listResources()).toHaveLength(1);
+
+    const entitlements = makeFakeEntitlementReader();
+    expect(
+      entitlements.getCurrentEntitlement("user-a", "orders-incident")?.status,
+    ).toBe("active");
+    expect(
+      entitlements.getCurrentEntitlement("user-b", "orders-incident"),
+    ).toBeUndefined();
+
+    const receipts = makeFakeReceiptReader();
+    expect(receipts.getReceiptsForRun("run-1")).toHaveLength(1);
+    expect(receipts.getReceiptsForRun("run-2")).toHaveLength(0);
   });
 
   // Verifies the fake's recorder works; the real "call count = 0 on denial"

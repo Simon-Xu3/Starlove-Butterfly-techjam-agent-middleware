@@ -370,6 +370,12 @@ export interface EntitlementReader {
   ): PrincipalResourceEntitlement | undefined;
 }
 
+// Seam: Receipt evidence lookup backing GET /api/runs/:runId/receipts.
+// A Capsule Run has exactly one Receipt; a baseline Run has none.
+export interface ReceiptReader {
+  getReceiptsForRun(runId: string): DecisionReceipt[];
+}
+
 // Seam: P1's admission flow calls this before any Runtime invocation.
 // Precondition: HTTP validation has already 400'd malformed requests, so
 // resourceIds holds exactly one syntactically valid ID here. A violation is
