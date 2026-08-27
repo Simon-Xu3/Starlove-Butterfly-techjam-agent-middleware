@@ -2,18 +2,51 @@ import { randomUUID } from "node:crypto";
 import type { AppConfig } from "./config.js";
 import { isArkConfigured } from "./config.js";
 import { HttpError, RunCancelledError } from "./errors.js";
+import type { ReceiptSink } from "./receipt-store.js";
 import { JsonStore } from "./store.js";
+import { isCapsuleCapableRunner } from "./types.js";
 import type {
+  AcceptedRunResponse,
   Agent,
   AgentRun,
   AgentRunner,
+  AllowedAuthorizationDecision,
+  CapsuleCapableRunner,
+  CapsuleDenialReason,
   CreateAgentInput,
+  DeniedRunResponse,
+  HumanPrincipal,
+  HumanPrincipalId,
   Message,
+  MountPlanCompiler,
+  ResourceAuthorizer,
+  SendMessageBody,
   UpdateAgentInput,
+  ValidatedRunMountPlan,
 } from "./types.js";
 import { WorkspaceManager } from "./workspace.js";
 
 const now = () => new Date().toISOString();
+
+// The frozen seams Capsule admission orchestrates. index.ts wires
+// integration stubs until P3 (authorizer, compiler) and P5/P2 (receipts)
+// integrate their real implementations at the Day 1 gate.
+export interface CapsuleSeams {
+  authorizer: ResourceAuthorizer;
+  mountPlanCompiler: MountPlanCompiler;
+  receipts: ReceiptSink;
+}
+
+// Admission outcome for POST /api/agents/:id/messages: 202 when admitted,
+// 403 with the safe denied body otherwise.
+export type AdmissionResult =
+  | { admitted: true; response: AcceptedRunResponse }
+  | { admitted: false; response: DeniedRunResponse };
+
+interface CapsuleExecution {
+  plan: ValidatedRunMountPlan;
+  runner: CapsuleCapableRunner;
+}
 
 export class AgentService {
   private readonly activeExecutions = new Map<string, Promise<void>>();
@@ -24,6 +57,7 @@ export class AgentService {
     private readonly store: JsonStore,
     private readonly workspaces: WorkspaceManager,
     private readonly runner: AgentRunner,
+    private readonly capsule: CapsuleSeams,
   ) {}
 
   async initialize(): Promise<void> {
@@ -46,21 +80,32 @@ export class AgentService {
     });
   }
 
-  listAgents(): Agent[] {
-    return this.store
-      .snapshot()
-      .agents.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  // Ownership is enforced at every Agent-scoped boundary: collection views
+  // are scoped to the current principal, and an Agent another principal owns
+  // (or a pre-migration Agent with no owner — fail closed) reads as 404.
+  private ownedBy(agent: Agent, principalId: HumanPrincipalId): boolean {
+    return agent.ownerPrincipalId === principalId;
   }
 
-  getAgent(id: string): Agent {
+  listAgents(principalId: HumanPrincipalId): Agent[] {
+    return this.store
+      .snapshot()
+      .agents.filter((agent) => this.ownedBy(agent, principalId))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  getAgent(id: string, principalId: HumanPrincipalId): Agent {
     const agent = this.store.snapshot().agents.find((item) => item.id === id);
-    if (!agent) {
+    if (!agent || !this.ownedBy(agent, principalId)) {
       throw new HttpError(404, "Agent not found");
     }
     return agent;
   }
 
-  async createAgent(input: CreateAgentInput): Promise<Agent> {
+  async createAgent(
+    input: CreateAgentInput,
+    principalId: HumanPrincipalId,
+  ): Promise<Agent> {
     const timestamp = now();
     const id = randomUUID();
     const agent: Agent = {
@@ -74,14 +119,19 @@ export class AgentService {
       lastError: null,
       createdAt: timestamp,
       updatedAt: timestamp,
+      ownerPrincipalId: principalId,
     };
     await this.workspaces.create(agent);
     await this.store.mutate((database) => database.agents.push(agent));
     return agent;
   }
 
-  async updateAgent(id: string, input: UpdateAgentInput): Promise<Agent> {
-    const current = this.getAgent(id);
+  async updateAgent(
+    id: string,
+    principalId: HumanPrincipalId,
+    input: UpdateAgentInput,
+  ): Promise<Agent> {
+    const current = this.getAgent(id, principalId);
     if (current.status === "busy") {
       throw new HttpError(409, "Stop the active run before editing this Agent");
     }
@@ -104,8 +154,11 @@ export class AgentService {
     return updated;
   }
 
-  async deleteAgent(id: string): Promise<{ archivedWorkspace: string }> {
-    const agent = this.getAgent(id);
+  async deleteAgent(
+    id: string,
+    principalId: HumanPrincipalId,
+  ): Promise<{ archivedWorkspace: string }> {
+    const agent = this.getAgent(id, principalId);
     await this.cancelExecution(id);
     const archivedWorkspace = await this.workspaces.archive(agent);
     await this.store.mutate((database) => {
@@ -116,52 +169,236 @@ export class AgentService {
     return { archivedWorkspace };
   }
 
-  async startAgent(id: string): Promise<Agent> {
+  async startAgent(id: string, principalId: HumanPrincipalId): Promise<Agent> {
+    this.getAgent(id, principalId);
     return this.setStatus(id, "ready");
   }
 
-  async stopAgent(id: string): Promise<Agent> {
-    this.getAgent(id);
+  async stopAgent(id: string, principalId: HumanPrincipalId): Promise<Agent> {
+    this.getAgent(id, principalId);
     await this.cancelExecution(id);
     return this.setStatus(id, "stopped");
   }
 
-  getMessages(agentId: string): Message[] {
-    this.getAgent(agentId);
+  getMessages(agentId: string, principalId: HumanPrincipalId): Message[] {
+    this.getAgent(agentId, principalId);
     return this.store
       .snapshot()
       .messages.filter((message) => message.agentId === agentId)
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
   }
 
-  getRun(runId: string): AgentRun {
-    const run = this.store.snapshot().runs.find((item) => item.id === runId);
-    if (!run) {
+  getRun(runId: string, principalId: HumanPrincipalId): AgentRun {
+    const database = this.store.snapshot();
+    const run = database.runs.find((item) => item.id === runId);
+    const agent = run
+      ? database.agents.find((item) => item.id === run.agentId)
+      : undefined;
+    if (!run || !agent || !this.ownedBy(agent, principalId)) {
       throw new HttpError(404, "Run not found");
     }
     return run;
   }
 
-  getRuns(agentId: string): AgentRun[] {
-    this.getAgent(agentId);
+  getRuns(agentId: string, principalId: HumanPrincipalId): AgentRun[] {
+    this.getAgent(agentId, principalId);
     return this.store
       .snapshot()
       .runs.filter((run) => run.agentId === agentId)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
+  // Run admission. A baseline request (no resourceIds) follows the existing
+  // path unchanged. A Capsule request orchestrates the frozen seams in the
+  // approved order — ownership, authorization, Runtime profile, mount plan —
+  // entirely before the 202/403 is decided; every denial is a terminal
+  // denied Run with a correlated deny Receipt and zero Runner calls.
   async sendMessage(
     agentId: string,
-    prompt: string,
-  ): Promise<{ run: AgentRun; message: Message }> {
+    principal: HumanPrincipal,
+    body: SendMessageBody,
+  ): Promise<AdmissionResult> {
     if (!isArkConfigured(this.config)) {
       throw new HttpError(
         503,
         "Ark is not configured. Set ARK_API_KEY and ARK_MODEL, then restart.",
       );
     }
-    const timestamp = now();
+    const resourceIds = body.resourceIds ?? [];
+    if (resourceIds.length === 0) {
+      // Baseline Run — existing behavior, no Receipt.
+      this.getAgent(agentId, principal.id);
+      const admitted = await this.admitRun(agentId, body.content);
+      this.beginExecution(admitted.agentAtStart, admitted.run);
+      return {
+        admitted: true,
+        response: { run: admitted.run, message: admitted.message },
+      };
+    }
+    if (resourceIds.length !== 1) {
+      // HTTP validation already rejects this; keep the seam precondition.
+      throw new HttpError(400, "A Capsule Run selects exactly one Resource");
+    }
+
+    const agent = this.getAgent(agentId, principal.id);
+    if (agent.status === "stopped") {
+      throw new HttpError(409, "Start the Agent before sending a message");
+    }
+    if (agent.status === "busy") {
+      throw new HttpError(409, "This Agent is already running");
+    }
+
     const runId = randomUUID();
+    const decision = await this.capsule.authorizer.authorizeResources(
+      principal,
+      agentId,
+      resourceIds,
+    );
+    if (decision.decision === "deny") {
+      return this.denyCapsuleRun(agentId, principal, body.content, runId, {
+        resourceId: decision.resourceId,
+        reason: decision.reason,
+        grantGeneration: decision.grantGeneration,
+      });
+    }
+    return this.admitCapsuleRun(agentId, principal, body.content, runId, decision);
+  }
+
+  private async admitCapsuleRun(
+    agentId: string,
+    principal: HumanPrincipal,
+    content: string,
+    runId: string,
+    decision: AllowedAuthorizationDecision,
+  ): Promise<AdmissionResult> {
+    // Recheck the Runtime immediately before invocation: a Capsule Run may
+    // only execute through a plan-aware container Runner. Anything else —
+    // local-process profile, or a runner that would silently ignore the
+    // plan — is denied fail-closed before the Runtime seam.
+    const runner = this.runner;
+    if (
+      this.config.runtimeProvider !== "container" ||
+      !isCapsuleCapableRunner(runner)
+    ) {
+      return this.denyCapsuleRun(agentId, principal, content, runId, {
+        resourceId: decision.resource.id,
+        reason: "runtime_profile_unsupported",
+        grantGeneration: decision.grantGeneration,
+      });
+    }
+    const planResult = await this.capsule.mountPlanCompiler.compileMountPlan(
+      runId,
+      decision,
+    );
+    if (!planResult.ok) {
+      return this.denyCapsuleRun(agentId, principal, content, runId, {
+        resourceId: decision.resource.id,
+        reason: planResult.reason,
+        grantGeneration: decision.grantGeneration,
+      });
+    }
+
+    const admitted = await this.admitRun(agentId, content, runId);
+    // Persisting the allow Receipt marks the commitment to cross the
+    // Runtime seam; runnerStarted stays true even if the Runtime later
+    // fails.
+    this.capsule.receipts.add({
+      receiptId: randomUUID(),
+      runId,
+      humanPrincipalId: principal.id,
+      agentId,
+      resourceId: decision.resource.id,
+      decision: "allow",
+      reason: "allowed",
+      grantGeneration: decision.grantGeneration,
+      runnerStarted: true,
+      createdAt: now(),
+    });
+    this.beginExecution(admitted.agentAtStart, admitted.run, {
+      plan: planResult.plan,
+      runner,
+    });
+    return {
+      admitted: true,
+      response: { run: admitted.run, message: admitted.message },
+    };
+  }
+
+  // Persists the terminal denied Run, the user Message, and the deny
+  // Receipt. The Agent never turns busy, no assistant Message is saved, no
+  // Codex thread starts, and the Runner is never called.
+  private async denyCapsuleRun(
+    agentId: string,
+    principal: HumanPrincipal,
+    content: string,
+    runId: string,
+    denial: {
+      resourceId: string;
+      reason: CapsuleDenialReason;
+      grantGeneration: number | null;
+    },
+  ): Promise<AdmissionResult> {
+    const timestamp = now();
+    const receiptId = randomUUID();
+    const run: AgentRun = {
+      id: runId,
+      agentId,
+      status: "denied",
+      prompt: content,
+      output: null,
+      error: denial.reason,
+      usage: null,
+      startedAt: null,
+      completedAt: timestamp,
+      createdAt: timestamp,
+    };
+    const message: Message = {
+      id: randomUUID(),
+      agentId,
+      runId,
+      role: "user",
+      content,
+      createdAt: timestamp,
+    };
+    await this.store.mutate((database) => {
+      const storedAgent = database.agents.find((item) => item.id === agentId);
+      if (!storedAgent) {
+        throw new HttpError(404, "Agent not found");
+      }
+      database.runs.push(run);
+      database.messages.push(message);
+      storedAgent.updatedAt = timestamp;
+    });
+    this.capsule.receipts.add({
+      receiptId,
+      runId,
+      humanPrincipalId: principal.id,
+      agentId,
+      resourceId: denial.resourceId,
+      decision: "deny",
+      reason: denial.reason,
+      grantGeneration: denial.grantGeneration,
+      runnerStarted: false,
+      createdAt: timestamp,
+    });
+    return {
+      admitted: false,
+      response: {
+        runId,
+        receiptId,
+        status: "denied",
+        reason: denial.reason,
+      },
+    };
+  }
+
+  // The existing atomic one-active-Run-per-Agent admission mutation.
+  private async admitRun(
+    agentId: string,
+    prompt: string,
+    runId: string = randomUUID(),
+  ): Promise<{ agentAtStart: Agent; run: AgentRun; message: Message }> {
+    const timestamp = now();
     const run: AgentRun = {
       id: runId,
       agentId,
@@ -201,16 +438,23 @@ export class AgentService {
       storedAgent.updatedAt = timestamp;
       return snapshot;
     });
-    const execution = this.executeRun(agentAtStart, run);
-    this.activeExecutions.set(agentId, execution);
+    return { agentAtStart, run, message };
+  }
+
+  private beginExecution(
+    agentAtStart: Agent,
+    run: AgentRun,
+    capsuleExecution?: CapsuleExecution,
+  ): void {
+    const execution = this.executeRun(agentAtStart, run, capsuleExecution);
+    this.activeExecutions.set(agentAtStart.id, execution);
     void execution
       .finally(() => {
-        if (this.activeExecutions.get(agentId) === execution) {
-          this.activeExecutions.delete(agentId);
+        if (this.activeExecutions.get(agentAtStart.id) === execution) {
+          this.activeExecutions.delete(agentAtStart.id);
         }
       })
       .catch(() => undefined);
-    return { run, message };
   }
 
   async systemInfo(): Promise<Record<string, unknown>> {
@@ -232,7 +476,11 @@ export class AgentService {
     };
   }
 
-  private async executeRun(agentAtStart: Agent, run: AgentRun): Promise<void> {
+  private async executeRun(
+    agentAtStart: Agent,
+    run: AgentRun,
+    capsuleExecution?: CapsuleExecution,
+  ): Promise<void> {
     await this.store.mutate((database) => {
       const storedRun = database.runs.find((item) => item.id === run.id);
       if (storedRun) {
@@ -244,12 +492,15 @@ export class AgentService {
       if (this.cancellationRequests.has(agentAtStart.id)) {
         throw new RunCancelledError();
       }
-      const result = await this.runner.run({
+      const request = {
         agentId: agentAtStart.id,
         workspacePath: agentAtStart.workspacePath,
         prompt: run.prompt,
         threadId: agentAtStart.codexThreadId,
-      });
+      };
+      const result = capsuleExecution
+        ? await capsuleExecution.runner.run(request, capsuleExecution.plan)
+        : await this.runner.run(request);
       const completedAt = now();
       await this.store.mutate((database) => {
         const storedRun = database.runs.find((item) => item.id === run.id);
