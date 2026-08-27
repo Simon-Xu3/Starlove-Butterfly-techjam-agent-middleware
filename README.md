@@ -19,14 +19,14 @@ Agent to police itself. The first demo will use two mock users and two
 server-owned incident bundles: an authorized bundle can be read by a real
 Agent Run, while an unauthorized bundle is rejected before the Runtime starts.
 
-- [Project plan](docs/SCOPEDRUN_PROJECT_PLAN.md)
-- [Day 1 validation spike](docs/SCOPEDRUN_DAY1_SPIKE.md)
-- [Architecture decision](docs/ADR-001-SCOPEDRUN-RESOURCE-CAPSULE.md)
+- [Approved planning brief](docs/planning/resource-capsule-brief.md)
+- [Formal working specification](.scratch/run-scoped-resource-capsule/spec.md)
+- [Implementation tickets](.scratch/run-scoped-resource-capsule/issues/)
+- [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
 
-Implementation has not started. The Day 1 spike is a go/no-go gate: if the
-container boundary cannot prove the stated guarantee on the judging Runtime,
-the team will change direction rather than downgrade the control to a UI or
-prompt convention.
+The first implementation action is a go/no-go container validation. The team
+will prove the stated namespace guarantee on the intended Runtime before
+opening wider workstreams.
 
 A minimal Agent platform for three-day middleware hackathons. It provides Agent
 CRUD, a browser Playground, persistent workspaces, and Codex CLI backed by the
