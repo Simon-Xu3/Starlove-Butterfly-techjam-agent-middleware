@@ -15,10 +15,12 @@ import {
   makeFakeMountPlanCompiler,
   makeHumanPrincipal,
   makeMountPlan,
+  makeRegisteredResource,
 } from "./capsule-test-support.js";
 import {
   DEMO_ENTITLEMENT_MATRIX,
   DEMO_SESSION_PRINCIPALS,
+  toProtectedResource,
   type DeniedRunResponse,
   type RunStatus,
   type SendMessageBody,
@@ -81,6 +83,12 @@ describe("frozen Capsule contracts", () => {
     }
     expect(receipt.runnerStarted).toBe(false);
     expect(receipt.grantGeneration).toBeNull();
+  });
+
+  it("strips the host path when converting a Registry entry for clients", () => {
+    const safe = toProtectedResource(makeRegisteredResource());
+    expect(JSON.stringify(safe)).not.toContain("canonicalSourcePath");
+    expect(Object.keys(safe).sort()).toEqual(["displayName", "id", "kind"]);
   });
 
   it("keeps the mount plan readonly with a generated /resources target", () => {

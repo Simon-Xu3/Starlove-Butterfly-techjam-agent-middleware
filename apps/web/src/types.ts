@@ -124,6 +124,11 @@ export interface RunReceiptsResponse {
   receipts: DecisionReceipt[];
 }
 
+// Safe eligible Resources for the Resource Picker.
+export interface ListResourcesResponse {
+  resources: ProtectedResource[];
+}
+
 export interface SystemInfo {
   arkConfigured: boolean;
   arkBaseUrl: string;

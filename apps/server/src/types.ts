@@ -128,6 +128,19 @@ export interface RegisteredResource extends ProtectedResource {
   canonicalSourcePath: string;
 }
 
+// The only sanctioned way to turn a Registry entry into client-facing
+// metadata. Picks fields explicitly — a spread would smuggle
+// canonicalSourcePath through structural subtyping.
+export function toProtectedResource(
+  resource: RegisteredResource,
+): ProtectedResource {
+  return {
+    id: resource.id,
+    displayName: resource.displayName,
+    kind: resource.kind,
+  };
+}
+
 // ADR-002: Entitlements are the per-principal policy ceiling, stored by
 // principalId (not agentId). The request's resourceIds value is the per-Run
 // delegation and can never create or expand an Entitlement.
@@ -266,6 +279,13 @@ export interface DeniedRunResponse {
 // Run has none.
 export interface RunReceiptsResponse {
   receipts: DecisionReceipt[];
+}
+
+// Listing safe eligible Resources for the current principal. Route handlers
+// must build this via toProtectedResource, never from RegisteredResource
+// directly.
+export interface ListResourcesResponse {
+  resources: ProtectedResource[];
 }
 
 // Seam: P2 exposes Registry and Entitlement lookups; P3 consumes them.
