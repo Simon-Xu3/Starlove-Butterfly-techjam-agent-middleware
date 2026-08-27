@@ -1,0 +1,47 @@
+{
+  "note": "Frozen fixture baseline for Issue #2. sha256 values are stable across clones; git does not preserve mtimes, so evidence tests capture mtime baselines at runtime via captureFixtureBaseline().",
+  "resources": {
+    "orders-incident": {
+      "displayName": "Orders checkout incident (2026-08-26)",
+      "kind": "directory",
+      "files": [
+        {
+          "path": "incident-report.md",
+          "bytes": 758,
+          "sha256": "ed5013e40e57e5b4bb22c039b6bc41ef3bf0f285c97077c41bc082555f393383"
+        },
+        {
+          "path": "orders-service.log",
+          "bytes": 794,
+          "sha256": "fb29cc9a0914a3abf7ddb5f76e33b51eb78a86e8e24579bf6269e41aab3b8db0"
+        },
+        {
+          "path": "timeline.md",
+          "bytes": 396,
+          "sha256": "cbadc58aa24eb1bb49025bdbc144665602607f65b346df45275842c647614dbd"
+        }
+      ]
+    },
+    "payments-incident": {
+      "displayName": "Payments duplicate captures incident (2026-08-25)",
+      "kind": "directory",
+      "files": [
+        {
+          "path": "chargebacks.csv",
+          "bytes": 264,
+          "sha256": "4e42fcfe2a40204f68f054d71ea4d4b7dfd93879829d45b952ee7b9ee917b7b5"
+        },
+        {
+          "path": "incident-report.md",
+          "bytes": 814,
+          "sha256": "436fa8a3e97771bb9ab038a23d34f70d8909105e5467e57143eb44f18d404126"
+        },
+        {
+          "path": "payments-gateway.log",
+          "bytes": 641,
+          "sha256": "a00019a6332d6c7531de97cc8651b6c08ab6f9bfffa8a20dd8d081dc0ccb04dc"
+        }
+      ]
+    }
+  }
+}

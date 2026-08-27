@@ -1,0 +1,3 @@
+# Fixture bytes are hash-pinned by fixtures/resources/baseline-manifest.json;
+# never rewrite their line endings on checkout.
+fixtures/resources/** -text

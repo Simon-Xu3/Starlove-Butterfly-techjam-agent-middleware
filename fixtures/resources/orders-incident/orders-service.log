@@ -1,0 +1,11 @@
+2026-08-26T21:38:02Z INFO  orders-service v2.14.0 started (pod orders-7f9c)
+2026-08-26T21:38:02Z INFO  db pool initialized size=5
+2026-08-26T21:40:11Z WARN  db pool wait exceeded 500ms (queue=14)
+2026-08-26T21:40:19Z ERROR checkout failed: timeout acquiring connection (order=demo-100234)
+2026-08-26T21:40:23Z ERROR checkout failed: timeout acquiring connection (order=demo-100241)
+2026-08-26T21:41:07Z WARN  db pool wait exceeded 500ms (queue=63)
+2026-08-26T21:45:52Z ERROR checkout failed: timeout acquiring connection (order=demo-100302)
+2026-08-26T22:11:30Z INFO  rollback to v2.13.2 initiated by on-call
+2026-08-26T22:12:04Z INFO  orders-service v2.13.2 started (pod orders-8b1d)
+2026-08-26T22:12:04Z INFO  db pool initialized size=50
+2026-08-26T22:15:00Z INFO  error rate back below 0.1%

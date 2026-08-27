@@ -1,0 +1,8 @@
+2026-08-25T14:05:12Z WARN  acquirer upstream timeout (attempt=1 capture=demo-cap-5501)
+2026-08-25T14:05:14Z INFO  retrying capture demo-cap-5501 without idempotency key
+2026-08-25T14:05:15Z ERROR duplicate capture detected later in reconciliation (demo-cap-5501)
+2026-08-25T14:06:40Z WARN  acquirer upstream timeout (attempt=1 capture=demo-cap-5544)
+2026-08-25T14:06:42Z INFO  retrying capture demo-cap-5544 without idempotency key
+2026-08-25T14:35:09Z WARN  retry queue depth=310
+2026-08-25T15:20:47Z INFO  retry queue drained; duplicate window closed
+2026-08-25T18:02:00Z INFO  42 duplicate captures refunded (batch demo-refund-2026-0825)

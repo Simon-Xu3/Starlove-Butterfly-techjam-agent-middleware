@@ -9,6 +9,8 @@ workspaces/
 codex-home/
 coverage/
 *.log
+# Fixture logs are committed demo data for the Resource Capsule (Issue #2).
+!fixtures/resources/**/*.log
 *.tsbuildinfo
 .DS_Store
 deploy/volcengine/.terraform/

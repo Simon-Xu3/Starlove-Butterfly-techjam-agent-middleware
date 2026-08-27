@@ -1,0 +1,5 @@
+capture_id,amount_cents,currency,status,refunded_at
+demo-cap-5501,4599,SGD,refunded,2026-08-25T18:02:00Z
+demo-cap-5544,1250,SGD,refunded,2026-08-25T18:02:00Z
+demo-cap-5561,8900,SGD,refunded,2026-08-25T18:02:00Z
+demo-cap-5578,2075,SGD,refunded,2026-08-25T18:02:00Z

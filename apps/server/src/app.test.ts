@@ -26,6 +26,21 @@ describe("HTTP boundary", () => {
     await app.close();
   });
 
+  it("rejects a message carrying resourceIds until admission lands", async () => {
+    const app = await createApp(loadConfig({ NODE_ENV: "test" }), service);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/agents/6b3f4f57-3b52-4f7b-9a71-2f24b7a2b111/messages",
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify({
+        content: "hello",
+        resourceIds: ["payments-incident"],
+      }),
+    });
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+
   it("preserves Fastify client error status codes", async () => {
     const app = await createApp(loadConfig({ NODE_ENV: "test" }), service);
     const malformed = await app.inject({
