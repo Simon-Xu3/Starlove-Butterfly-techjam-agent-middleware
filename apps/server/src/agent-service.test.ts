@@ -135,6 +135,11 @@ describe("Agent lifecycle", () => {
     expect(() => service.getMessages(agent.id, "user-b")).toThrow(
       expect.objectContaining({ statusCode: 404 }),
     );
+    // Let the background execution finish before afterEach removes the
+    // temp directory, or the teardown races the store's atomic write.
+    await expect
+      .poll(() => service.getRun(run.id, "user-a").status)
+      .toBe("completed");
   });
 
   it("persists a playground conversation", async () => {
