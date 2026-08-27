@@ -134,16 +134,24 @@ export interface HumanPrincipal {
   displayName: string;
 }
 
-// Safe client-facing Resource metadata. Never carries a host path.
+// Safe client-facing Resource metadata. Never carries a host path. The
+// never-typed field is a compile-time brand: it makes RegisteredResource
+// unassignable here, so a Registry entry cannot reach a client response by
+// structural subtyping.
 export interface ProtectedResource {
   id: string;
   displayName: string;
   kind: "directory";
+  canonicalSourcePath?: never;
 }
 
 // Server-internal Registry entry. canonicalSourcePath must never be
-// serialized into an HTTP response or a Receipt.
-export interface RegisteredResource extends ProtectedResource {
+// serialized into an HTTP response or a Receipt. Deliberately not a subtype
+// of ProtectedResource — convert with toProtectedResource.
+export interface RegisteredResource {
+  id: string;
+  displayName: string;
+  kind: "directory";
   canonicalSourcePath: string;
 }
 

@@ -25,6 +25,7 @@ import {
   toProtectedResource,
   type AgentRunner,
   type DeniedRunResponse,
+  type ProtectedResource,
   type RunStatus,
   type SendMessageBody,
 } from "./types.js";
@@ -101,6 +102,11 @@ describe("frozen Capsule contracts", () => {
     const safe = toProtectedResource(makeRegisteredResource());
     expect(JSON.stringify(safe)).not.toContain("canonicalSourcePath");
     expect(Object.keys(safe).sort()).toEqual(["displayName", "id", "kind"]);
+
+    // @ts-expect-error — the never-brand must keep a Registry entry from
+    // being assignable to client metadata (tsc fails if this ever compiles).
+    const leak: ProtectedResource = makeRegisteredResource();
+    void leak;
   });
 
   it("keeps the mount plan readonly with a generated /resources target", () => {
