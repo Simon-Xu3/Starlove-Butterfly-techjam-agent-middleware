@@ -51,8 +51,13 @@ export interface AgentRun {
 // ---------------------------------------------------------------------------
 
 // Mock demo identity header value is chosen by the demo UI; the server maps
-// demo-session-a -> user-a and demo-session-b -> user-b.
+// demo-session-a -> user-a and demo-session-b -> user-b. The values are
+// mock identity, not secrets.
 export const DEMO_SESSION_HEADER = "x-demo-session";
+
+export const DEMO_SESSION_VALUES = ["demo-session-a", "demo-session-b"] as const;
+
+export type DemoSessionValue = (typeof DEMO_SESSION_VALUES)[number];
 
 export type HumanPrincipalId = "user-a" | "user-b";
 
