@@ -5,7 +5,10 @@ import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
-import { requireDemoPrincipal } from "./demo-principal.js";
+import {
+  IDENTITY_EXEMPT_ROUTES,
+  requireDemoPrincipal,
+} from "./demo-principal.js";
 import { HttpError } from "./errors.js";
 import type { AgentService } from "./agent-service.js";
 
@@ -77,6 +80,18 @@ export async function createApp(
     if (!valid) {
       return reply.code(401).send({ error: "Authentication required" });
     }
+  });
+
+  // Fail-closed identity backstop: every /api route outside the exempt set
+  // requires a valid demo session, including route plugins other
+  // workstreams register later. Handlers still call requireDemoPrincipal
+  // themselves for the resolved principal value.
+  app.addHook("onRequest", async (request) => {
+    const pathname = request.url.split("?")[0] ?? request.url;
+    if (!pathname.startsWith("/api/") || IDENTITY_EXEMPT_ROUTES.has(pathname)) {
+      return;
+    }
+    requireDemoPrincipal(request);
   });
 
   app.get("/api/health", async () => ({
