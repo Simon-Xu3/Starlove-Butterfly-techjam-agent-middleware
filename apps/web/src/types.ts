@@ -97,7 +97,7 @@ export interface AllowDecisionReceipt extends DecisionReceiptBase {
   decision: "allow";
   reason: "allowed";
   grantGeneration: number;
-  runnerStarted: boolean;
+  runnerStarted: true;
 }
 
 export interface DenyDecisionReceipt extends DecisionReceiptBase {

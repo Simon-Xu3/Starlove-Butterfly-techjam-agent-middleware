@@ -268,9 +268,9 @@ export interface AllowDecisionReceipt extends DecisionReceiptBase {
   decision: "allow";
   reason: "allowed";
   grantGeneration: number;
-  // True only when the authorized Runner invocation was attempted (it stays
-  // true even if the Runtime later fails).
-  runnerStarted: boolean;
+  // An allow decision by definition crosses the Runtime seam, so this is
+  // always true (it stays true even if the Runtime later fails).
+  runnerStarted: true;
 }
 
 export interface DenyDecisionReceipt extends DecisionReceiptBase {
