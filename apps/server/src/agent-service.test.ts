@@ -7,6 +7,7 @@ import {
   makeFakeAuthorizer,
   makeFakeMountPlanCompiler,
 } from "./capsule-test-support.js";
+import { createStoreOwnershipReader } from "./demo-principal.js";
 import { loadConfig } from "./config.js";
 import { InMemoryReceiptStore } from "./receipt-store.js";
 import { JsonStore } from "./store.js";
@@ -91,6 +92,34 @@ async function sendBaseline(
   return result.response;
 }
 
+describe("store ownership reader", () => {
+  it("returns the owner and fails closed on unknown or ownerless Agents", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ownership-test-"));
+    temporaryDirectories.push(root);
+    const store = new JsonStore(path.join(root, "db.json"));
+    await store.initialize();
+    const base = {
+      name: "A",
+      description: "",
+      instructions: "",
+      status: "ready" as const,
+      workspacePath: "/tmp/w",
+      codexThreadId: null,
+      lastError: null,
+      createdAt: "2026-08-28T00:00:00.000Z",
+      updatedAt: "2026-08-28T00:00:00.000Z",
+    };
+    await store.mutate((database) => {
+      database.agents.push({ ...base, id: "owned", ownerPrincipalId: "user-a" });
+      database.agents.push({ ...base, id: "ownerless" });
+    });
+    const reader = createStoreOwnershipReader(store);
+    expect(reader.getOwnerPrincipalId("owned")).toBe("user-a");
+    expect(reader.getOwnerPrincipalId("ownerless")).toBeUndefined();
+    expect(reader.getOwnerPrincipalId("missing")).toBeUndefined();
+  });
+});
+
 describe("Agent lifecycle", () => {
   it("creates, updates, stops, starts and deletes an Agent", async () => {
     const service = await makeService();
@@ -115,9 +144,15 @@ describe("Agent lifecycle", () => {
     expect(() => service.getAgent(agent.id, "user-b")).toThrow(
       expect.objectContaining({ statusCode: 404 }),
     );
+    expect(() => service.getRuns(agent.id, "user-b")).toThrow(
+      expect.objectContaining({ statusCode: 404 }),
+    );
     await expect(
       service.updateAgent(agent.id, "user-b", { name: "Stolen" }),
     ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.startAgent(agent.id, "user-b")).rejects.toMatchObject({
+      statusCode: 404,
+    });
     await expect(service.stopAgent(agent.id, "user-b")).rejects.toMatchObject({
       statusCode: 404,
     });

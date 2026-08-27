@@ -172,6 +172,16 @@ describe("demo session identity", () => {
       });
       expect(response.statusCode).toBe(400);
     }
+
+    // PATCH bodies are strict too.
+    const agent = await createAgent(app);
+    const patched = await app.inject({
+      method: "PATCH",
+      url: "/api/agents/" + agent.id,
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ name: "Fine", principalId: "user-b" }),
+    });
+    expect(patched.statusCode).toBe(400);
     await app.close();
   });
 });
@@ -190,12 +200,22 @@ describe("Agent ownership over HTTP", () => {
 
     for (const attempt of [
       { method: "GET" as const, url: "/api/agents/" + agent.id },
+      {
+        method: "PATCH" as const,
+        url: "/api/agents/" + agent.id,
+        headers: json,
+        payload: JSON.stringify({ name: "Stolen" }),
+      },
       { method: "DELETE" as const, url: "/api/agents/" + agent.id },
+      { method: "POST" as const, url: "/api/agents/" + agent.id + "/start" },
       { method: "POST" as const, url: "/api/agents/" + agent.id + "/stop" },
       { method: "GET" as const, url: "/api/agents/" + agent.id + "/messages" },
       { method: "GET" as const, url: "/api/agents/" + agent.id + "/runs" },
     ]) {
-      const response = await app.inject({ ...attempt, headers: sessionB });
+      const response = await app.inject({
+        ...attempt,
+        headers: { ...(attempt.headers ?? {}), ...sessionB },
+      });
       expect(response.statusCode).toBe(404);
     }
 
@@ -212,7 +232,7 @@ describe("Agent ownership over HTTP", () => {
 
 describe("Run admission", () => {
   it("keeps baseline Runs working without a Resource", async () => {
-    const { app, service, runner } = await makeTestApp();
+    const { app, service, receipts, runner } = await makeTestApp();
     const fake = runner as ReturnType<typeof makeFakeCapsuleRunner>;
     const agent = await createAgent(app);
 
@@ -232,6 +252,8 @@ describe("Run admission", () => {
       .toBe("completed");
     expect(fake.calls).toHaveLength(1);
     expect(fake.calls[0]?.validatedMountPlan).toBeUndefined();
+    // A baseline Run has no Capsule Receipt.
+    expect(receipts.getReceiptsForRun(run.id)).toHaveLength(0);
     await app.close();
   });
 
@@ -321,6 +343,45 @@ describe("Run admission", () => {
     expect(after.status).toBe("ready");
     expect(after.codexThreadId).toBe(before.codexThreadId);
     await app.close();
+  });
+
+  it("propagates every frozen denial reason to the response and Receipt", async () => {
+    for (const denial of [
+      { reason: "ownership_denied" as const, grantGeneration: null },
+      { reason: "entitlement_revoked" as const, grantGeneration: 2 },
+      { reason: "stale_entitlement_generation" as const, grantGeneration: 1 },
+    ]) {
+      const { app, receipts } = await makeTestApp({
+        capsule: {
+          authorizer: makeFakeAuthorizer(
+            makeDenyDecision({
+              reason: denial.reason,
+              grantGeneration: denial.grantGeneration,
+            }),
+          ),
+        },
+      });
+      const agent = await createAgent(app);
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/agents/" + agent.id + "/messages",
+        headers: { ...json, ...sessionA },
+        payload: JSON.stringify({
+          content: "try payments",
+          resourceIds: ["payments-incident"],
+        }),
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().reason).toBe(denial.reason);
+      const stored = receipts.getReceiptsForRun(response.json().runId);
+      expect(stored[0]).toMatchObject({
+        decision: "deny",
+        reason: denial.reason,
+        grantGeneration: denial.grantGeneration,
+        runnerStarted: false,
+      });
+      await app.close();
+    }
   });
 
   it("denies a Capsule Run under local-process with zero Runner calls", async () => {
