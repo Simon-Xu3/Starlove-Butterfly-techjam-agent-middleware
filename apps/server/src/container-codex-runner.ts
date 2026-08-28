@@ -1,4 +1,9 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import {
+  execFile,
+  spawn,
+  type ChildProcess,
+  type SpawnOptions,
+} from "node:child_process";
 import { promisify } from "node:util";
 import type { AppConfig } from "./config.js";
 import { buildCodexArgs, parseCodexEventLine } from "./codex-runner.js";
@@ -13,6 +18,12 @@ import type {
 } from "./types.js";
 
 const execFileAsync = promisify(execFile);
+
+export type ContainerProcessLauncher = (
+  command: string,
+  args: readonly string[],
+  options: SpawnOptions,
+) => ChildProcess;
 
 interface ActiveContainer {
   child: ChildProcess;
@@ -110,7 +121,10 @@ export class ContainerCodexRunner implements CapsuleCapableRunner {
   readonly supportsMountPlans: true = true;
   private readonly active = new Map<string, ActiveContainer>();
 
-  constructor(private readonly config: AppConfig) {}
+  constructor(
+    private readonly config: AppConfig,
+    private readonly startProcess: ContainerProcessLauncher = spawn,
+  ) {}
 
   async isAvailable(): Promise<boolean> {
     try {
@@ -169,7 +183,7 @@ export class ContainerCodexRunner implements CapsuleCapableRunner {
       throw new Error("Agent already has an active Runtime container");
     }
 
-    const child = spawn(
+    const child = this.startProcess(
       this.config.containerEngine,
       buildContainerRunArgs(request, this.config, validatedMountPlan),
       {
@@ -178,6 +192,10 @@ export class ContainerCodexRunner implements CapsuleCapableRunner {
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
+    if (!child.stdout || !child.stderr) {
+      child.kill("SIGTERM");
+      throw new Error("Container process must provide stdout and stderr streams");
+    }
     const settled = new Promise<void>((resolve) => {
       child.once("close", () => resolve());
       child.once("error", () => resolve());

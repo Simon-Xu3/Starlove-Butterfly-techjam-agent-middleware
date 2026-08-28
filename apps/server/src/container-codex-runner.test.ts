@@ -1,10 +1,40 @@
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { makeMountPlan } from "./capsule-test-support.js";
 import { loadConfig } from "./config.js";
 import {
   buildContainerRunArgs,
+  ContainerCodexRunner,
   containerName,
+  type ContainerProcessLauncher,
 } from "./container-codex-runner.js";
+
+function makeSuccessfulLauncher(calls: string[][]): ContainerProcessLauncher {
+  return (_command, args) => {
+    calls.push([...args]);
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const child = Object.assign(new EventEmitter(), {
+      stdout,
+      stderr,
+      kill: () => true,
+    }) as unknown as ChildProcess;
+    queueMicrotask(() => {
+      stdout.end(
+        [
+          '{"type":"thread.started","thread_id":"runner-thread"}',
+          '{"type":"item.completed","item":{"type":"agent_message","text":"Runner completed"}}',
+          '{"type":"turn.completed","usage":{"input_tokens":2,"output_tokens":1}}',
+        ].join("\n") + "\n",
+      );
+      stderr.end();
+      child.emit("close", 0);
+    });
+    return child;
+  };
+}
 
 describe("Container Codex runner", () => {
   it("builds an isolated Docker/Podman-compatible invocation", () => {
@@ -101,5 +131,55 @@ describe("Container Codex runner", () => {
       "type=bind,src=/fixtures/orders-incident,dst=/resources/orders-incident,readonly",
     ]);
     expect(args).not.toContain("payments-incident");
+  });
+
+  it("executes a baseline Run without a Resource mount", async () => {
+    const calls: string[][] = [];
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex-home",
+      RUNTIME_PROVIDER: "container",
+    });
+    const runner = new ContainerCodexRunner(config, makeSuccessfulLauncher(calls));
+
+    await expect(
+      runner.run({
+        agentId: "agent-a",
+        workspacePath: "/tmp/workspace",
+        prompt: "complete the baseline task",
+        threadId: null,
+      }),
+    ).resolves.toEqual({
+      output: "Runner completed",
+      threadId: "runner-thread",
+      usage: { inputTokens: 2, outputTokens: 1 },
+    });
+    expect(calls[0]).not.toContain("/resources/orders-incident");
+  });
+
+  it("executes a Capsule Run with the validated readonly mount", async () => {
+    const calls: string[][] = [];
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex-home",
+      RUNTIME_PROVIDER: "container",
+    });
+    const runner = new ContainerCodexRunner(config, makeSuccessfulLauncher(calls));
+    const plan = makeMountPlan({ sourcePath: "/fixtures/orders-incident" });
+
+    await expect(
+      runner.run(
+        {
+          agentId: "agent-a",
+          workspacePath: "/tmp/workspace",
+          prompt: "analyze the delegated incident",
+          threadId: null,
+        },
+        plan,
+      ),
+    ).resolves.toMatchObject({ output: "Runner completed" });
+    expect(calls[0]).toContain(
+      "type=bind,src=/fixtures/orders-incident,dst=/resources/orders-incident,readonly",
+    );
   });
 });
