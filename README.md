@@ -38,9 +38,11 @@ Run it locally with Docker, Colima, or rootless Podman, or deploy it to
 Volcengine ECS.
 
 > [!WARNING]
-> This is a single-user proof of concept. It intentionally has no identity,
-> tracing, audit, or hardened sandbox middleware. Do not use production data or
-> credentials. See [SECURITY.md](SECURITY.md).
+> This is a proof of concept. `X-Demo-Session` provides two reproducible mock
+> identities, while `APP_AUTH_TOKEN` is only an outer demo access guard; neither
+> is production authentication. Decision Receipts are demo evidence, not a
+> hardened audit system. Do not use production data or credentials. See
+> [SECURITY.md](SECURITY.md).
 
 ## Screenshots
 
@@ -233,6 +235,7 @@ cp deploy/volcengine/terraform.tfvars.example \
 | `ARK_MODEL` | Required | Responses-capable endpoint or model ID. |
 | `ARK_BASE_URL` | Beijing v3 endpoint | Ark OpenAI-compatible API URL. |
 | `APP_AUTH_TOKEN` | Empty on loopback | Shared demo token; use 24+ random characters remotely. |
+| `RESOURCE_ROOT` | Repository `fixtures/resources` | Server-owned Protected Resource root. Containerized control planes must copy or mount it explicitly. |
 | `RUNTIME_PROVIDER` | `local-process` | `container` for disposable local Runtime containers. |
 | `CODEX_SANDBOX_MODE` | `workspace-write` | Codex inner sandbox mode. |
 | `CODEX_TIMEOUT_MS` | `600000` | Maximum duration of one turn. |
