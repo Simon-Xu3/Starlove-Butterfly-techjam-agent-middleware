@@ -1,6 +1,7 @@
-// In-memory Decision Receipt store (Issue #3 integration stub). P5's real
-// Receipt service backed by P2's version 2 persistence replaces this at the
-// Day 1 gate; until then Receipts do not survive a server restart.
+// The ReceiptSink write seam, plus an in-memory implementation kept for
+// tests. Production wires DecisionReceiptService over StoreReceiptRepository
+// (see index.ts), so Receipts are persisted and survive a restart; this
+// class is no longer part of the running app.
 import type { DecisionReceipt, ReceiptReader } from "./types.js";
 
 export interface ReceiptSink {

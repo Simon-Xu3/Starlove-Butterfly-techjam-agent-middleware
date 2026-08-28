@@ -28,9 +28,9 @@ import { WorkspaceManager } from "./workspace.js";
 
 const now = () => new Date().toISOString();
 
-// The frozen seams Capsule admission orchestrates. index.ts wires
-// integration stubs until P3 (authorizer, compiler) and P5/P2 (receipts)
-// integrate their real implementations at the Day 1 gate.
+// The frozen seams Capsule admission orchestrates. index.ts wires the real
+// implementations: P3's authorizer and mount-plan compiler, and P5's
+// persisted Receipt service. Tests substitute the frozen fakes.
 export interface CapsuleSeams {
   authorizer: ResourceAuthorizer;
   mountPlanCompiler: MountPlanCompiler;
