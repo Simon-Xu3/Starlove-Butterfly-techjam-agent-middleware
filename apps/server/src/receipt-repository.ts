@@ -32,9 +32,16 @@ export class StoreReceiptRepository implements ReceiptRepository {
 
   add(receipt: DecisionReceipt): void {
     this.ensureLoaded().push(structuredClone(receipt));
-    void this.store.mutate((database) => {
-      database.receipts.push(structuredClone(receipt));
-    });
+    // Fire-and-forget persist. Catch so a disk error never becomes an
+    // unhandled rejection that takes down the process; the receipt stays in
+    // the mirror for this process either way.
+    void this.store
+      .mutate((database) => {
+        database.receipts.push(structuredClone(receipt));
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to persist Decision Receipt", error);
+      });
   }
 
   getReceiptsForRun(runId: string): DecisionReceipt[] {
