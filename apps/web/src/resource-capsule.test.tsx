@@ -73,4 +73,3 @@ describe("Resource Capsule UI", () => {
       expect(denyMarkup).not.toContain(forbidden);
   });
 });
-

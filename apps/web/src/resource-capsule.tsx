@@ -111,7 +111,7 @@ export function DecisionReceiptCard({
       <p>
         {reason === "allowed"
           ? "The approved read-only mount crossed the Runtime seam."
-          : denialLabels[reason]}
+          : (denialLabels[reason] ?? "Run denied by server policy.")}
       </p>
       <dl>
         <div><dt>Run</dt><dd>{runId}</dd></div>
@@ -136,4 +136,3 @@ export function DecisionReceiptCard({
     </article>
   );
 }
-

@@ -3,6 +3,7 @@ import {
   api,
   ApiError,
   DeniedRunApiError,
+  isStaleDemoSessionError,
   setAuthToken,
   setDemoSession,
 } from "./api";
@@ -80,6 +81,8 @@ export default function App() {
   const selectedIdRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const pollingRunIds = useRef(new Set<string>());
+  const sessionEpochRef = useRef(0);
+  const receiptRequestRef = useRef(0);
   selectedIdRef.current = selectedId;
 
   const selected = useMemo(
@@ -88,7 +91,9 @@ export default function App() {
   );
 
   const refreshAgents = useCallback(async () => {
+    const sessionEpoch = sessionEpochRef.current;
     const { agents: next } = await api.listAgents();
+    if (!mountedRef.current || sessionEpoch !== sessionEpochRef.current) return;
     setAgents(next);
     setSelectedId((current) =>
       current && next.some((agent) => agent.id === current)
@@ -98,16 +103,22 @@ export default function App() {
   }, []);
 
   const refreshMessages = useCallback(async (agentId: string) => {
+    const sessionEpoch = sessionEpochRef.current;
     const result = await api.messages(agentId);
-    if (mountedRef.current && selectedIdRef.current === agentId) {
+    if (
+      mountedRef.current &&
+      sessionEpoch === sessionEpochRef.current &&
+      selectedIdRef.current === agentId
+    ) {
       setMessages(result.messages);
     }
   }, []);
 
   const refreshResources = useCallback(async () => {
+    const sessionEpoch = sessionEpochRef.current;
     try {
       const result = await api.resources();
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || sessionEpoch !== sessionEpochRef.current) return;
       setResources(result.resources);
       setResourceUnavailable(null);
       setSelectedResourceId((current) =>
@@ -116,7 +127,13 @@ export default function App() {
           : null,
       );
     } catch (reason) {
-      if (!mountedRef.current) return;
+      if (
+        !mountedRef.current ||
+        sessionEpoch !== sessionEpochRef.current ||
+        isStaleDemoSessionError(reason)
+      ) {
+        return;
+      }
       setResources([]);
       setSelectedResourceId(null);
       setResourceUnavailable(
@@ -128,11 +145,26 @@ export default function App() {
   }, []);
 
   const loadReceipt = useCallback(async (runId: string) => {
+    const sessionEpoch = sessionEpochRef.current;
+    const requestId = ++receiptRequestRef.current;
     try {
       const result = await api.receipts(runId);
-      if (mountedRef.current) setActiveReceipt(result.receipts[0] ?? null);
-    } catch {
-      if (mountedRef.current) setActiveReceipt(null);
+      if (
+        mountedRef.current &&
+        sessionEpoch === sessionEpochRef.current &&
+        requestId === receiptRequestRef.current
+      ) {
+        setActiveReceipt(result.receipts[0] ?? null);
+      }
+    } catch (reason) {
+      if (
+        mountedRef.current &&
+        sessionEpoch === sessionEpochRef.current &&
+        requestId === receiptRequestRef.current &&
+        !isStaleDemoSessionError(reason)
+      ) {
+        setActiveReceipt(null);
+      }
     }
   }, []);
 
@@ -157,6 +189,8 @@ export default function App() {
   }, [bootstrap]);
 
   useEffect(() => {
+    const sessionEpoch = sessionEpochRef.current;
+    receiptRequestRef.current += 1;
     setActiveRun(null);
     setActiveReceipt(null);
     setDeniedRun(null);
@@ -168,7 +202,13 @@ export default function App() {
     }
     void Promise.all([refreshMessages(selectedId), api.runs(selectedId)])
       .then(([, result]) => {
-        if (selectedIdRef.current !== selectedId) return;
+        if (
+          !mountedRef.current ||
+          sessionEpoch !== sessionEpochRef.current ||
+          selectedIdRef.current !== selectedId
+        ) {
+          return;
+        }
         const latest = result.runs[0] ?? null;
         setActiveRun(latest);
         if (latest && !["queued", "running"].includes(latest.status)) {
@@ -180,9 +220,15 @@ export default function App() {
           );
         }
       })
-      .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
-      );
+      .catch((reason) => {
+        if (
+          sessionEpoch !== sessionEpochRef.current ||
+          isStaleDemoSessionError(reason)
+        ) {
+          return;
+        }
+        setError(reason instanceof Error ? reason.message : String(reason));
+      });
   }, [loadReceipt, refreshMessages, selectedId]);
 
   useEffect(() => {
@@ -268,13 +314,23 @@ export default function App() {
   };
 
   const pollRun = async (runId: string, agentId: string) => {
+    const sessionEpoch = sessionEpochRef.current;
     if (pollingRunIds.current.has(runId)) return;
     pollingRunIds.current.add(runId);
     try {
-      while (mountedRef.current) {
+      while (
+        mountedRef.current &&
+        sessionEpoch === sessionEpochRef.current
+      ) {
         await new Promise((resolve) => window.setTimeout(resolve, 900));
-        if (!mountedRef.current) return;
+        if (
+          !mountedRef.current ||
+          sessionEpoch !== sessionEpochRef.current
+        ) {
+          return;
+        }
         const result = await api.run(runId);
+        if (sessionEpoch !== sessionEpochRef.current) return;
         if (selectedIdRef.current === agentId) setActiveRun(result.run);
         if (!["queued", "running"].includes(result.run.status)) {
           await Promise.all([
@@ -295,6 +351,8 @@ export default function App() {
     if (!selected || !prompt.trim()) return;
     const content = prompt.trim();
     const body = buildSendMessageBody(content, selectedResourceId);
+    const sessionEpoch = sessionEpochRef.current;
+    receiptRequestRef.current += 1;
     setPrompt("");
     setSelectedResourceId(null);
     setError(null);
@@ -302,6 +360,7 @@ export default function App() {
     setDeniedRun(null);
     try {
       const result = await api.sendMessage(selected.id, body);
+      if (sessionEpoch !== sessionEpochRef.current) return;
       if (selectedIdRef.current === selected.id) {
         setMessages((current) => [...current, result.message]);
         setActiveRun(result.run);
@@ -314,6 +373,12 @@ export default function App() {
       if (body.resourceIds?.length === 1) void loadReceipt(result.run.id);
       await pollRun(result.run.id, selected.id);
     } catch (reason) {
+      if (
+        sessionEpoch !== sessionEpochRef.current ||
+        isStaleDemoSessionError(reason)
+      ) {
+        return;
+      }
       if (reason instanceof DeniedRunApiError) {
         const denied = reason.denied;
         setDeniedRun(denied);
@@ -342,17 +407,35 @@ export default function App() {
   };
 
   const changeDemoSession = async (value: DemoSessionValue) => {
+    sessionEpochRef.current += 1;
+    const sessionEpoch = sessionEpochRef.current;
+    receiptRequestRef.current += 1;
     setDemoSession(value);
     setDemoSessionValue(value);
+    setAgents([]);
+    setSelectedId(null);
+    selectedIdRef.current = null;
     setError(null);
     setActiveRun(null);
     setActiveReceipt(null);
     setDeniedRun(null);
     setMessages([]);
+    setResources([]);
+    setResourceUnavailable(null);
     setSelectedResourceId(null);
-    await Promise.all([refreshAgents(), refreshResources()]).catch((reason) =>
-      setError(reason instanceof Error ? reason.message : String(reason)),
-    );
+    setPrompt("");
+    setForm(emptyForm);
+    setShowCreate(false);
+    setShowSettings(false);
+    await Promise.all([refreshAgents(), refreshResources()]).catch((reason) => {
+      if (
+        sessionEpoch !== sessionEpochRef.current ||
+        isStaleDemoSessionError(reason)
+      ) {
+        return;
+      }
+      setError(reason instanceof Error ? reason.message : String(reason));
+    });
   };
 
   const unlock = async (event: React.FormEvent) => {

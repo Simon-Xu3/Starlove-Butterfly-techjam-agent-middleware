@@ -90,6 +90,17 @@ describe("Decision Receipt service and route", () => {
     expect(() => service.add(allowReceipt())).toThrow("only one");
   });
 
+  it("rejects a Receipt that does not correlate to its Run", () => {
+    const { repository, service } = makeReceiptService();
+    const mismatched = {
+      ...allowReceipt(),
+      agentId: "55555555-5555-4555-8555-555555555555",
+    };
+
+    expect(() => service.add(mismatched)).toThrow("does not match its Run");
+    expect(repository.getReceiptsForRun(runId)).toEqual([]);
+  });
+
   it("returns the correlated safe Receipt to the owning principal", async () => {
     const { service } = makeReceiptService();
     service.add(allowReceipt());
