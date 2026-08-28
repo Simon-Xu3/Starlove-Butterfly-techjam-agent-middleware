@@ -50,8 +50,8 @@ CONTAINER_ENGINE=docker \
 npm test -w @launchpad/server -- --run src/container-resource-capsule.integration.test.ts
 ```
 
-Use `CONTAINER_ENGINE=podman` for Podman. The test builds the local
-`scopedrun-kill-test:local` image from `alpine:3.20` and invokes the real
+Use `CONTAINER_ENGINE=podman` for Podman. The test builds and removes a
+temporary uniquely tagged image from `alpine:3.20` and invokes the real
 `ContainerCodexRunner`. It proves the delegated `orders-incident` directory is
 readable, `payments-incident` is absent, writes through the mount fail, and
 the hash and modification time of both fixture directories are unchanged.

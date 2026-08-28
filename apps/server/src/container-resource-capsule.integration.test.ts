@@ -13,7 +13,7 @@ const runContainerTests = process.env.RUN_CONTAINER_TESTS === "1";
 const runWhenContainerTestsEnabled = runContainerTests ? it : it.skip;
 
 async function buildKillTestImage(engine: string, directory: string): Promise<string> {
-  const image = "scopedrun-kill-test:local";
+  const image = "scopedrun-kill-test:" + path.basename(directory);
 
   await writeFile(
     path.join(directory, "Dockerfile"),
@@ -56,6 +56,7 @@ describe("Container Resource Capsule Kill Test", () => {
       const paymentsPlan = makeMountPlan({ resourceId: "payments-incident" });
       const ordersBefore = await captureFixtureBaseline(plan.sourcePath);
       const paymentsBefore = await captureFixtureBaseline(paymentsPlan.sourcePath);
+      let image: string | undefined;
 
       try {
         await mkdir(workspacePath);
@@ -68,7 +69,7 @@ describe("Container Resource Capsule Kill Test", () => {
             CODEX_HOME: codexHome,
             RUNTIME_PROVIDER: "container",
             CONTAINER_ENGINE: engine,
-            CONTAINER_RUNTIME_IMAGE: await buildKillTestImage(engine, directory),
+            CONTAINER_RUNTIME_IMAGE: (image = await buildKillTestImage(engine, directory)),
           }),
         );
 
@@ -89,6 +90,11 @@ describe("Container Resource Capsule Kill Test", () => {
       } finally {
         expect(await captureFixtureBaseline(plan.sourcePath)).toEqual(ordersBefore);
         expect(await captureFixtureBaseline(paymentsPlan.sourcePath)).toEqual(paymentsBefore);
+        if (image) {
+          await execFileAsync(engine, ["image", "rm", "--force", image]).catch(
+            () => undefined,
+          );
+        }
         await rm(directory, { recursive: true, force: true });
       }
     },
