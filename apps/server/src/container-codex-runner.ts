@@ -25,6 +25,18 @@ export type ContainerProcessLauncher = (
   options: SpawnOptions,
 ) => ChildProcess;
 
+// The container-engine command runner (docker/podman version, image inspect,
+// rm --force). Injectable so unit tests never shell out to a real engine —
+// its latency would otherwise make the cancel/timeout/output tests flaky.
+export type ContainerCommandRunner = (
+  command: string,
+  args: readonly string[],
+  options: { timeout: number; env: NodeJS.ProcessEnv },
+) => Promise<{ stdout: string; stderr: string }>;
+
+const defaultCommandRunner: ContainerCommandRunner = (command, args, options) =>
+  execFileAsync(command, [...args], options);
+
 interface ActiveContainer {
   child: ChildProcess;
   containerName: string;
@@ -124,15 +136,16 @@ export class ContainerCodexRunner implements CapsuleCapableRunner {
   constructor(
     private readonly config: AppConfig,
     private readonly startProcess: ContainerProcessLauncher = spawn,
+    private readonly execEngine: ContainerCommandRunner = defaultCommandRunner,
   ) {}
 
   async isAvailable(): Promise<boolean> {
     try {
-      await execFileAsync(this.config.containerEngine, ["version"], {
+      await this.execEngine(this.config.containerEngine, ["version"], {
         timeout: 5_000,
         env: this.childEnvironment(),
       });
-      await execFileAsync(
+      await this.execEngine(
         this.config.containerEngine,
         ["image", "inspect", this.config.containerRuntimeImage],
         { timeout: 5_000, env: this.childEnvironment() },
@@ -155,7 +168,7 @@ export class ContainerCodexRunner implements CapsuleCapableRunner {
 
   private removeContainer(active: ActiveContainer): Promise<void> {
     if (!active.termination) {
-      active.termination = execFileAsync(
+      active.termination = this.execEngine(
         this.config.containerEngine,
         ["rm", "--force", active.containerName],
         { timeout: 8_000, env: this.childEnvironment() },

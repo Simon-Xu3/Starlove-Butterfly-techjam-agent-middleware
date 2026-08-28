@@ -8,8 +8,15 @@ import {
   buildContainerRunArgs,
   ContainerCodexRunner,
   containerName,
+  type ContainerCommandRunner,
   type ContainerProcessLauncher,
 } from "./container-codex-runner.js";
+
+// Stand-in for the container engine so termination-path tests never shell
+// out to a real docker/podman. Rejecting mirrors `rm --force` on a
+// nonexistent container and drives the runner's kill fallback deterministically.
+const rejectingEngine: ContainerCommandRunner = () =>
+  Promise.reject(new Error("no container engine in unit tests"));
 
 function makeSuccessfulLauncher(calls: string[][]): ContainerProcessLauncher {
   return (_command, args) => {
@@ -238,7 +245,7 @@ describe("Container Codex runner", () => {
       CODEX_HOME: "/tmp/codex-home",
       RUNTIME_PROVIDER: "container",
     });
-    const runner = new ContainerCodexRunner(config, pending.launcher);
+    const runner = new ContainerCodexRunner(config, pending.launcher, rejectingEngine);
     const run = runner.run({
       agentId: "agent-a",
       workspacePath: "/tmp/workspace",
@@ -259,7 +266,7 @@ describe("Container Codex runner", () => {
       CODEX_TIMEOUT_MS: "1000",
       RUNTIME_PROVIDER: "container",
     });
-    const runner = new ContainerCodexRunner(config, pending.launcher);
+    const runner = new ContainerCodexRunner(config, pending.launcher, rejectingEngine);
 
     await expect(
       runner.run({
@@ -279,7 +286,7 @@ describe("Container Codex runner", () => {
       CODEX_MAX_OUTPUT_BYTES: "65536",
       RUNTIME_PROVIDER: "container",
     });
-    const runner = new ContainerCodexRunner(config, pending.launcher);
+    const runner = new ContainerCodexRunner(config, pending.launcher, rejectingEngine);
     const run = runner.run({
       agentId: "agent-a",
       workspacePath: "/tmp/workspace",
