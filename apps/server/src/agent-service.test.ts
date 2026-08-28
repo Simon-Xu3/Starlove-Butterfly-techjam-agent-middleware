@@ -93,11 +93,7 @@ async function sendBaseline(
 }
 
 describe("store ownership reader", () => {
-  it("returns the owner and fails closed on unknown or ownerless Agents", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "ownership-test-"));
-    temporaryDirectories.push(root);
-    const store = new JsonStore(path.join(root, "db.json"));
-    await store.initialize();
+  it("returns the owner and fails closed on unknown or ownerless Agents", () => {
     const base = {
       name: "A",
       description: "",
@@ -109,10 +105,19 @@ describe("store ownership reader", () => {
       createdAt: "2026-08-28T00:00:00.000Z",
       updatedAt: "2026-08-28T00:00:00.000Z",
     };
-    await store.mutate((database) => {
-      database.agents.push({ ...base, id: "owned", ownerPrincipalId: "user-a" });
-      database.agents.push({ ...base, id: "ownerless" });
-    });
+    const store = {
+      snapshot: () => ({
+        version: 2 as const,
+        agents: [
+          { ...base, id: "owned", ownerPrincipalId: "user-a" as const },
+          { ...base, id: "ownerless" },
+        ],
+        messages: [],
+        runs: [],
+        entitlements: [],
+        receipts: [],
+      }),
+    } as unknown as JsonStore;
     const reader = createStoreOwnershipReader(store);
     expect(reader.getOwnerPrincipalId("owned")).toBe("user-a");
     expect(reader.getOwnerPrincipalId("ownerless")).toBeUndefined();

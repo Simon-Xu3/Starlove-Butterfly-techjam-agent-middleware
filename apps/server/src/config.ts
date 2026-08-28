@@ -1,6 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
+
+const defaultResourceRoot = fileURLToPath(
+  new URL("../../../fixtures/resources", import.meta.url),
+);
 
 const envSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
@@ -8,6 +13,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().default("info"),
   APP_DATA_DIR: z.string().default(path.resolve(".data")),
   AGENT_WORKSPACE_ROOT: z.string().default(path.resolve("workspaces")),
+  RESOURCE_ROOT: z.string().trim().min(1).default(defaultResourceRoot),
   CODEX_HOME: z.string().default(path.resolve("codex-home")),
   CODEX_BIN: z.string().default("codex"),
   CODEX_SANDBOX_MODE: z
@@ -70,6 +76,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env) {
     logLevel: env.LOG_LEVEL,
     dataDirectory: path.resolve(env.APP_DATA_DIR),
     workspaceRoot: path.resolve(env.AGENT_WORKSPACE_ROOT),
+    resourceRoot: path.resolve(env.RESOURCE_ROOT),
     codexHome: path.resolve(env.CODEX_HOME),
     codexBin: env.CODEX_BIN,
     codexSandboxMode: env.CODEX_SANDBOX_MODE,
