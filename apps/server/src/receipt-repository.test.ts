@@ -113,6 +113,8 @@ describe("StoreReceiptRepository", () => {
     );
     expect(repo.getReceiptsForRun(RUN)).toHaveLength(1);
     expect(repo.getReceiptsForRun(otherRun)).toHaveLength(1);
+    // Drain the fire-and-forget persists before teardown removes the dir.
+    await store.mutate(() => {});
   });
 });
 
