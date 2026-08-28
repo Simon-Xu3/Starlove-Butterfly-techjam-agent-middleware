@@ -76,7 +76,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -324,8 +325,34 @@ button {
 }
 
 .runtime-card strong,
-.runtime-card > span:last-child {
+.runtime-card > strong + span {
   display: block;
+}
+
+.demo-session-control {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: #aaa9a1;
+  font-size: 9px;
+}
+
+.demo-session-control select {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #494943;
+  border-radius: 8px;
+  color: #f2f0e9;
+  background: #33332f;
+}
+
+.runtime-card small {
+  display: block;
+  margin-top: 6px;
+  color: #777770;
+  font-size: 8px;
+  line-height: 1.4;
 }
 
 .runtime-card strong {
@@ -333,7 +360,7 @@ button {
   margin: 6px 0 4px;
 }
 
-.runtime-card > span:last-child {
+.runtime-card > strong + span {
   color: #85857e;
   font-size: 9px;
   overflow: hidden;
@@ -824,11 +851,167 @@ textarea:focus {
   font-size: 11px;
 }
 
+.receipt-card {
+  margin: 0 0 24px;
+  border: 1px solid #d9d6cb;
+  border-left-width: 3px;
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.receipt-allow {
+  border-left-color: var(--green);
+}
+
+.receipt-deny {
+  border-left-color: var(--red);
+}
+
+.receipt-heading,
+.resource-picker-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.receipt-heading strong,
+.resource-picker-heading strong,
+.resource-picker-heading span {
+  display: block;
+}
+
+.receipt-heading strong {
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.receipt-decision,
+.baseline-badge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.receipt-allow .receipt-decision {
+  color: #247353;
+  background: #dcf2e9;
+}
+
+.receipt-deny .receipt-decision {
+  color: #a33e3e;
+  background: #f6dfdc;
+}
+
+.receipt-card > p {
+  margin: 10px 0;
+  color: #66675f;
+  font-size: 10px;
+}
+
+.receipt-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.receipt-card dl div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: #f5f4ef;
+}
+
+.receipt-card dt {
+  color: #92928a;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.receipt-card dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: #4a4b46;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.receipt-pending {
+  display: block;
+  margin-top: 9px;
+  color: #8d6c2a;
+  font-size: 9px;
+}
+
 .composer {
   margin: 0;
   border-top: 1px solid #e1dfd8;
   padding: 13px max(22px, calc((100% - 800px) / 2)) 15px;
   background: #f8f7f3;
+}
+
+.resource-picker {
+  margin-bottom: 9px;
+  border: 1px solid #dedbd0;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fffefa;
+}
+
+.resource-picker-heading strong {
+  color: #3f403b;
+  font-size: 10px;
+}
+
+.resource-picker-heading div > span {
+  margin-top: 2px;
+  color: #8a8a82;
+  font-size: 8px;
+}
+
+.baseline-badge {
+  color: #61529f;
+  background: #efecff;
+}
+
+.resource-remove {
+  border: 0;
+  color: #9a4848;
+  background: transparent;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.resource-picker label {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 9px;
+}
+
+.resource-picker select {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid #d9d7cf;
+  border-radius: 8px;
+  padding: 0 9px;
+  color: var(--ink);
+  background: white;
+}
+
+.resource-picker-note {
+  margin: 7px 0 0;
+  color: #85857e;
+  font-size: 8px;
 }
 
 .composer textarea {

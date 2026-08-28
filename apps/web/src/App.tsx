@@ -1,6 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, ApiError, setAuthToken } from "./api";
-import type { Agent, AgentRun, Message, SystemInfo } from "./types";
+import {
+  api,
+  ApiError,
+  DeniedRunApiError,
+  setAuthToken,
+  setDemoSession,
+} from "./api";
+import {
+  buildSendMessageBody,
+  DecisionReceiptCard,
+  ResourcePicker,
+} from "./resource-capsule";
+import type {
+  Agent,
+  AgentRun,
+  DecisionReceipt,
+  DemoSessionValue,
+  DeniedRunResponse,
+  Message,
+  ProtectedResource,
+  SystemInfo,
+} from "./types";
 
 const starterPrompts = [
   "Create a small TypeScript CLI that prints a weather summary from sample JSON.",
@@ -45,6 +65,13 @@ export default function App() {
   const [form, setForm] = useState(emptyForm);
   const [prompt, setPrompt] = useState("");
   const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
+  const [activeReceipt, setActiveReceipt] = useState<DecisionReceipt | null>(null);
+  const [deniedRun, setDeniedRun] = useState<DeniedRunResponse | null>(null);
+  const [resources, setResources] = useState<ProtectedResource[]>([]);
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
+  const [resourceUnavailable, setResourceUnavailable] = useState<string | null>(null);
+  const [demoSessionValue, setDemoSessionValue] =
+    useState<DemoSessionValue>("demo-session-a");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState<boolean | null>(null);
@@ -77,9 +104,42 @@ export default function App() {
     }
   }, []);
 
+  const refreshResources = useCallback(async () => {
+    try {
+      const result = await api.resources();
+      if (!mountedRef.current) return;
+      setResources(result.resources);
+      setResourceUnavailable(null);
+      setSelectedResourceId((current) =>
+        current && result.resources.some((resource) => resource.id === current)
+          ? current
+          : null,
+      );
+    } catch (reason) {
+      if (!mountedRef.current) return;
+      setResources([]);
+      setSelectedResourceId(null);
+      setResourceUnavailable(
+        reason instanceof ApiError && reason.status === 404
+          ? "Resource catalog is awaiting the P2 integration adapter. Baseline Runs remain available."
+          : "Protected Resources are temporarily unavailable. Baseline Runs remain available.",
+      );
+    }
+  }, []);
+
+  const loadReceipt = useCallback(async (runId: string) => {
+    try {
+      const result = await api.receipts(runId);
+      if (mountedRef.current) setActiveReceipt(result.receipts[0] ?? null);
+    } catch {
+      if (mountedRef.current) setActiveReceipt(null);
+    }
+  }, []);
+
   const bootstrap = useCallback(async () => {
     await Promise.all([refreshAgents(), api.system().then(setSystem)]);
-  }, [refreshAgents]);
+    await refreshResources();
+  }, [refreshAgents, refreshResources]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -98,6 +158,9 @@ export default function App() {
 
   useEffect(() => {
     setActiveRun(null);
+    setActiveReceipt(null);
+    setDeniedRun(null);
+    setSelectedResourceId(null);
     setShowSettings(false);
     if (!selectedId) {
       setMessages([]);
@@ -108,6 +171,9 @@ export default function App() {
         if (selectedIdRef.current !== selectedId) return;
         const latest = result.runs[0] ?? null;
         setActiveRun(latest);
+        if (latest && !["queued", "running"].includes(latest.status)) {
+          void loadReceipt(latest.id);
+        }
         if (latest && ["queued", "running"].includes(latest.status)) {
           void pollRun(latest.id, selectedId).catch((reason) =>
             setError(reason instanceof Error ? reason.message : String(reason)),
@@ -117,7 +183,7 @@ export default function App() {
       .catch((reason) =>
         setError(reason instanceof Error ? reason.message : String(reason)),
       );
-  }, [refreshMessages, selectedId]);
+  }, [loadReceipt, refreshMessages, selectedId]);
 
   useEffect(() => {
     if (selected) {
@@ -131,7 +197,7 @@ export default function App() {
 
   useEffect(() => {
     messageEnd.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeRun]);
+  }, [messages, activeRun, activeReceipt]);
 
   const createAgent = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -211,7 +277,11 @@ export default function App() {
         const result = await api.run(runId);
         if (selectedIdRef.current === agentId) setActiveRun(result.run);
         if (!["queued", "running"].includes(result.run.status)) {
-          await Promise.all([refreshMessages(agentId), refreshAgents()]);
+          await Promise.all([
+            refreshMessages(agentId),
+            refreshAgents(),
+            loadReceipt(runId),
+          ]);
           return;
         }
       }
@@ -224,10 +294,14 @@ export default function App() {
     event.preventDefault();
     if (!selected || !prompt.trim()) return;
     const content = prompt.trim();
+    const body = buildSendMessageBody(content, selectedResourceId);
     setPrompt("");
+    setSelectedResourceId(null);
     setError(null);
+    setActiveReceipt(null);
+    setDeniedRun(null);
     try {
-      const result = await api.sendMessage(selected.id, content);
+      const result = await api.sendMessage(selected.id, body);
       if (selectedIdRef.current === selected.id) {
         setMessages((current) => [...current, result.message]);
         setActiveRun(result.run);
@@ -237,12 +311,48 @@ export default function App() {
           agent.id === selected.id ? { ...agent, status: "busy" } : agent,
         ),
       );
+      if (body.resourceIds?.length === 1) void loadReceipt(result.run.id);
       await pollRun(result.run.id, selected.id);
     } catch (reason) {
+      if (reason instanceof DeniedRunApiError) {
+        const denied = reason.denied;
+        setDeniedRun(denied);
+        setActiveRun({
+          id: denied.runId,
+          agentId: selected.id,
+          status: "denied",
+          prompt: content,
+          output: null,
+          error: denied.reason,
+          usage: null,
+          createdAt: new Date().toISOString(),
+        });
+        await Promise.allSettled([
+          api.run(denied.runId).then(({ run }) => setActiveRun(run)),
+          loadReceipt(denied.runId),
+          refreshMessages(selected.id),
+          refreshAgents(),
+        ]);
+        return;
+      }
       setError(reason instanceof Error ? reason.message : String(reason));
       setActiveRun(null);
       await refreshAgents();
     }
+  };
+
+  const changeDemoSession = async (value: DemoSessionValue) => {
+    setDemoSession(value);
+    setDemoSessionValue(value);
+    setError(null);
+    setActiveRun(null);
+    setActiveReceipt(null);
+    setDeniedRun(null);
+    setMessages([]);
+    setSelectedResourceId(null);
+    await Promise.all([refreshAgents(), refreshResources()]).catch((reason) =>
+      setError(reason instanceof Error ? reason.message : String(reason)),
+    );
   };
 
   const unlock = async (event: React.FormEvent) => {
@@ -365,6 +475,20 @@ export default function App() {
             {system?.arkModel ?? "Ark model not configured"}
             {system?.containerEngine ? " · " + system.containerEngine : ""}
           </span>
+          <label className="demo-session-control">
+            Mock principal
+            <select
+              value={demoSessionValue}
+              onChange={(event) =>
+                void changeDemoSession(event.target.value as DemoSessionValue)
+              }
+              disabled={busy || selected?.status === "busy"}
+            >
+              <option value="demo-session-a">Demo User A</option>
+              <option value="demo-session-b">Demo User B</option>
+            </select>
+          </label>
+          <small>Demo identity only — not authentication.</small>
         </div>
       </aside>
 
@@ -538,10 +662,25 @@ export default function App() {
                     <span>{activeRun.error}</span>
                   </article>
                 )}
+                {(activeReceipt || deniedRun) && (
+                  <DecisionReceiptCard receipt={activeReceipt} denied={deniedRun} />
+                )}
                 <div ref={messageEnd} />
               </div>
 
               <form className="composer" onSubmit={sendMessage}>
+                <ResourcePicker
+                  resources={resources}
+                  selectedResourceId={selectedResourceId}
+                  onSelect={setSelectedResourceId}
+                  unavailableMessage={resourceUnavailable}
+                  disabled={
+                    selected.status === "stopped" ||
+                    selected.status === "busy" ||
+                    (activeRun != null &&
+                      ["queued", "running"].includes(activeRun.status))
+                  }
+                />
                 <textarea
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
