@@ -36,6 +36,37 @@ function makeSuccessfulLauncher(calls: string[][]): ContainerProcessLauncher {
   };
 }
 
+function makePendingLauncher(): {
+  launcher: ContainerProcessLauncher;
+  getChild: () => ChildProcess;
+} {
+  let child: ChildProcess | undefined;
+  const launcher: ContainerProcessLauncher = () => {
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    let closed = false;
+    child = Object.assign(new EventEmitter(), {
+      stdout,
+      stderr,
+      kill: () => {
+        if (!closed) {
+          closed = true;
+          queueMicrotask(() => child?.emit("close", 1));
+        }
+        return true;
+      },
+    }) as unknown as ChildProcess;
+    return child;
+  };
+  return {
+    launcher,
+    getChild: () => {
+      if (!child) throw new Error("Expected the Container Runner to start a process");
+      return child;
+    },
+  };
+}
+
 describe("Container Codex runner", () => {
   it("builds an isolated Docker/Podman-compatible invocation", () => {
     const config = loadConfig({
@@ -181,5 +212,82 @@ describe("Container Codex runner", () => {
     expect(calls[0]).toContain(
       "type=bind,src=/fixtures/orders-incident,dst=/resources/orders-incident,readonly",
     );
+
+    if (false) {
+      const request = {
+        agentId: "agent-a",
+        workspacePath: "/tmp/workspace",
+        prompt: "compile-time contract probe",
+        threadId: null,
+      };
+      // @ts-expect-error Capsule calls require a non-null ValidatedRunMountPlan.
+      void runner.run(request, undefined);
+      // @ts-expect-error Raw source, target, and mode values cannot replace a plan.
+      void runner.run(request, {
+        sourcePath: "/fixtures/orders-incident",
+        targetPath: "/resources/orders-incident",
+        readOnly: true,
+      });
+    }
+  });
+
+  it("cancels an active Container Run through its existing termination path", async () => {
+    const pending = makePendingLauncher();
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex-home",
+      RUNTIME_PROVIDER: "container",
+    });
+    const runner = new ContainerCodexRunner(config, pending.launcher);
+    const run = runner.run({
+      agentId: "agent-a",
+      workspacePath: "/tmp/workspace",
+      prompt: "wait for cancellation",
+      threadId: null,
+    });
+
+    pending.getChild();
+    await expect(runner.cancel("agent-a")).resolves.toBe(true);
+    await expect(run).rejects.toThrow("Run cancelled");
+  });
+
+  it("enforces the configured Runtime timeout", async () => {
+    const pending = makePendingLauncher();
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex-home",
+      CODEX_TIMEOUT_MS: "1000",
+      RUNTIME_PROVIDER: "container",
+    });
+    const runner = new ContainerCodexRunner(config, pending.launcher);
+
+    await expect(
+      runner.run({
+        agentId: "agent-a",
+        workspacePath: "/tmp/workspace",
+        prompt: "wait for timeout",
+        threadId: null,
+      }),
+    ).rejects.toThrow("Runtime timed out after 1000 ms");
+  });
+
+  it("stops a Container Run when output exceeds the configured limit", async () => {
+    const pending = makePendingLauncher();
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex-home",
+      CODEX_MAX_OUTPUT_BYTES: "65536",
+      RUNTIME_PROVIDER: "container",
+    });
+    const runner = new ContainerCodexRunner(config, pending.launcher);
+    const run = runner.run({
+      agentId: "agent-a",
+      workspacePath: "/tmp/workspace",
+      prompt: "emit too much output",
+      threadId: null,
+    });
+
+    pending.getChild().stdout?.emit("data", Buffer.alloc(65_537));
+    await expect(run).rejects.toThrow("Codex output exceeded CODEX_MAX_OUTPUT_BYTES");
   });
 });
