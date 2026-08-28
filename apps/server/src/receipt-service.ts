@@ -44,14 +44,14 @@ const decisionReceiptSchema = z.discriminatedUnion("decision", [
     ...receiptBase,
     decision: z.literal("allow"),
     reason: z.literal("allowed"),
-    grantGeneration: z.number().int().nonnegative(),
+    grantGeneration: z.number().int().positive(),
     runnerStarted: z.literal(true),
   }),
   z.object({
     ...receiptBase,
     decision: z.literal("deny"),
     reason: z.enum(denialReasons),
-    grantGeneration: z.number().int().nonnegative().nullable(),
+    grantGeneration: z.number().int().positive().nullable(),
     runnerStarted: z.literal(false),
   }),
 ]);
