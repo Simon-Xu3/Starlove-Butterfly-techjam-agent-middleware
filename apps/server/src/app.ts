@@ -186,20 +186,12 @@ export async function createApp(
     return { run: service.getRun(id, principal.id) };
   });
 
-  if (config.nodeEnv === "production") {
-    const webRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
-    await app.register(fastifyStatic, {
-      root: webRoot,
-      prefix: "/",
-    });
-    app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith("/api/")) {
-        return reply.code(404).send({ error: "API route not found" });
-      }
-      return reply.sendFile("index.html");
-    });
-  }
-
+  // Registered before any `await app.register(...)` below: awaiting a
+  // register finalizes the route contexts declared so far, and an error
+  // handler attached afterwards never applies to them. With the static
+  // plugin registered first, every /api validation failure fell through to
+  // Fastify's default 500 in production while tests (NODE_ENV=test, no
+  // static plugin) still saw the correct 400.
   app.setErrorHandler((error, request, reply) => {
     const appError = error instanceof Error ? error : new Error(String(error));
     const validationError = error instanceof z.ZodError;
@@ -217,12 +209,29 @@ export async function createApp(
             : 500;
     if (statusCode >= 500) {
       request.log.error(appError);
+      // Never echo an internal failure message: it can carry host paths
+      // from the filesystem, store, or container engine.
+      return reply.code(statusCode).send({ error: "Internal server error" });
     }
     return reply.code(statusCode).send({
       error: appError.message,
       ...(validationError ? { details: error.issues } : {}),
     });
   });
+
+  if (config.nodeEnv === "production") {
+    const webRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
+    await app.register(fastifyStatic, {
+      root: webRoot,
+      prefix: "/",
+    });
+    app.setNotFoundHandler((request, reply) => {
+      if (request.url.startsWith("/api/")) {
+        return reply.code(404).send({ error: "API route not found" });
+      }
+      return reply.sendFile("index.html");
+    });
+  }
 
   return app;
 }

@@ -42,13 +42,17 @@ interface TestAppOptions {
   runner?: AgentRunner;
   capsule?: Partial<CapsuleSeams>;
   appAuthToken?: string;
+  // Builds the app the way production does (static plugin registered), which
+  // is the only configuration that can catch error-handler wiring bugs.
+  nodeEnv?: "test" | "production";
 }
 
 async function makeTestApp(options: TestAppOptions = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "launchpad-http-"));
   temporaryDirectories.push(root);
   const config = loadConfig({
-    NODE_ENV: "test",
+    NODE_ENV: options.nodeEnv ?? "test",
+    HOST: "127.0.0.1",
     APP_DATA_DIR: path.join(root, "data"),
     AGENT_WORKSPACE_ROOT: path.join(root, "workspaces"),
     CODEX_HOME: path.join(root, "codex"),
@@ -102,6 +106,49 @@ describe("HTTP boundary", () => {
       headers: { authorization: "Bearer a-strong-test-token", ...sessionA },
     });
     expect(allowed.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it("keeps validation and error contracts in the production build", async () => {
+    // Regression: the error handler used to be registered after the static
+    // plugin, so in production every validation failure fell through to
+    // Fastify's default 500 with a raw internal message.
+    const { app } = await makeTestApp({ nodeEnv: "production" });
+    const agent = await createAgent(app);
+
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ content: "x", resourceIds: ["../../etc"] }),
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const tooMany = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "x",
+        resourceIds: ["orders-incident", "payments-incident"],
+      }),
+    });
+    expect(tooMany.statusCode).toBe(400);
+
+    // HttpError statuses and their safe messages still round-trip.
+    const missing = await app.inject({
+      method: "GET",
+      url: "/api/agents/6b3f4f57-3b52-4f7b-9a71-2f24b7a2b111",
+      headers: sessionA,
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error).toBe("Agent not found");
+
+    const unauthenticated = await app.inject({
+      method: "GET",
+      url: "/api/agents",
+    });
+    expect(unauthenticated.statusCode).toBe(401);
     await app.close();
   });
 
