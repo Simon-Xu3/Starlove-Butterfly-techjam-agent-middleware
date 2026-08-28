@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeMountPlan } from "./capsule-test-support.js";
 import { loadConfig } from "./config.js";
 import {
   buildContainerRunArgs,
@@ -40,6 +41,14 @@ describe("Container Codex runner", () => {
     expect(args).toContain("io.codejam.instance-id=test-instance");
     expect(args).toContain("keep-id");
     expect(args).not.toContain("secret-that-must-not-appear-in-argv");
+    expect(
+      args.flatMap((argument, index) =>
+        args[index - 1] === "--mount" ? [argument] : [],
+      ),
+    ).toEqual([
+      "type=bind,src=/tmp/agent-workspace,dst=/workspace",
+      "type=bind,src=/tmp/codex-home,dst=/codex-home",
+    ]);
   });
 
   it("resumes a thread inside the mounted Runtime workspace", () => {
@@ -59,5 +68,38 @@ describe("Container Codex runner", () => {
     );
     expect(args.slice(-3)).toEqual(["resume", "thread-123", "continue"]);
     expect(args).not.toContain("keep-id");
+  });
+
+  it("adds exactly one readonly Resource mount from a validated plan", () => {
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex-home",
+      RUNTIME_PROVIDER: "container",
+    });
+    const plan = makeMountPlan({
+      sourcePath: "/fixtures/orders-incident",
+      targetPath: "/resources/orders-incident",
+    });
+
+    const args = buildContainerRunArgs(
+      {
+        agentId: "agent-a",
+        workspacePath: "/tmp/workspace",
+        prompt: "summarize the incident",
+        threadId: null,
+      },
+      config,
+      plan,
+    );
+    const mounts = args.flatMap((argument, index) =>
+      args[index - 1] === "--mount" ? [argument] : [],
+    );
+
+    expect(mounts).toEqual([
+      "type=bind,src=/tmp/workspace,dst=/workspace",
+      "type=bind,src=/tmp/codex-home,dst=/codex-home",
+      "type=bind,src=/fixtures/orders-incident,dst=/resources/orders-incident,readonly",
+    ]);
+    expect(args).not.toContain("payments-incident");
   });
 });

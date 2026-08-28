@@ -5,9 +5,11 @@ import { buildCodexArgs, parseCodexEventLine } from "./codex-runner.js";
 import { RunCancelledError } from "./errors.js";
 import type {
   AgentRunner,
+  CapsuleCapableRunner,
   RunUsage,
   RunnerRequest,
   RunnerResult,
+  ValidatedRunMountPlan,
 } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -35,9 +37,22 @@ export function containerName(agentId: string, instanceId = "default"): string {
   return "launchpad-" + safeInstance + "-" + safeAgent;
 }
 
+export function buildReadonlyResourceMount(
+  validatedMountPlan: ValidatedRunMountPlan,
+): string {
+  return (
+    "type=bind,src=" +
+    validatedMountPlan.sourcePath +
+    ",dst=" +
+    validatedMountPlan.targetPath +
+    ",readonly"
+  );
+}
+
 export function buildContainerRunArgs(
   request: RunnerRequest,
   config: AppConfig,
+  validatedMountPlan?: ValidatedRunMountPlan,
 ): string[] {
   const name = containerName(request.agentId, config.runtimeInstanceId);
   const engineName = config.containerEngine.split(/[\\/]/).at(-1)?.toLowerCase();
@@ -80,6 +95,9 @@ export function buildContainerRunArgs(
     "type=bind,src=" + request.workspacePath + ",dst=/workspace",
     "--mount",
     "type=bind,src=" + config.codexHome + ",dst=/codex-home",
+    ...(validatedMountPlan
+      ? ["--mount", buildReadonlyResourceMount(validatedMountPlan)]
+      : []),
     "--workdir",
     "/workspace",
     config.containerRuntimeImage,
@@ -88,7 +106,8 @@ export function buildContainerRunArgs(
   ];
 }
 
-export class ContainerCodexRunner implements AgentRunner {
+export class ContainerCodexRunner implements CapsuleCapableRunner {
+  readonly supportsMountPlans: true = true;
   private readonly active = new Map<string, ActiveContainer>();
 
   constructor(private readonly config: AppConfig) {}
@@ -137,14 +156,22 @@ export class ContainerCodexRunner implements AgentRunner {
     return active.termination;
   }
 
-  async run(request: RunnerRequest): Promise<RunnerResult> {
+  async run(request: RunnerRequest): Promise<RunnerResult>;
+  async run(
+    request: RunnerRequest,
+    validatedMountPlan: ValidatedRunMountPlan,
+  ): Promise<RunnerResult>;
+  async run(
+    request: RunnerRequest,
+    validatedMountPlan?: ValidatedRunMountPlan,
+  ): Promise<RunnerResult> {
     if (this.active.has(request.agentId)) {
       throw new Error("Agent already has an active Runtime container");
     }
 
     const child = spawn(
       this.config.containerEngine,
-      buildContainerRunArgs(request, this.config),
+      buildContainerRunArgs(request, this.config, validatedMountPlan),
       {
         cwd: request.workspacePath,
         env: this.childEnvironment(),
