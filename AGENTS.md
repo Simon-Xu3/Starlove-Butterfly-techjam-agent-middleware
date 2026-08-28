@@ -7,6 +7,11 @@
 ScopedRun implementation work is tracked in this repository's GitHub Issues and
 the linked GitHub Project. See `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+The five canonical triage roles use their default label names. See
+`docs/agents/triage-labels.md`.
+
 ### Domain docs
 
 This repository uses a single-context layout spanning `apps/server` and `apps/web`. See `docs/agents/domain.md`.
