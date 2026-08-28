@@ -28,6 +28,7 @@ const updateAgentBody = createAgentBody.partial().refine(
   (value) => Object.keys(value).length > 0,
   "At least one field is required",
 );
+const emptyBody = z.object({}).strict().optional();
 // Resource IDs are opaque safe slugs; path separators, dots, absolute or
 // encoded path shapes all fail the pattern and 400 before any Run or
 // Receipt exists. More than one ID is a validation failure, not a denial.
@@ -141,18 +142,21 @@ export async function createApp(
   app.delete("/api/agents/:id", async (request) => {
     const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
+    emptyBody.parse(request.body);
     return service.deleteAgent(id, principal.id);
   });
 
   app.post("/api/agents/:id/start", async (request) => {
     const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
+    emptyBody.parse(request.body);
     return { agent: await service.startAgent(id, principal.id) };
   });
 
   app.post("/api/agents/:id/stop", async (request) => {
     const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
+    emptyBody.parse(request.body);
     return { agent: await service.stopAgent(id, principal.id) };
   });
 

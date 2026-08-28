@@ -239,6 +239,38 @@ describe("demo session identity", () => {
       payload: JSON.stringify({ name: "Fine", principalId: "user-b" }),
     });
     expect(patched.statusCode).toBe(400);
+
+    for (const action of ["start", "stop"]) {
+      const lifecycleAgent = await createAgent(app);
+      for (const extra of [
+        { principalId: "user-b" },
+        { ownerId: "user-b" },
+        { userId: "user-b" },
+      ]) {
+        const response = await app.inject({
+          method: "POST",
+          url: "/api/agents/" + lifecycleAgent.id + "/" + action,
+          headers: { ...json, ...sessionA },
+          payload: JSON.stringify(extra),
+        });
+        expect(response.statusCode).toBe(400);
+      }
+    }
+
+    for (const extra of [
+      { principalId: "user-b" },
+      { ownerId: "user-b" },
+      { userId: "user-b" },
+    ]) {
+      const deletableAgent = await createAgent(app);
+      const response = await app.inject({
+        method: "DELETE",
+        url: "/api/agents/" + deletableAgent.id,
+        headers: { ...json, ...sessionA },
+        payload: JSON.stringify(extra),
+      });
+      expect(response.statusCode).toBe(400);
+    }
     await app.close();
   });
 });
