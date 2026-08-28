@@ -15,7 +15,6 @@ export interface MountPlanCompilerDependencies {
   registry: ResourceRegistryReader;
   entitlements: EntitlementReader;
   pathValidator: ResourcePathValidator;
-  reservedMountTargets?: readonly string[];
 }
 
 function sameTrustedResource(
@@ -65,9 +64,6 @@ function staleGeneration(): MountPlanResult {
 export function createMountPlanCompiler(
   dependencies: MountPlanCompilerDependencies,
 ): MountPlanCompiler {
-  const reservedMountTargets =
-    dependencies.reservedMountTargets ?? RESERVED_MOUNT_TARGETS;
-
   return {
     async compileMountPlan(
       runId: string,
@@ -116,8 +112,7 @@ export function createMountPlanCompiler(
 
       const targetPath = RESOURCE_TARGET_PREFIX + resourceId;
       if (
-        !targetPath.startsWith(RESOURCE_TARGET_PREFIX) ||
-        reservedMountTargets.some((reservedTarget) =>
+        RESERVED_MOUNT_TARGETS.some((reservedTarget) =>
           containerTargetsOverlap(targetPath, reservedTarget),
         )
       ) {

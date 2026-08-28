@@ -1,7 +1,8 @@
 import path from "node:path";
-import type {
-  RegisteredResource,
-  ResourceRegistryReader,
+import {
+  RESOURCE_ID_PATTERN,
+  type RegisteredResource,
+  type ResourceRegistryReader,
 } from "./types.js";
 
 export interface ResourceDefinition {
@@ -22,8 +23,6 @@ const DEFAULT_RESOURCE_DEFINITIONS: ReadonlyArray<ResourceDefinition> = [
     relativeDirectory: "payments-incident",
   },
 ];
-
-export const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 function cloneResource(resource: RegisteredResource): RegisteredResource {
   return { ...resource };

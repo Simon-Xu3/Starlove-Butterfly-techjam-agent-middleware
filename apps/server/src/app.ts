@@ -11,6 +11,7 @@ import {
 } from "./demo-principal.js";
 import { HttpError } from "./errors.js";
 import type { AgentService } from "./agent-service.js";
+import { RESOURCE_ID_PATTERN } from "./types.js";
 
 const agentIdParams = z.object({ id: z.string().uuid() });
 const runIdParams = z.object({ id: z.string().uuid() });
@@ -32,12 +33,11 @@ const emptyBody = z.object({}).strict().optional();
 // Resource IDs are opaque safe slugs; path separators, dots, absolute or
 // encoded path shapes all fail the pattern and 400 before any Run or
 // Receipt exists. More than one ID is a validation failure, not a denial.
-const resourceIdPattern = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const messageBody = z
   .object({
     content: z.string().trim().min(1).max(50_000),
     resourceIds: z
-      .array(z.string().regex(resourceIdPattern, "Invalid Resource ID"))
+      .array(z.string().regex(RESOURCE_ID_PATTERN, "Invalid Resource ID"))
       .max(1, "A Capsule Run selects exactly one Resource")
       .optional(),
   })

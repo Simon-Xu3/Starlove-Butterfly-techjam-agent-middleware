@@ -1,8 +1,9 @@
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import type { RegisteredResource } from "./types.js";
-
-export const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+import {
+  RESOURCE_ID_PATTERN,
+  type RegisteredResource,
+} from "./types.js";
 
 interface CanonicalRegistryEntry {
   readonly id: string;
@@ -40,6 +41,10 @@ function pathsOverlap(left: string, right: string): boolean {
   );
 }
 
+function isFilesystemRoot(candidate: string): boolean {
+  return path.parse(candidate).root === candidate;
+}
+
 function sameRegistryEntry(
   left: RegisteredResource,
   right: RegisteredResource,
@@ -67,7 +72,9 @@ export class ResourcePathValidator {
       const configuredRoot = path.resolve(this.allowedResourceRoot);
       const canonicalRoot = await realpath(configuredRoot);
       const rootInfo = await stat(canonicalRoot);
-      if (!rootInfo.isDirectory()) return { ok: false };
+      if (!rootInfo.isDirectory() || isFilesystemRoot(canonicalRoot)) {
+        return { ok: false };
+      }
 
       const ids = new Set<string>();
       const entries: CanonicalRegistryEntry[] = [];

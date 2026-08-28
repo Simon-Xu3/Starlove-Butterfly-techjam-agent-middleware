@@ -39,7 +39,6 @@ describe("mount-plan compiler", () => {
   function compiler(options?: {
     resources?: RegisteredResource[];
     entitlements?: PrincipalResourceEntitlement[];
-    reservedMountTargets?: readonly string[];
   }) {
     return createMountPlanCompiler({
       registry: makeFakeRegistryReader(
@@ -49,9 +48,6 @@ describe("mount-plan compiler", () => {
         options?.entitlements ?? [makeEntitlement()],
       ),
       pathValidator: new ResourcePathValidator(allowedRoot),
-      ...(options?.reservedMountTargets
-        ? { reservedMountTargets: options.reservedMountTargets }
-        : {}),
     });
   }
 
@@ -129,21 +125,6 @@ describe("mount-plan compiler", () => {
 
     expect(result).toEqual({ ok: false, reason: "invalid_resource_path" });
     expect(JSON.stringify(result)).not.toContain(scratch);
-  });
-
-  it("rejects collisions with every configured Runtime mount target", async () => {
-    await expect(
-      compiler({
-        reservedMountTargets: [
-          "/workspace",
-          "/codex-home",
-          "/resources/orders-incident",
-        ],
-      }).compileMountPlan(
-        "run-1",
-        makeAllowDecision({ resource: ordersResource }),
-      ),
-    ).resolves.toEqual({ ok: false, reason: "invalid_resource_path" });
   });
 
   it("fails closed for malformed decisions and never accepts a decision path", async () => {

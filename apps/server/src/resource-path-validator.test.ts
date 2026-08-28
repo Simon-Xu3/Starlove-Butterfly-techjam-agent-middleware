@@ -62,6 +62,19 @@ describe("ResourcePathValidator", () => {
     ).resolves.toEqual({ ok: false });
   });
 
+  it("fails closed when the allowed root is a filesystem root", async () => {
+    const orders = path.join(allowedRoot, "orders-incident");
+    await mkdir(orders);
+    const registered = resource("orders-incident", orders);
+    const filesystemRoot = path.parse(allowedRoot).root;
+
+    await expect(
+      new ResourcePathValidator(filesystemRoot).validateResource(registered, [
+        registered,
+      ]),
+    ).resolves.toEqual({ ok: false });
+  });
+
   it("resolves relative Registry sources under the allowed root", async () => {
     const orders = path.join(allowedRoot, "orders-incident");
     await mkdir(orders);

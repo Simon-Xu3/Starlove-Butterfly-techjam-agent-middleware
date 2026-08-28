@@ -1,16 +1,15 @@
-import type {
-  AgentOwnershipReader,
-  AuthorizationDecision,
-  CapsuleDenialReason,
-  EntitlementReader,
-  HumanPrincipal,
-  PrincipalResourceEntitlement,
-  RegisteredResource,
-  ResourceAuthorizer,
-  ResourceRegistryReader,
+import {
+  RESOURCE_ID_PATTERN,
+  type AgentOwnershipReader,
+  type AuthorizationDecision,
+  type CapsuleDenialReason,
+  type EntitlementReader,
+  type HumanPrincipal,
+  type PrincipalResourceEntitlement,
+  type RegisteredResource,
+  type ResourceAuthorizer,
+  type ResourceRegistryReader,
 } from "./types.js";
-
-const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export interface ResourceAuthorizerDependencies {
   ownership: AgentOwnershipReader;
