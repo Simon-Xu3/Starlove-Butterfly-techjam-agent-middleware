@@ -1,16 +1,41 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import {
+  execFile,
+  spawn,
+  type ChildProcess,
+  type SpawnOptions,
+} from "node:child_process";
 import { promisify } from "node:util";
 import type { AppConfig } from "./config.js";
 import { buildCodexArgs, parseCodexEventLine } from "./codex-runner.js";
 import { RunCancelledError } from "./errors.js";
 import type {
   AgentRunner,
+  CapsuleCapableRunner,
   RunUsage,
   RunnerRequest,
   RunnerResult,
+  ValidatedRunMountPlan,
 } from "./types.js";
 
 const execFileAsync = promisify(execFile);
+
+export type ContainerProcessLauncher = (
+  command: string,
+  args: readonly string[],
+  options: SpawnOptions,
+) => ChildProcess;
+
+// The container-engine command runner (docker/podman version, image inspect,
+// rm --force). Injectable so unit tests never shell out to a real engine —
+// its latency would otherwise make the cancel/timeout/output tests flaky.
+export type ContainerCommandRunner = (
+  command: string,
+  args: readonly string[],
+  options: { timeout: number; env: NodeJS.ProcessEnv },
+) => Promise<{ stdout: string; stderr: string }>;
+
+const defaultCommandRunner: ContainerCommandRunner = (command, args, options) =>
+  execFileAsync(command, [...args], options);
 
 interface ActiveContainer {
   child: ChildProcess;
@@ -35,9 +60,22 @@ export function containerName(agentId: string, instanceId = "default"): string {
   return "launchpad-" + safeInstance + "-" + safeAgent;
 }
 
+export function buildReadonlyResourceMount(
+  validatedMountPlan: ValidatedRunMountPlan,
+): string {
+  return (
+    "type=bind,src=" +
+    validatedMountPlan.sourcePath +
+    ",dst=" +
+    validatedMountPlan.targetPath +
+    ",readonly"
+  );
+}
+
 export function buildContainerRunArgs(
   request: RunnerRequest,
   config: AppConfig,
+  validatedMountPlan?: ValidatedRunMountPlan,
 ): string[] {
   const name = containerName(request.agentId, config.runtimeInstanceId);
   const engineName = config.containerEngine.split(/[\\/]/).at(-1)?.toLowerCase();
@@ -80,6 +118,9 @@ export function buildContainerRunArgs(
     "type=bind,src=" + request.workspacePath + ",dst=/workspace",
     "--mount",
     "type=bind,src=" + config.codexHome + ",dst=/codex-home",
+    ...(validatedMountPlan
+      ? ["--mount", buildReadonlyResourceMount(validatedMountPlan)]
+      : []),
     "--workdir",
     "/workspace",
     config.containerRuntimeImage,
@@ -88,18 +129,23 @@ export function buildContainerRunArgs(
   ];
 }
 
-export class ContainerCodexRunner implements AgentRunner {
+export class ContainerCodexRunner implements CapsuleCapableRunner {
+  readonly supportsMountPlans: true = true;
   private readonly active = new Map<string, ActiveContainer>();
 
-  constructor(private readonly config: AppConfig) {}
+  constructor(
+    private readonly config: AppConfig,
+    private readonly startProcess: ContainerProcessLauncher = spawn,
+    private readonly execEngine: ContainerCommandRunner = defaultCommandRunner,
+  ) {}
 
   async isAvailable(): Promise<boolean> {
     try {
-      await execFileAsync(this.config.containerEngine, ["version"], {
+      await this.execEngine(this.config.containerEngine, ["version"], {
         timeout: 5_000,
         env: this.childEnvironment(),
       });
-      await execFileAsync(
+      await this.execEngine(
         this.config.containerEngine,
         ["image", "inspect", this.config.containerRuntimeImage],
         { timeout: 5_000, env: this.childEnvironment() },
@@ -122,7 +168,7 @@ export class ContainerCodexRunner implements AgentRunner {
 
   private removeContainer(active: ActiveContainer): Promise<void> {
     if (!active.termination) {
-      active.termination = execFileAsync(
+      active.termination = this.execEngine(
         this.config.containerEngine,
         ["rm", "--force", active.containerName],
         { timeout: 8_000, env: this.childEnvironment() },
@@ -137,20 +183,32 @@ export class ContainerCodexRunner implements AgentRunner {
     return active.termination;
   }
 
-  async run(request: RunnerRequest): Promise<RunnerResult> {
+  async run(request: RunnerRequest): Promise<RunnerResult>;
+  async run(
+    request: RunnerRequest,
+    validatedMountPlan: ValidatedRunMountPlan,
+  ): Promise<RunnerResult>;
+  async run(
+    request: RunnerRequest,
+    validatedMountPlan?: ValidatedRunMountPlan,
+  ): Promise<RunnerResult> {
     if (this.active.has(request.agentId)) {
       throw new Error("Agent already has an active Runtime container");
     }
 
-    const child = spawn(
+    const child = this.startProcess(
       this.config.containerEngine,
-      buildContainerRunArgs(request, this.config),
+      buildContainerRunArgs(request, this.config, validatedMountPlan),
       {
         cwd: request.workspacePath,
         env: this.childEnvironment(),
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
+    if (!child.stdout || !child.stderr) {
+      child.kill("SIGTERM");
+      throw new Error("Container process must provide stdout and stderr streams");
+    }
     const settled = new Promise<void>((resolve) => {
       child.once("close", () => resolve());
       child.once("error", () => resolve());
