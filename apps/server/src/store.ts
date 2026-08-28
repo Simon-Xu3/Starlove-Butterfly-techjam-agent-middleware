@@ -1,9 +1,9 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { RESOURCE_ID_PATTERN } from "./resource-registry.js";
 import {
   DEMO_ENTITLEMENT_MATRIX,
+  RESOURCE_ID_PATTERN,
   type DatabaseV1,
   type DatabaseV2,
   type PrincipalResourceEntitlement,

@@ -242,6 +242,10 @@ export type AuthorizationDecision =
   | AllowedAuthorizationDecision
   | DeniedAuthorizationDecision;
 
+// Resource IDs are opaque safe slugs. This single shared rule protects both
+// request validation and server-generated /resources/<resourceId> targets.
+export const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
 // Reserved container mount targets; generated Resource targets must never
 // collide with these.
 export const RESERVED_MOUNT_TARGETS = ["/workspace", "/codex-home"] as const;

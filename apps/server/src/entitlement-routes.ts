@@ -3,10 +3,10 @@ import { z } from "zod";
 import { requireDemoPrincipal } from "./demo-principal.js";
 import type { PrincipalEntitlementService } from "./entitlement-service.js";
 import { HttpError } from "./errors.js";
-import { RESOURCE_ID_PATTERN } from "./resource-registry.js";
-import type {
-  EntitlementMutationResponse,
-  ListEntitlementsResponse,
+import {
+  RESOURCE_ID_PATTERN,
+  type EntitlementMutationResponse,
+  type ListEntitlementsResponse,
 } from "./types.js";
 
 const mutationBody = z

@@ -2,54 +2,49 @@ import path from "node:path";
 import { AgentService } from "./agent-service.js";
 import { createApp } from "./app.js";
 import { loadConfig, writeCodexConfig } from "./config.js";
+import { createStoreOwnershipReader } from "./demo-principal.js";
+import { createEntitlementRoutes } from "./entitlement-routes.js";
+import { PrincipalEntitlementService } from "./entitlement-service.js";
+import { createMountPlanCompiler } from "./mount-plan-compiler.js";
 import { InMemoryReceiptStore } from "./receipt-store.js";
+import { createResourceAuthorizer } from "./resource-authorizer.js";
+import { ResourcePathValidator } from "./resource-path-validator.js";
+import { StaticResourceRegistry } from "./resource-registry.js";
+import { createResourceRoutes } from "./resource-routes.js";
 import { createRunner } from "./runner-factory.js";
 import { JsonStore } from "./store.js";
-import type { MountPlanCompiler, ResourceAuthorizer } from "./types.js";
 import { WorkspaceManager } from "./workspace.js";
 
 const config = loadConfig();
 await writeCodexConfig(config);
 
-// Integration stubs until the Day 1 gate. The stub authorizer denies every
-// Capsule request fail-closed (no Registry or Entitlements exist yet); the
-// stub compiler is unreachable while the authorizer denies. P3 (Issue #5)
-// replaces both; P5/P2 replace the in-memory Receipt store.
-const stubAuthorizer: ResourceAuthorizer = {
-  async authorizeResources(principal, agentId, resourceIds) {
-    // Honor the frozen seam precondition (exactly one ID) instead of
-    // fabricating a resourceId, matching what the real P3 authorizer will do.
-    const [resourceId, ...rest] = resourceIds;
-    if (resourceId === undefined || rest.length > 0) {
-      throw new Error("authorizeResources expects exactly one resourceId");
-    }
-    return {
-      decision: "deny",
-      principalId: principal.id,
-      agentId,
-      resourceId,
-      reason: "entitlement_missing",
-      grantGeneration: null,
-    };
-  },
-};
-const stubCompiler: MountPlanCompiler = {
-  async compileMountPlan() {
-    return { ok: false, reason: "invalid_resource_path" };
-  },
-};
-
 const store = new JsonStore(path.join(config.dataDirectory, "launchpad.json"));
+const registry = new StaticResourceRegistry(config.resourceRoot);
+const entitlements = new PrincipalEntitlementService(store, registry);
+const authorizer = createResourceAuthorizer({
+  ownership: createStoreOwnershipReader(store),
+  registry,
+  entitlements,
+});
+const mountPlanCompiler = createMountPlanCompiler({
+  registry,
+  entitlements,
+  pathValidator: new ResourcePathValidator(config.resourceRoot),
+});
 const workspaces = new WorkspaceManager(config.workspaceRoot);
 const runner = createRunner(config);
 const service = new AgentService(config, store, workspaces, runner, {
-  authorizer: stubAuthorizer,
-  mountPlanCompiler: stubCompiler,
+  authorizer,
+  mountPlanCompiler,
+  // P5 owns the persisted Receipt integration. Keep its current seam while
+  // P2/P3 use the real Store, Registry, Entitlement, and mount-plan services.
   receipts: new InMemoryReceiptStore(),
 });
 await service.initialize();
 
 const app = await createApp(config, service);
+await app.register(createResourceRoutes({ registry, entitlements }));
+await app.register(createEntitlementRoutes({ entitlements }));
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "Shutting down");
