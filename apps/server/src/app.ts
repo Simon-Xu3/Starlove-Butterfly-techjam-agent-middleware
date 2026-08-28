@@ -5,26 +5,41 @@ import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
+import {
+  IDENTITY_EXEMPT_ROUTES,
+  requireDemoPrincipal,
+} from "./demo-principal.js";
 import { HttpError } from "./errors.js";
 import type { AgentService } from "./agent-service.js";
 
 const agentIdParams = z.object({ id: z.string().uuid() });
 const runIdParams = z.object({ id: z.string().uuid() });
-const createAgentBody = z.object({
-  name: z.string().trim().min(1).max(80),
-  description: z.string().max(500).optional(),
-  instructions: z.string().max(10_000).optional(),
-});
+// All bodies are strict so identity fields (principalId, ownerId, userId)
+// and other unknown keys are rejected — identity comes only from the demo
+// session header.
+const createAgentBody = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    description: z.string().max(500).optional(),
+    instructions: z.string().max(10_000).optional(),
+  })
+  .strict();
 const updateAgentBody = createAgentBody.partial().refine(
   (value) => Object.keys(value).length > 0,
   "At least one field is required",
 );
-// Strict until Capsule admission (Issue #3) lands: a request carrying
-// resourceIds must fail closed as a 400, not be silently stripped and run
-// as an unaudited baseline Run.
+const emptyBody = z.object({}).strict().optional();
+// Resource IDs are opaque safe slugs; path separators, dots, absolute or
+// encoded path shapes all fail the pattern and 400 before any Run or
+// Receipt exists. More than one ID is a validation failure, not a denial.
+const resourceIdPattern = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const messageBody = z
   .object({
     content: z.string().trim().min(1).max(50_000),
+    resourceIds: z
+      .array(z.string().regex(resourceIdPattern, "Invalid Resource ID"))
+      .max(1, "A Capsule Run selects exactly one Resource")
+      .optional(),
   })
   .strict();
 
@@ -48,11 +63,17 @@ export async function createApp(
   });
 
   app.addHook("onRequest", async (request, reply) => {
+    // Match the routed pattern, not the raw URL: find-my-way decodes and
+    // normalizes the target before routing, so a raw target like
+    // /%61pi/system would dodge a request.url check yet still reach
+    // /api/system. routeOptions.url is the matched route pattern (undefined
+    // for an unmatched 404, which is safe to leave to the not-found path).
+    const routePath = request.routeOptions?.url;
     if (
       !config.authToken ||
-      !request.url.startsWith("/api/") ||
-      request.url === "/api/health" ||
-      request.url === "/api/auth"
+      !routePath?.startsWith("/api/") ||
+      routePath === "/api/health" ||
+      routePath === "/api/auth"
     ) {
       return;
     }
@@ -68,6 +89,19 @@ export async function createApp(
     }
   });
 
+  // Fail-closed identity backstop: every /api route outside the exempt set
+  // requires a valid demo session, including route plugins other
+  // workstreams register later. Handlers still call requireDemoPrincipal
+  // themselves for the resolved principal value.
+  app.addHook("onRequest", async (request) => {
+    // Same routed-pattern match as the token guard, for the same reason.
+    const routePath = request.routeOptions?.url;
+    if (!routePath?.startsWith("/api/") || IDENTITY_EXEMPT_ROUTES.has(routePath)) {
+      return;
+    }
+    requireDemoPrincipal(request);
+  });
+
   app.get("/api/health", async () => ({
     ok: true,
     service: "volc-agent-launchpad",
@@ -77,60 +111,79 @@ export async function createApp(
 
   app.get("/api/system", async () => service.systemInfo());
 
-  app.get("/api/agents", async () => ({ agents: service.listAgents() }));
+  // Every identity-sensitive route resolves the demo Principal first.
+  // /api/health, /api/auth, and /api/system stay independent of mock
+  // identity by not calling requireDemoPrincipal.
+  app.get("/api/agents", async (request) => {
+    const principal = requireDemoPrincipal(request);
+    return { agents: service.listAgents(principal.id) };
+  });
 
   app.post("/api/agents", async (request, reply) => {
+    const principal = requireDemoPrincipal(request);
     const body = createAgentBody.parse(request.body);
-    const agent = await service.createAgent(body);
+    const agent = await service.createAgent(body, principal.id);
     return reply.code(201).send({ agent });
   });
 
   app.get("/api/agents/:id", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
-    return { agent: service.getAgent(id) };
+    return { agent: service.getAgent(id, principal.id) };
   });
 
   app.patch("/api/agents/:id", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
     const body = updateAgentBody.parse(request.body);
-    return { agent: await service.updateAgent(id, body) };
+    return { agent: await service.updateAgent(id, principal.id, body) };
   });
 
   app.delete("/api/agents/:id", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
-    return service.deleteAgent(id);
+    emptyBody.parse(request.body);
+    return service.deleteAgent(id, principal.id);
   });
 
   app.post("/api/agents/:id/start", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
-    return { agent: await service.startAgent(id) };
+    emptyBody.parse(request.body);
+    return { agent: await service.startAgent(id, principal.id) };
   });
 
   app.post("/api/agents/:id/stop", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
-    return { agent: await service.stopAgent(id) };
+    emptyBody.parse(request.body);
+    return { agent: await service.stopAgent(id, principal.id) };
   });
 
   app.get("/api/agents/:id/messages", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
-    return { messages: service.getMessages(id) };
+    return { messages: service.getMessages(id, principal.id) };
   });
 
   app.get("/api/agents/:id/runs", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
-    return { runs: service.getRuns(id) };
+    return { runs: service.getRuns(id, principal.id) };
   });
 
   app.post("/api/agents/:id/messages", async (request, reply) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = agentIdParams.parse(request.params);
     const body = messageBody.parse(request.body);
-    const result = await service.sendMessage(id, body.content);
-    return reply.code(202).send(result);
+    const result = await service.sendMessage(id, principal, body);
+    return reply.code(result.admitted ? 202 : 403).send(result.response);
   });
 
   app.get("/api/runs/:id", async (request) => {
+    const principal = requireDemoPrincipal(request);
     const { id } = runIdParams.parse(request.params);
-    return { run: service.getRun(id) };
+    return { run: service.getRun(id, principal.id) };
   });
 
   if (config.nodeEnv === "production") {
