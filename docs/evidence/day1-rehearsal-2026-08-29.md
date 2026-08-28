@@ -88,3 +88,49 @@ as user-b: GET /api/agents/<user-a agent>            -> 404
 - A full allow-path Run that reaches Codex needs real `ARK_API_KEY` /
   `ARK_MODEL` and the `volc-agent-runtime:local` image; the namespace
   guarantee itself is evidenced separately in `kill-test-2026-08-29.md`.
+
+---
+
+## Addendum — full allow path with real credentials
+
+Re-run with the repository's own `.env` (real `ARK_API_KEY`/`ARK_MODEL`) and
+the prebuilt `volc-agent-runtime:local` image, `RUNTIME_PROVIDER=container`.
+
+`GET /api/system` reported `arkConfigured: true`, `runtimeProvider: container`,
+`containerEngine: docker`.
+
+Two allow Runs were admitted and executed. Both produced a correct allow
+Receipt and reached the model API through the real container:
+
+```
+GET /api/runs/:runId/receipts
+  {"decision":"allow","reason":"allowed","grantGeneration":1,
+   "runnerStarted":true,"resourceId":"orders-incident",
+   "humanPrincipalId":"user-a", ...}
+```
+
+The container ran for ~100s before the Run ended `failed` with:
+
+```
+docker Runtime exited with code 1: exceeded retry limit,
+last status: 429 Too Many Requests, request id: ...
+```
+
+This is an **upstream model-service rate limit**, not a capsule failure — and
+it is materially different from the earlier placeholder-key attempt, which
+failed with `401 ... API key format is incorrect`. Reaching a 429 means the
+credentials are valid and the chain
+*admission → authorization → mount plan → real container → Codex CLI → model API*
+executed end to end. A second attempt after a cooldown hit the same limit,
+so the quota appears exhausted rather than momentarily throttled.
+
+Host fixtures were re-verified after both real Runs: **6/6 files still match
+`baseline-manifest.json`**.
+
+### Still unobserved
+
+The model's own answer about the incident. Everything up to and including the
+model API call is now evidenced; only the assistant message itself has not
+been seen, and it is blocked by the Ark account's rate limit rather than by
+anything in this repository. Re-running when quota is available should
+complete the Run and store the answer as the assistant Message.
