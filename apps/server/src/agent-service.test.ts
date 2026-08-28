@@ -182,6 +182,37 @@ describe("Agent lifecycle", () => {
       .toBe("completed");
   });
 
+  it("redacts host paths from a failed Run's error before persisting", async () => {
+    // The container engine echoes the bind-mount source on a mount error,
+    // which would otherwise put a protected Resource's canonical path into
+    // run.error and out through GET /api/runs/:id.
+    const leakingRunner: AgentRunner = {
+      run: async () => {
+        throw new Error(
+          'docker: Error response from daemon: invalid mount config for type "bind": ' +
+            "bind source path does not exist: /Users/demo/repo/fixtures/resources/orders-incident",
+        );
+      },
+      cancel: async () => false,
+      isAvailable: async () => true,
+    };
+    const service = await makeService(leakingRunner);
+    const agent = await service.createAgent({ name: "Leaky" }, "user-a");
+    const { run } = await sendBaseline(service, agent.id, "trigger a failure");
+
+    await expect
+      .poll(() => service.getRun(run.id, "user-a").status)
+      .toBe("failed");
+    const stored = service.getRun(run.id, "user-a");
+    expect(stored.error).not.toContain("/Users/demo");
+    expect(stored.error).not.toContain("fixtures/resources");
+    expect(stored.error).not.toContain("orders-incident");
+    expect(stored.error).toContain("[path]");
+    expect(service.getAgent(agent.id, "user-a").lastError).not.toContain(
+      "/Users/demo",
+    );
+  });
+
   it("persists a playground conversation", async () => {
     const service = await makeService();
     const agent = await service.createAgent({ name: "Coder" }, "user-a");

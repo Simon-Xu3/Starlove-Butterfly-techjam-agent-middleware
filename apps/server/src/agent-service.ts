@@ -485,6 +485,16 @@ export class AgentService {
     };
   }
 
+  // A Runner failure message can carry host paths — the container engine
+  // echoes the bind-mount source on a mount error, which would put a
+  // protected Resource's canonical path into run.error and then into an
+  // HTTP response. Replace any absolute path before it is persisted.
+  private redactHostPaths(message: string): string {
+    return message
+      .replace(/(?:[A-Za-z]:)?[\\/][^\s"'`,;:)\]]{2,}/g, "[path]")
+      .slice(0, 2_000);
+  }
+
   private async executeRun(
     agentAtStart: Agent,
     run: AgentRun,
@@ -535,7 +545,9 @@ export class AgentService {
     } catch (error) {
       const completedAt = now();
       const cancelled = error instanceof RunCancelledError;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = this.redactHostPaths(
+        error instanceof Error ? error.message : String(error),
+      );
       await this.store.mutate((database) => {
         const storedRun = database.runs.find((item) => item.id === run.id);
         const agent = database.agents.find((item) => item.id === agentAtStart.id);
