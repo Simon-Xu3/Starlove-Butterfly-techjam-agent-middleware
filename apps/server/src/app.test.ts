@@ -152,6 +152,43 @@ describe("HTTP boundary", () => {
     await app.close();
   });
 
+  it("returns a generic body for a genuine 500 and never the internal message", async () => {
+    // The 5xx branch is the one that could echo a filesystem error carrying
+    // host paths, so it needs direct coverage rather than inference.
+    const exploding = {
+      listAgents: () => {
+        throw new Error(
+          "ENOENT: no such file or directory, open '/Users/demo/private/db.json'",
+        );
+      },
+    } as unknown as AgentService;
+    const root = await mkdtemp(path.join(tmpdir(), "launchpad-500-"));
+    temporaryDirectories.push(root);
+    const app = await createApp(
+      loadConfig({
+        NODE_ENV: "test",
+        HOST: "127.0.0.1",
+        APP_DATA_DIR: path.join(root, "data"),
+        AGENT_WORKSPACE_ROOT: path.join(root, "workspaces"),
+        CODEX_HOME: path.join(root, "codex"),
+        ARK_API_KEY: "test-key",
+        ARK_MODEL: "ep-test",
+      }),
+      exploding,
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/agents",
+      headers: sessionA,
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ error: "Internal server error" });
+    expect(response.body).not.toContain("/Users/demo");
+    expect(response.body).not.toContain("ENOENT");
+    await app.close();
+  });
+
   it("applies the token guard to the routed path, not the raw URL", async () => {
     const { app } = await makeTestApp({ appAuthToken: "a-strong-test-token" });
     // /%61pi/system decodes to /api/system in the router; the guard must
