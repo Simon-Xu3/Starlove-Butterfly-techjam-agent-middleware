@@ -489,10 +489,23 @@ export class AgentService {
   // echoes the bind-mount source on a mount error, which would put a
   // protected Resource's canonical path into run.error and then into an
   // HTTP response. Replace any absolute path before it is persisted.
+  // Runner failures can carry host paths — the container engine echoes the
+  // bind-mount source on a mount error, which would put a protected
+  // Resource's canonical path into run.error and then into an HTTP response.
+  // Partial masking is not reliable here: path segments may contain spaces,
+  // so any pattern that stops at whitespace leaves fragments behind. Rather
+  // than trying to rewrite an arbitrary engine message, drop the whole
+  // message once it looks path-bearing and keep a safe fixed string; the
+  // full detail stays in the server log.
   private redactHostPaths(message: string): string {
-    return message
-      .replace(/(?:[A-Za-z]:)?[\\/][^\s"'`,;:)\]]{2,}/g, "[path]")
-      .slice(0, 2_000);
+    const withoutSchemes = message.replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi, "");
+    // Any separator followed by a path-ish character, wherever it appears
+    // (including after "src=" or a quote), marks the message as unsafe.
+    const carriesPath = /[\\/][A-Za-z0-9._-]/.test(withoutSchemes);
+    if (carriesPath) {
+      return "Runtime failed. Details were withheld because the message referenced a filesystem path.";
+    }
+    return message.slice(0, 2_000);
   }
 
   private async executeRun(

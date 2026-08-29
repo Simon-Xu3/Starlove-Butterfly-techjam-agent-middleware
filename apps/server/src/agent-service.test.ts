@@ -207,9 +207,49 @@ describe("Agent lifecycle", () => {
     expect(stored.error).not.toContain("/Users/demo");
     expect(stored.error).not.toContain("fixtures/resources");
     expect(stored.error).not.toContain("orders-incident");
-    expect(stored.error).toContain("[path]");
+    expect(stored.error).toContain("withheld");
     expect(service.getAgent(agent.id, "user-a").lastError).not.toContain(
       "/Users/demo",
+    );
+  });
+
+  it("withholds errors whose paths contain spaces, and keeps path-free ones", async () => {
+    // A whitespace-terminated pattern would leave fragments like " Data"
+    // behind, so a path-bearing message is dropped whole instead of masked.
+    const spacedPath: AgentRunner = {
+      run: async () => {
+        throw new Error(
+          "bind source path does not exist: /srv/Protected Data/orders-incident",
+        );
+      },
+      cancel: async () => false,
+      isAvailable: async () => true,
+    };
+    const service = await makeService(spacedPath);
+    const agent = await service.createAgent({ name: "Spaced" }, "user-a");
+    const { run } = await sendBaseline(service, agent.id, "fail with a spaced path");
+    await expect.poll(() => service.getRun(run.id, "user-a").status).toBe("failed");
+    const stored = service.getRun(run.id, "user-a");
+    expect(stored.error).not.toContain("Data");
+    expect(stored.error).not.toContain("Protected");
+    expect(stored.error).not.toContain("srv");
+
+    // A message with no path is preserved so operators keep real detail.
+    const pathFree: AgentRunner = {
+      run: async () => {
+        throw new Error("exceeded retry limit, last status: 429 Too Many Requests");
+      },
+      cancel: async () => false,
+      isAvailable: async () => true,
+    };
+    const plain = await makeService(pathFree);
+    const plainAgent = await plain.createAgent({ name: "Plain" }, "user-a");
+    const plainRun = await sendBaseline(plain, plainAgent.id, "fail without a path");
+    await expect
+      .poll(() => plain.getRun(plainRun.run.id, "user-a").status)
+      .toBe("failed");
+    expect(plain.getRun(plainRun.run.id, "user-a").error).toContain(
+      "429 Too Many Requests",
     );
   });
 
