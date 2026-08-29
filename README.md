@@ -3,21 +3,26 @@
 ## Our TechJam project: ScopedRun
 
 This team has selected **Track 1: Agent Launchpad — Design and Build
-Lightweight Agent Middleware**. Our proposed middleware is **ScopedRun**, a
-run-scoped resource capsule that compiles a human's explicit resource grant
-into the filesystem view of one Agent Run.
+Lightweight Agent Middleware**. Our middleware is **ScopedRun**, a run-scoped
+resource capsule that compiles a human's explicit per-Run Resource Delegation,
+bounded by a server-owned Entitlement, into the filesystem view of one Agent
+Run.
 
 The core guarantee is deliberately narrow and testable:
 
-> Resources that are not authorized for a Run do not enter that Runtime's
-> mount namespace. Authorized resources appear only with their approved access
-> mode.
+> A Protected Resource that is not explicitly delegated to a Run does not
+> enter that Runtime's mount namespace. The MVP mounts at most one delegated
+> directory and always mounts it read-only.
 
-ScopedRun will enforce this in the Fastify control plane and container launch
+ScopedRun enforces this in the Fastify control plane and container launch
 path, rather than relying on a resource picker, prompt instructions, or the
-Agent to police itself. The first demo will use two mock users and two
-server-owned incident bundles: an authorized bundle can be read by a real
-Agent Run, while an unauthorized bundle is rejected before the Runtime starts.
+Agent to police itself. The demo uses two mock users and two server-owned
+incident bundles: an authorized bundle can be read by a real Agent Run, while
+an unauthorized bundle is rejected before the Runtime starts.
+
+An Entitlement is only the upper bound of what a principal may delegate. The
+user must explicitly choose the Resource for each Run; suggestions, when
+present, are advisory and never authorize or submit a delegation.
 
 - [Approved planning brief](docs/planning/resource-capsule-brief.md)
 - [Product user flow and authorization model](docs/planning/scopedrun-user-flow.md)
@@ -25,10 +30,11 @@ Agent Run, while an unauthorized bundle is rejected before the Runtime starts.
 - [Implementation tickets](https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues?q=is%3Aissue%20state%3Aopen%20label%3Ascopedrun)
 - [Collaboration board](https://github.com/users/MarcusMa06-code/projects/4)
 - [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
+- [Day 2 feature-freeze evidence](docs/evidence/day2-feature-freeze-2026-08-29.md)
 
-The first implementation action is a go/no-go container validation. The team
-will prove the stated namespace guarantee on the intended Runtime before
-opening wider workstreams.
+The feature-freeze gate has passed deterministic HTTP, authorization, path,
+persistence, Receipt, Web, and regression suites plus a real-container
+namespace and host-integrity test.
 
 A minimal Agent platform for three-day middleware hackathons. It provides Agent
 CRUD, a browser Playground, persistent workspaces, and Codex CLI backed by the
@@ -272,9 +278,17 @@ boundaries.
 
 ```bash
 npm run check
+RUN_CONTAINER_TESTS=1 CONTAINER_ENGINE=docker \
+  npx vitest run src/container-resource-capsule.integration.test.ts \
+  --root apps/server
 terraform fmt -check -recursive deploy/volcengine
 docker compose config
 ```
+
+On macOS the real-container test creates bind-mount fixtures under the user
+home so both Docker Desktop and Colima can see them. Set
+`CONTAINER_TEST_TEMP_ROOT` when a remote engine exposes a different shared
+host path.
 
 ## Documentation
 
