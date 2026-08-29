@@ -74,22 +74,21 @@ describe("StoreReceiptRepository", () => {
       agentId: AGENT,
     });
 
-    repo.add(receipt);
-    // Synchronous read from the mirror is immediately consistent.
+    const write = repo.add(receipt);
+    expect(write).toBeInstanceOf(Promise);
+    await write;
     expect(repo.getReceiptsForRun(RUN)).toHaveLength(1);
     expect(repo.getReceiptsForRun("44444444-4444-4444-8444-444444444444")).toHaveLength(0);
 
-    // Drain the store queue so the fire-and-forget persist has committed.
-    await store.mutate(() => {});
+    // Awaiting add is the durability boundary; no artificial queue drain.
     expect(store.snapshot().receipts.map((r) => r.receiptId)).toContain(RECEIPT);
   });
 
   it("rehydrates persisted receipts in a fresh repository (survives restart)", async () => {
     const { store, filePath } = await makeStore();
-    new StoreReceiptRepository(store).add(
+    await new StoreReceiptRepository(store).add(
       makeDecisionReceipt({ receiptId: RECEIPT, runId: RUN, agentId: AGENT }),
     );
-    await store.mutate(() => {});
 
     // A new store instance loading the same file, then a fresh repository.
     const reloaded = new JsonStore(filePath);
@@ -103,8 +102,8 @@ describe("StoreReceiptRepository", () => {
     const { store } = await makeStore();
     const repo = new StoreReceiptRepository(store);
     const otherRun = "55555555-5555-4555-8555-555555555555";
-    repo.add(makeDecisionReceipt({ receiptId: RECEIPT, runId: RUN, agentId: AGENT }));
-    repo.add(
+    await repo.add(makeDecisionReceipt({ receiptId: RECEIPT, runId: RUN, agentId: AGENT }));
+    await repo.add(
       makeDecisionReceipt({
         receiptId: "66666666-6666-4666-8666-666666666666",
         runId: otherRun,
@@ -113,8 +112,28 @@ describe("StoreReceiptRepository", () => {
     );
     expect(repo.getReceiptsForRun(RUN)).toHaveLength(1);
     expect(repo.getReceiptsForRun(otherRun)).toHaveLength(1);
-    // Drain the fire-and-forget persists before teardown removes the dir.
-    await store.mutate(() => {});
+  });
+
+  it("durably replaces pre-Runtime evidence without appending a second Receipt", async () => {
+    const { store, filePath } = await makeStore();
+    const repo = new StoreReceiptRepository(store);
+    const initial = makeDecisionReceipt({
+      receiptId: RECEIPT,
+      runId: RUN,
+      agentId: AGENT,
+      runnerStarted: false,
+    });
+    await repo.add(initial);
+    await repo.replace({ ...initial, runnerStarted: true });
+
+    expect(repo.getReceiptsForRun(RUN)).toEqual([
+      expect.objectContaining({ receiptId: RECEIPT, runnerStarted: true }),
+    ]);
+    const reloaded = new JsonStore(filePath);
+    await reloaded.initialize();
+    expect(new StoreReceiptRepository(reloaded).getReceiptsForRun(RUN)).toEqual([
+      expect.objectContaining({ receiptId: RECEIPT, runnerStarted: true }),
+    ]);
   });
 });
 

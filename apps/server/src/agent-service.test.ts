@@ -2,14 +2,23 @@ import { mkdtemp } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { AgentService, type CapsuleSeams } from "./agent-service.js";
+import {
+  AgentService,
+  type AgentServiceLogger,
+  type CapsuleSeams,
+} from "./agent-service.js";
 import {
   makeFakeAuthorizer,
+  makeFakeEntitlementReader,
   makeFakeMountPlanCompiler,
 } from "./capsule-test-support.js";
 import { createStoreOwnershipReader } from "./demo-principal.js";
 import { loadConfig } from "./config.js";
-import { InMemoryReceiptStore } from "./receipt-store.js";
+import {
+  StoreReceiptRepository,
+  createStoreRunReader,
+} from "./receipt-repository.js";
+import { DecisionReceiptService } from "./receipt-service.js";
 import { JsonStore } from "./store.js";
 import type {
   AgentRunner,
@@ -52,6 +61,7 @@ afterEach(async () => {
 async function makeService(
   runner: AgentRunner = new FakeRunner(),
   capsule: Partial<CapsuleSeams> = {},
+  logger?: AgentServiceLogger,
 ): Promise<AgentService> {
   const root = await mkdtemp(path.join(tmpdir(), "launchpad-test-"));
   temporaryDirectories.push(root);
@@ -63,17 +73,25 @@ async function makeService(
     ARK_API_KEY: "test-key",
     ARK_MODEL: "ep-test",
   });
+  const store = new JsonStore(path.join(root, "data", "db.json"));
+  const receipts = new DecisionReceiptService(
+    new StoreReceiptRepository(store),
+    createStoreRunReader(store),
+    createStoreOwnershipReader(store),
+  );
   const service = new AgentService(
     config,
-    new JsonStore(path.join(root, "data", "db.json")),
+    store,
     new WorkspaceManager(path.join(root, "workspaces")),
     runner,
     {
       authorizer: makeFakeAuthorizer(),
       mountPlanCompiler: makeFakeMountPlanCompiler(),
-      receipts: new InMemoryReceiptStore(),
+      entitlements: makeFakeEntitlementReader(),
+      receipts,
       ...capsule,
     },
+    logger,
   );
   await service.initialize();
   return service;
@@ -213,44 +231,197 @@ describe("Agent lifecycle", () => {
     );
   });
 
-  it("withholds errors whose paths contain spaces, and keeps path-free ones", async () => {
-    // A whitespace-terminated pattern would leave fragments like " Data"
-    // behind, so a path-bearing message is dropped whole instead of masked.
-    const spacedPath: AgentRunner = {
-      run: async () => {
-        throw new Error(
-          "bind source path does not exist: /srv/Protected Data/orders-incident",
-        );
+  it("logs a correlatable Runtime fingerprint without copying raw secrets", async () => {
+    const entries: Array<{
+      bindings: Record<string, unknown>;
+      message: string;
+    }> = [];
+    const original =
+      "mount /Users/demo/protected/orders failed with credential test-key";
+    const runtimeError = new Error(original);
+    runtimeError.name = "Bearer leaked-name /Users/demo/name";
+    const service = await makeService(
+      {
+        run: async () => {
+          throw runtimeError;
+        },
+        cancel: async () => false,
+        isAvailable: async () => true,
       },
-      cancel: async () => false,
-      isAvailable: async () => true,
-    };
-    const service = await makeService(spacedPath);
-    const agent = await service.createAgent({ name: "Spaced" }, "user-a");
-    const { run } = await sendBaseline(service, agent.id, "fail with a spaced path");
-    await expect.poll(() => service.getRun(run.id, "user-a").status).toBe("failed");
-    const stored = service.getRun(run.id, "user-a");
-    expect(stored.error).not.toContain("Data");
-    expect(stored.error).not.toContain("Protected");
-    expect(stored.error).not.toContain("srv");
-
-    // A message with no path is preserved so operators keep real detail.
-    const pathFree: AgentRunner = {
-      run: async () => {
-        throw new Error("exceeded retry limit, last status: 429 Too Many Requests");
+      {},
+      {
+        error(bindings, message) {
+          entries.push({ bindings, message });
+        },
       },
-      cancel: async () => false,
-      isAvailable: async () => true,
-    };
-    const plain = await makeService(pathFree);
-    const plainAgent = await plain.createAgent({ name: "Plain" }, "user-a");
-    const plainRun = await sendBaseline(plain, plainAgent.id, "fail without a path");
-    await expect
-      .poll(() => plain.getRun(plainRun.run.id, "user-a").status)
-      .toBe("failed");
-    expect(plain.getRun(plainRun.run.id, "user-a").error).toContain(
-      "429 Too Many Requests",
     );
+    const agent = await service.createAgent({ name: "Logged" }, "user-a");
+    const { run } = await sendBaseline(service, agent.id, "trigger logging");
+    await expect.poll(() => service.getRun(run.id, "user-a").status).toBe("failed");
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.message).toBe("Runtime execution failed");
+    expect(entries[0]?.bindings).toMatchObject({
+      agentId: agent.id,
+      runId: run.id,
+      error: {
+        name: "RuntimeError",
+        fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    });
+    const serverOnly = JSON.stringify(entries[0]?.bindings);
+    expect(serverOnly).not.toContain("/Users/demo/protected/orders");
+    expect(serverOnly).not.toContain("test-key");
+    expect(serverOnly).not.toContain("leaked-name");
+
+    const persisted = JSON.stringify({
+      run: service.getRun(run.id, "user-a"),
+      agent: service.getAgent(agent.id, "user-a"),
+    });
+    expect(persisted).not.toContain("/Users/demo");
+    expect(persisted).not.toContain("test-key");
+  });
+
+  it("withholds path-free Runtime errors that contain credentials", async () => {
+    const leakingMessages = [
+      "Ark failed with configured credential test-key",
+      "Ark failed with Authorization: Bearer other-secret",
+      "provider error api_key=third-secret",
+      "provider error credential fourth-secret",
+      "provider failed token=bare-token",
+      "provider failed refresh_token=refresh-token",
+      "provider failed id_token: abc.def.ghi",
+      "provider failed apiToken=api-token",
+    ];
+    for (const [index, original] of leakingMessages.entries()) {
+      const service = await makeService({
+        run: async () => {
+          throw new Error(original);
+        },
+        cancel: async () => false,
+        isAvailable: async () => true,
+      });
+      const agent = await service.createAgent(
+        { name: "Leaking credential " + index },
+        "user-a",
+      );
+      const { run } = await sendBaseline(
+        service,
+        agent.id,
+        "trigger credential error",
+      );
+      await expect
+        .poll(() => service.getRun(run.id, "user-a").status)
+        .toBe("failed");
+      const persisted = JSON.stringify({
+        run: service.getRun(run.id, "user-a"),
+        agent: service.getAgent(agent.id, "user-a"),
+      });
+      expect(persisted).toContain("sensitive information");
+      for (const forbidden of [
+        "test-key",
+        "other-secret",
+        "third-secret",
+        "fourth-secret",
+        "bare-token",
+        "refresh-token",
+        "abc.def.ghi",
+        "api-token",
+        "Bearer",
+      ]) {
+        expect(persisted).not.toContain(forbidden);
+      }
+    }
+  });
+
+  it("withholds varied host paths without destroying path-free operational errors", async () => {
+    const leakingMessages = [
+      "podman: mount failed for file:///Users/demo/repo/fixtures/resources/payments-incident (readonly)",
+      "bind source path does not exist: /数据/受保护/订单事故",
+      "bind source path does not exist: /Ünnamed/Òrders/Éxport",
+      "bind source path does not exist: / srv/ protected/ orders",
+      "bind source path does not exist: /数据",
+      "bind source path does not exist: /tmp",
+      "mount[/Users/demo/protected/orders] failed",
+      "mount→/Users/demo/protected/orders failed",
+      "path </Users/demo/protected/orders> failed",
+      "read—/tmp/orders failed",
+      "mount source=~/protected/orders failed",
+      "encoded path %2FUsers%2Fdemo%2Fprotected%2Forders",
+    ];
+    for (const [index, original] of leakingMessages.entries()) {
+      const service = await makeService({
+        run: async () => {
+          throw new Error(original);
+        },
+        cancel: async () => false,
+        isAvailable: async () => true,
+      });
+      const agent = await service.createAgent(
+        { name: "Leaking path " + index },
+        "user-a",
+      );
+      const { run } = await sendBaseline(service, agent.id, "trigger path error");
+      await expect.poll(() => service.getRun(run.id, "user-a").status).toBe("failed");
+      const stored = service.getRun(run.id, "user-a").error ?? "";
+      expect(stored).not.toBe(original);
+      expect(stored).toContain("withheld");
+    }
+
+    const operationalMessages = [
+      {
+        original: "Codex timed out after 600000ms; retry and/or raise CODEX_TIMEOUT_MS",
+        persisted: "Codex timed out after 600000ms; retry and/or raise CODEX_TIMEOUT_MS",
+      },
+      {
+        original: "Ark request failed: 429 Too Many Requests (endpoint /api/v3/responses)",
+        persisted:
+          "Ark request failed: 429 Too Many Requests (endpoint [API route withheld])",
+      },
+      {
+        original: "read ECONNRESET at TLSWrap.onStreamRead (node:internal/stream_base_commons:217:20)",
+        persisted:
+          "read ECONNRESET at TLSWrap.onStreamRead (node:[internal frame])",
+      },
+      {
+        original: "fetch failed (node:internal/deps/undici/undici:13510:13)",
+        persisted: "fetch failed (node:[internal frame])",
+      },
+      {
+        original: "malformed frame node:internal/../../Users/demo/protected/secret",
+        persisted: "malformed frame node:[internal frame]",
+      },
+      {
+        original: "mount failed node:internal/Users/demo/protected/orders",
+        persisted: "mount failed node:[internal frame]",
+      },
+      {
+        original: "mount failed node:internal/数据/受保护/订单事故",
+        persisted: "mount failed node:[internal frame]",
+      },
+      {
+        original:
+          "Ark request failed (endpoint /api/v3/../../Users/demo/protected/secret)",
+        persisted: "Ark request failed (endpoint [API route withheld])",
+      },
+    ];
+    for (const [index, { original, persisted }] of operationalMessages.entries()) {
+      const service = await makeService({
+        run: async () => {
+          throw new Error(original);
+        },
+        cancel: async () => false,
+        isAvailable: async () => true,
+      });
+      const agent = await service.createAgent(
+        { name: "Operational error " + index },
+        "user-a",
+      );
+      const { run } = await sendBaseline(service, agent.id, "trigger operational error");
+      await expect.poll(() => service.getRun(run.id, "user-a").status).toBe("failed");
+      expect(service.getRun(run.id, "user-a").error).toBe(persisted);
+      expect(service.getRun(run.id, "user-a").error).not.toContain("/Users/demo");
+    }
   });
 
   it("persists a playground conversation", async () => {

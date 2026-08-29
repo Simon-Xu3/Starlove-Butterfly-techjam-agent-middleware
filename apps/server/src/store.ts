@@ -70,7 +70,7 @@ const decisionReceiptSchema = z.discriminatedUnion("decision", [
       decision: z.literal("allow"),
       reason: z.literal("allowed"),
       grantGeneration: generationSchema,
-      runnerStarted: z.literal(true),
+      runnerStarted: z.boolean(),
     })
     .strict(),
   z
@@ -276,7 +276,7 @@ export class JsonStore {
     return result;
   }
 
-  private async persist(data: DatabaseV2 = this.data): Promise<void> {
+  protected async persist(data: DatabaseV2 = this.data): Promise<void> {
     const temporaryPath = this.filePath + ".tmp";
     await writeFile(temporaryPath, JSON.stringify(data, null, 2) + "\n", {
       encoding: "utf8",

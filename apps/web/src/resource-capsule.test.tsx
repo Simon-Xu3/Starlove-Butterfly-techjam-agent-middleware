@@ -33,6 +33,9 @@ describe("Resource Capsule UI", () => {
     expect(markup).toContain("Orders incident");
     expect(markup).toContain("Remove");
     expect(markup).toContain("read-only delegation");
+    expect(markup).toContain("future Runner starts only");
+    expect(markup).toContain("does not hot-unmount");
+    expect(markup).toContain("model or thread memory");
     expect(markup).not.toContain("sourcePath");
   });
 
@@ -55,6 +58,14 @@ describe("Resource Capsule UI", () => {
     expect(allowMarkup).toContain("Resource authorized");
     expect(allowMarkup).toContain("orders-incident");
     expect(allowMarkup).toContain("Runner started");
+
+    const preRuntimeMarkup = renderToStaticMarkup(
+      <DecisionReceiptCard
+        receipt={{ ...receipt, runnerStarted: false }}
+      />,
+    );
+    expect(preRuntimeMarkup).toContain("Runner has not started");
+    expect(preRuntimeMarkup).not.toContain("crossed the Runtime seam");
 
     const denyMarkup = renderToStaticMarkup(
       <DecisionReceiptCard

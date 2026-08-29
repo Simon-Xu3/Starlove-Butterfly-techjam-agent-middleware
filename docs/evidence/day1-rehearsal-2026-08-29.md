@@ -29,15 +29,22 @@ The container was launched for real. The Run then failed with
 (the upstream model API returned 401) — the capsule decision, mount plan,
 and Receipt are unaffected by that.
 
-**Host-path redaction verified on a real failure path:**
+**Host-path redaction observed on that real failure path:**
 
 ```
 run.error = "docker Runtime exited with code 1: unexpected status 401 Unauthorized:
              The API key format is incorrect. ... url: http[path], request id: ..."
 ```
 
-No `/Users`, `/private`, or `fixtures/resources` substring appears; the
-redaction marker `[path]` is present.
+No `/Users`, `/private`, or `fixtures/resources` substring appeared; the then
+current redaction marker `[path]` was present. This block preserves the
+historical observation and is not rewritten as evidence for later code.
+
+**Current automated evidence (not a real-container rerun):** the deterministic
+AgentService regression suite expects the fixed withheld message for
+scheme-wrapped, Unicode, accented, spaced, single-segment, and traversal-shaped
+host paths. A new real-container rehearsal should be recorded as a separate
+dated observation rather than retroactively changing the result above.
 
 ## Scenario 2 — deny `payments-incident`
 

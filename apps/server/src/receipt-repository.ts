@@ -3,49 +3,55 @@ import type {
   ReceiptRunReader,
 } from "./receipt-service.js";
 import type { JsonStore } from "./store.js";
-import type { DecisionReceipt } from "./types.js";
+import type { DatabaseV2, DecisionReceipt } from "./types.js";
 
 /**
- * Store-backed Receipt repository (#8 wiring). An in-memory mirror is the
- * synchronous source of truth for the sync ReceiptSink/ReceiptReader seams,
- * write-through-persisted to DatabaseV2.receipts so Receipts survive a
- * restart. The mirror is loaded lazily on first use — always after
- * store.initialize() has run, since every request is served post-init — so a
- * restart rehydrates it from disk.
- *
- * Known limit: `add` persists fire-and-forget through the async store, so a
- * crash between the in-memory push and the queued persist can lose the last
- * Receipt from disk. Acceptable for the demo — the Run itself is already
- * persisted, and reads within the process stay consistent via the mirror.
+ * Store-backed Receipt repository (#8 wiring). JsonStore is the durable source
+ * of truth for the async ReceiptSink seam. Both insertion and pre-Runtime
+ * evidence updates await persistence before resolving; readers use the
+ * committed store snapshot, so process and disk state cannot diverge through
+ * a fire-and-forget mirror.
  */
 export class StoreReceiptRepository implements ReceiptRepository {
-  private mirror: DecisionReceipt[] | null = null;
-
   constructor(private readonly store: JsonStore) {}
 
-  private ensureLoaded(): DecisionReceipt[] {
-    if (this.mirror === null) {
-      this.mirror = structuredClone(this.store.snapshot().receipts);
+  async add(receipt: DecisionReceipt, transaction?: DatabaseV2): Promise<void> {
+    if (transaction) {
+      transaction.receipts.push(structuredClone(receipt));
+      return;
     }
-    return this.mirror;
+    await this.store.mutate((database) => {
+      database.receipts.push(structuredClone(receipt));
+    });
   }
 
-  add(receipt: DecisionReceipt): void {
-    this.ensureLoaded().push(structuredClone(receipt));
-    // Fire-and-forget persist. Catch so a disk error never becomes an
-    // unhandled rejection that takes down the process; the receipt stays in
-    // the mirror for this process either way.
-    void this.store
-      .mutate((database) => {
-        database.receipts.push(structuredClone(receipt));
-      })
-      .catch((error: unknown) => {
-        console.error("Failed to persist Decision Receipt", error);
-      });
+  async replace(
+    receipt: DecisionReceipt,
+    transaction?: DatabaseV2,
+  ): Promise<void> {
+    if (transaction) {
+      this.replaceIn(transaction, receipt);
+      return;
+    }
+    await this.store.mutate((database) => {
+      this.replaceIn(database, receipt);
+    });
+  }
+
+  private replaceIn(database: DatabaseV2, receipt: DecisionReceipt): void {
+    const index = database.receipts.findIndex(
+      (candidate) => candidate.receiptId === receipt.receiptId,
+    );
+    if (index < 0) {
+      throw new Error("Decision Receipt not found");
+    }
+    database.receipts[index] = structuredClone(receipt);
   }
 
   getReceiptsForRun(runId: string): DecisionReceipt[] {
-    return this.ensureLoaded()
+    return this.store
+      .snapshot()
+      .receipts
       .filter((receipt) => receipt.runId === runId)
       .map((receipt) => structuredClone(receipt));
   }

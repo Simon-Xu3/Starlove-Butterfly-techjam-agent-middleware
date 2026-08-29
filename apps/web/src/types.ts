@@ -77,13 +77,18 @@ export type CapsuleDenialReason =
   | "runtime_profile_unsupported"
   | "invalid_resource_path";
 
+export type PublicCapsuleDenialReason = Exclude<
+  CapsuleDenialReason,
+  "ownership_denied"
+>;
+
 export type CapsuleDecision = "allow" | "deny";
 
 export type CapsuleDecisionReason = "allowed" | CapsuleDenialReason;
 
 // Discriminated on decision, mirroring the server contract: an allow
-// Receipt always carries a generation, a deny Receipt never started the
-// Runner.
+// Receipt always carries a generation and separately records whether the
+// Runner has started. A deny Receipt never started the Runner.
 interface DecisionReceiptBase {
   receiptId: string;
   runId: string;
@@ -97,7 +102,7 @@ export interface AllowDecisionReceipt extends DecisionReceiptBase {
   decision: "allow";
   reason: "allowed";
   grantGeneration: number;
-  runnerStarted: true;
+  runnerStarted: boolean;
 }
 
 export interface DenyDecisionReceipt extends DecisionReceiptBase {
@@ -128,7 +133,7 @@ export interface DeniedRunResponse {
   runId: string;
   receiptId: string;
   status: "denied";
-  reason: CapsuleDenialReason;
+  reason: PublicCapsuleDenialReason;
 }
 
 export interface RunReceiptsResponse {

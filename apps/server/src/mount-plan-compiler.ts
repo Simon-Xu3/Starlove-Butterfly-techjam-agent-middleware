@@ -122,6 +122,8 @@ export function createMountPlanCompiler(
         );
       if (
         !entitlementAfterValidation ||
+        entitlementAfterValidation.principalId !== decision.principalId ||
+        entitlementAfterValidation.resourceId !== resourceId ||
         entitlementAfterValidation.status !== "active" ||
         entitlementAfterValidation.permission !== "read" ||
         entitlementAfterValidation.generation !== decision.grantGeneration

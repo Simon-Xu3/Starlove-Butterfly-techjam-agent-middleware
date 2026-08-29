@@ -1,8 +1,12 @@
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, {
+  type FastifyBaseLogger,
+  type FastifyInstance,
+} from "fastify";
 import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import pino from "pino";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
 import {
@@ -46,12 +50,10 @@ const messageBody = z
 export async function createApp(
   config: AppConfig,
   service: AgentService,
+  loggerInstance: FastifyBaseLogger = createAppLogger(config),
 ): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: {
-      level: config.logLevel,
-      redact: ["req.headers.authorization", "req.headers.cookie"],
-    },
+    loggerInstance,
     bodyLimit: 1_048_576,
   });
 
@@ -207,6 +209,19 @@ export async function createApp(
           : frameworkStatus && frameworkStatus >= 400 && frameworkStatus <= 599
             ? frameworkStatus
             : 500;
+    if (error instanceof HttpError) {
+      if (statusCode >= 500) request.log.error(appError);
+      return reply.code(statusCode).send({ error: appError.message });
+    }
+    if (validationError) {
+      return reply.code(400).send({
+        error: "Invalid request",
+        details: error.issues.map((issue) => ({
+          path: issue.path,
+          message: issue.message,
+        })),
+      });
+    }
     if (statusCode >= 500) {
       request.log.error(appError);
       // Never echo an internal failure message: it can carry host paths
@@ -215,7 +230,6 @@ export async function createApp(
     }
     return reply.code(statusCode).send({
       error: appError.message,
-      ...(validationError ? { details: error.issues } : {}),
     });
   });
 
@@ -234,4 +248,11 @@ export async function createApp(
   }
 
   return app;
+}
+
+export function createAppLogger(config: AppConfig): FastifyBaseLogger {
+  return pino({
+    level: config.logLevel,
+    redact: ["req.headers.authorization", "req.headers.cookie"],
+  });
 }

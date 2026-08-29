@@ -15,6 +15,40 @@ afterEach(async () => {
 });
 
 describe("JsonStore", () => {
+  it("loads a historical v2 ownership-denied Receipt without rewriting it", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "launchpad-store-test-"));
+    temporaryDirectories.push(root);
+    const filePath = path.join(root, "db.json");
+    const legacyReceipt = {
+      receiptId: "receipt-legacy",
+      runId: "run-legacy",
+      humanPrincipalId: "user-b",
+      agentId: "agent-legacy",
+      resourceId: "orders-incident",
+      decision: "deny",
+      reason: "ownership_denied",
+      grantGeneration: null,
+      runnerStarted: false,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: 2,
+        agents: [{ id: "agent-legacy", ownerPrincipalId: "user-a" }],
+        messages: [],
+        runs: [],
+        entitlements: [],
+        receipts: [legacyReceipt],
+      }),
+      "utf8",
+    );
+
+    const store = new JsonStore(filePath);
+    await expect(store.initialize()).resolves.toBeUndefined();
+    expect(store.snapshot().receipts).toEqual([legacyReceipt]);
+  });
+
   it.each([
     [
       "an Agent without an owner",

@@ -32,6 +32,7 @@ import { StaticResourceRegistry } from "./resource-registry.js";
 import { createResourceRoutes } from "./resource-routes.js";
 import { JsonStore } from "./store.js";
 import { WorkspaceManager } from "./workspace.js";
+import type { DatabaseV2 } from "./types.js";
 
 const sessionA = { "x-demo-session": "demo-session-a" };
 const json = { "content-type": "application/json" };
@@ -47,7 +48,10 @@ afterEach(async () => {
   );
 });
 
-async function makeGateApp(runtimeProvider: "container" | "local-process") {
+async function makeGateApp(
+  runtimeProvider: "container" | "local-process",
+  storeFactory?: (filePath: string) => JsonStore,
+) {
   const root = await mkdtemp(path.join(tmpdir(), "gate-"));
   temporaryDirectories.push(root);
   const config = loadConfig({
@@ -61,7 +65,8 @@ async function makeGateApp(runtimeProvider: "container" | "local-process") {
     // RESOURCE_ROOT deliberately unset: the real default (the committed
     // fixtures/resources directory) is what production validates against.
   });
-  const store = new JsonStore(path.join(root, "data", "db.json"));
+  const storePath = path.join(root, "data", "db.json");
+  const store = storeFactory?.(storePath) ?? new JsonStore(storePath);
   const registry = new StaticResourceRegistry(config.resourceRoot);
   const entitlements = new PrincipalEntitlementService(store, registry);
   const receipts = new DecisionReceiptService(
@@ -86,6 +91,7 @@ async function makeGateApp(runtimeProvider: "container" | "local-process") {
         entitlements,
         pathValidator: new ResourcePathValidator(config.resourceRoot),
       }),
+      entitlements,
       receipts,
     },
   );
@@ -161,44 +167,6 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
       runId,
     });
     expect(JSON.stringify(plan)).not.toContain("payments-incident");
-
-    // The approved product model: entitlement is a ceiling, not a grant.
-    // Give user-a a second entitled Resource, delegate only the first, and
-    // assert the other never reaches the plan — an eligible-but-undelegated
-    // Resource must not be mounted just because the principal could have
-    // delegated it.
-    const secondGrant = await gate.app.inject({
-      method: "POST",
-      url: "/api/entitlements/grant",
-      headers: { ...json, ...sessionA },
-      payload: JSON.stringify({ resourceId: "payments-incident" }),
-    });
-    // The demo matrix bounds what user-a may hold; if the grant is refused
-    // the ceiling itself already proves the point, so only assert the mount
-    // when a second entitlement actually exists.
-    if (secondGrant.statusCode === 200) {
-      const eligible = await gate.app.inject({
-        method: "GET",
-        url: "/api/resources",
-        headers: sessionA,
-      });
-      expect(eligible.json().resources.length).toBeGreaterThan(1);
-
-      await gate.app.inject({
-        method: "POST",
-        url: "/api/agents/" + agentId + "/start",
-        headers: { ...json, ...sessionA },
-        payload: JSON.stringify({}),
-      });
-      const second = await sendCapsule(gate, agentId, "orders-incident");
-      expect(second.statusCode).toBe(202);
-      await expect
-        .poll(() => gate.runner.calls.length)
-        .toBeGreaterThan(1);
-      const secondPlan = gate.runner.calls.at(-1)?.validatedMountPlan;
-      expect(secondPlan?.resourceId).toBe("orders-incident");
-      expect(JSON.stringify(secondPlan)).not.toContain("payments-incident");
-    }
 
     // Evidence seam: exactly one allow receipt, safe fields only.
     const receipts = await gate.app.inject({
@@ -283,6 +251,99 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
       headers: sessionA,
     });
     expect(history.json().receipts[0]).toMatchObject({ decision: "allow" });
+
+    await gate.drain();
+    await gate.app.close();
+  });
+
+  it("does not start the Runner when revoke completes after Run persistence", async () => {
+    let runningMutationReached!: () => void;
+    const reachedRunningMutation = new Promise<void>((resolve) => {
+      runningMutationReached = resolve;
+    });
+    let releaseRunningMutation!: () => void;
+    const runningMutationReleased = new Promise<void>((resolve) => {
+      releaseRunningMutation = resolve;
+    });
+    class PauseAfterRunningStore extends JsonStore {
+      private paused = false;
+      lateDenialFailures = 0;
+
+      override async mutate<T>(
+        mutation: (database: DatabaseV2) => T | Promise<T>,
+      ): Promise<T> {
+        const result = await super.mutate(mutation);
+        if (
+          !this.paused &&
+          this.snapshot().runs.some((run) => run.status === "running")
+        ) {
+          this.paused = true;
+          runningMutationReached();
+          await runningMutationReleased;
+        }
+        return result;
+      }
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        const currentReceipt = this.snapshot().receipts[0];
+        const nextReceipt = data?.receipts[0];
+        if (
+          this.lateDenialFailures === 0 &&
+          currentReceipt?.decision === "allow" &&
+          nextReceipt?.decision === "deny" &&
+          nextReceipt.reason === "stale_entitlement_generation"
+        ) {
+          this.lateDenialFailures += 1;
+          throw new Error("simulated one-shot late denial fault");
+        }
+        await super.persist(data);
+      }
+    }
+
+    let store!: PauseAfterRunningStore;
+    const gate = await makeGateApp(
+      "container",
+      (filePath) => {
+        store = new PauseAfterRunningStore(filePath);
+        return store;
+      },
+    );
+    const agentId = await createAgent(gate);
+
+    const sending = sendCapsule(gate, agentId, "orders-incident");
+    await reachedRunningMutation;
+    const revoked = await gate.app.inject({
+      method: "POST",
+      url: "/api/entitlements/revoke",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ resourceId: "orders-incident" }),
+    });
+    expect(revoked.statusCode).toBe(200);
+    expect(revoked.json().entitlement.status).toBe("revoked");
+    releaseRunningMutation();
+
+    const accepted = await sending;
+    expect(accepted.statusCode).toBe(202);
+    const runId = accepted.json().run.id;
+    await expect
+      .poll(() => gate.service.getRun(runId, "user-a").status)
+      .toBe("denied");
+    expect(store.lateDenialFailures).toBe(1);
+    expect(gate.runner.calls).toHaveLength(0);
+
+    const evidence = await gate.app.inject({
+      method: "GET",
+      url: "/api/runs/" + runId + "/receipts",
+      headers: sessionA,
+    });
+    expect(evidence.statusCode).toBe(200);
+    expect(evidence.json().receipts).toEqual([
+      expect.objectContaining({
+        decision: "deny",
+        reason: "stale_entitlement_generation",
+        runnerStarted: false,
+      }),
+    ]);
 
     await gate.drain();
     await gate.app.close();

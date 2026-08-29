@@ -213,6 +213,14 @@ export type CapsuleDenialReason =
   | "runtime_profile_unsupported"
   | "invalid_resource_path";
 
+// New HTTP admission and Receipt writes occur only after ownership-scoped
+// Agent resolution. ownership_denied is reserved for the lower authorizer
+// seam; the broader persisted Receipt union below reads historical v2 records.
+export type PublicCapsuleDenialReason = Exclude<
+  CapsuleDenialReason,
+  "ownership_denied"
+>;
+
 export type CapsuleDecision = "allow" | "deny";
 
 export type CapsuleDecisionReason = "allowed" | CapsuleDenialReason;
@@ -267,11 +275,11 @@ export interface ValidatedRunMountPlan {
   readonly grantGeneration: number;
 }
 
-// One Receipt per syntactically valid Capsule Run after principal
-// resolution, allow or deny. Never contains a token, demo session value,
-// secret, full prompt, Resource body, or host source path. Discriminated on
-// decision so illegal states (allow without a generation, deny with
-// runnerStarted) cannot typecheck.
+// One Receipt per syntactically valid Capsule Run after principal and
+// owned-Agent resolution, allow or deny. Never contains a token, demo session
+// value, secret, full prompt, Resource body, or host source path.
+// Discriminated on decision so illegal states (allow without a generation,
+// deny with runnerStarted) cannot typecheck.
 interface DecisionReceiptBase {
   receiptId: string;
   runId: string;
@@ -285,13 +293,16 @@ export interface AllowDecisionReceipt extends DecisionReceiptBase {
   decision: "allow";
   reason: "allowed";
   grantGeneration: number;
-  // An allow decision by definition crosses the Runtime seam, so this is
-  // always true (it stays true even if the Runtime later fails).
-  runnerStarted: true;
+  // Authorization and Runtime execution are distinct facts. This remains
+  // false when an allowed Run is cancelled before invocation, and becomes
+  // true once the Runner handoff is attempted.
+  runnerStarted: boolean;
 }
 
 export interface DenyDecisionReceipt extends DecisionReceiptBase {
   decision: "deny";
+  // ownership_denied is read-only compatibility for v2 files written before
+  // ADR-003. New admission code can construct only PublicCapsuleDenialReason.
   reason: CapsuleDenialReason;
   grantGeneration: number | null;
   // Denial always happens before the Runtime seam.
@@ -322,7 +333,7 @@ export interface DeniedRunResponse {
   runId: string;
   receiptId: string;
   status: "denied";
-  reason: CapsuleDenialReason;
+  reason: PublicCapsuleDenialReason;
 }
 
 // GET /api/runs/:runId/receipts — a Capsule Run has one Receipt, a baseline
@@ -354,9 +365,9 @@ export interface EntitlementMutationResponse {
   entitlement: PrincipalResourceEntitlement;
 }
 
-// Seam: ownership resolution for the authorizer. An undefined owner
-// (unknown Agent, or v1 data the Issue #4 migration has not touched) must
-// fail closed as ownership_denied — never treated as "no owner, allow".
+// Lower-seam defence in depth for the authorizer. HTTP admission resolves an
+// owned Agent first and returns a uniform 404 for missing/non-owned Agents;
+// an undefined owner here must still fail closed as ownership_denied.
 export interface AgentOwnershipReader {
   getOwnerPrincipalId(agentId: string): HumanPrincipalId | undefined;
 }
@@ -399,7 +410,7 @@ export interface ResourceAuthorizer {
 // a deny result that becomes a terminal denied Run.
 export type MountPlanResult =
   | { ok: true; plan: ValidatedRunMountPlan }
-  | { ok: false; reason: CapsuleDenialReason };
+  | { ok: false; reason: PublicCapsuleDenialReason };
 
 export interface MountPlanCompiler {
   compileMountPlan(

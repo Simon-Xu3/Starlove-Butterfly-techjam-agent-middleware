@@ -1,6 +1,6 @@
 import path from "node:path";
 import { AgentService } from "./agent-service.js";
-import { createApp } from "./app.js";
+import { createApp, createAppLogger } from "./app.js";
 import { loadConfig, writeCodexConfig } from "./config.js";
 import { createStoreOwnershipReader } from "./demo-principal.js";
 import { createEntitlementRoutes } from "./entitlement-routes.js";
@@ -21,6 +21,7 @@ import { JsonStore } from "./store.js";
 import { WorkspaceManager } from "./workspace.js";
 
 const config = loadConfig();
+const logger = createAppLogger(config);
 await writeCodexConfig(config);
 
 const store = new JsonStore(path.join(config.dataDirectory, "launchpad.json"));
@@ -46,14 +47,22 @@ const receipts = new DecisionReceiptService(
   createStoreRunReader(store),
   createStoreOwnershipReader(store),
 );
-const service = new AgentService(config, store, workspaces, runner, {
-  authorizer,
-  mountPlanCompiler,
-  receipts,
-});
+const service = new AgentService(
+  config,
+  store,
+  workspaces,
+  runner,
+  {
+    authorizer,
+    mountPlanCompiler,
+    entitlements,
+    receipts,
+  },
+  logger.child({ component: "agent-service" }),
+);
 await service.initialize();
 
-const app = await createApp(config, service);
+const app = await createApp(config, service, logger);
 await app.register(createResourceRoutes({ registry, entitlements }));
 await app.register(createEntitlementRoutes({ entitlements }));
 await app.register(createReceiptRoutes(receipts));

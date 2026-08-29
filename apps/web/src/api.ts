@@ -2,6 +2,7 @@ import type {
   AcceptedRunResponse,
   Agent,
   AgentRun,
+  CapsuleDenialReason,
   DemoSessionValue,
   DeniedRunResponse,
   ListEntitlementsResponse,
@@ -50,14 +51,17 @@ export function setDemoSession(value: DemoSessionValue): void {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const DENIAL_REASONS = new Set<DeniedRunResponse["reason"]>([
-  "ownership_denied",
+const PUBLIC_DENIAL_REASONS = new Set<DeniedRunResponse["reason"]>([
   "unknown_resource",
   "entitlement_missing",
   "entitlement_revoked",
   "stale_entitlement_generation",
   "runtime_profile_unsupported",
   "invalid_resource_path",
+]);
+const RECEIPT_DENIAL_REASONS = new Set<CapsuleDenialReason>([
+  "ownership_denied",
+  ...PUBLIC_DENIAL_REASONS,
 ]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -77,7 +81,7 @@ function parseDeniedRunResponse(value: unknown): DeniedRunResponse | null {
     typeof candidate.receiptId !== "string" ||
     !UUID_PATTERN.test(candidate.receiptId) ||
     typeof reason !== "string" ||
-    !DENIAL_REASONS.has(reason as DeniedRunResponse["reason"])
+    !PUBLIC_DENIAL_REASONS.has(reason as DeniedRunResponse["reason"])
   ) {
     return null;
   }
@@ -109,7 +113,7 @@ function parseDecisionReceipt(value: unknown) {
   const validGeneration =
     typeof generation === "number" &&
     Number.isInteger(generation) &&
-    generation >= 0;
+    generation > 0;
   if (!baseValid) return null;
 
   const base = {
@@ -124,27 +128,27 @@ function parseDecisionReceipt(value: unknown) {
     candidate.decision === "allow" &&
     candidate.reason === "allowed" &&
     validGeneration &&
-    candidate.runnerStarted === true
+    typeof candidate.runnerStarted === "boolean"
   ) {
     return {
       ...base,
       decision: "allow" as const,
       reason: "allowed" as const,
       grantGeneration: generation,
-      runnerStarted: true as const,
+      runnerStarted: candidate.runnerStarted,
     };
   }
   if (
     candidate.decision === "deny" &&
     typeof candidate.reason === "string" &&
-    DENIAL_REASONS.has(candidate.reason as DeniedRunResponse["reason"]) &&
+    RECEIPT_DENIAL_REASONS.has(candidate.reason as CapsuleDenialReason) &&
     (generation === null || validGeneration) &&
     candidate.runnerStarted === false
   ) {
     return {
       ...base,
       decision: "deny" as const,
-      reason: candidate.reason as DeniedRunResponse["reason"],
+      reason: candidate.reason as CapsuleDenialReason,
       grantGeneration: generation as number | null,
       runnerStarted: false as const,
     };

@@ -105,13 +105,28 @@ and per-Run Delegation are in
   Agent request for standing access.
 - Re-resolve the current principal, Agent ownership, Principal Resource
   Entitlement status, and Entitlement generation for every new Capsule Run.
-- For a well-formed Capsule request that fails admission, create a terminal Run
-  with status `denied` and persist a deny Decision Receipt.
+- Resolve the Agent through the current principal before Capsule admission. A
+  missing or non-owned Agent returns the same `404` and creates no Run,
+  Message, or Decision Receipt.
+- After an owned Agent is resolved, a well-formed Capsule request that fails
+  Registry, Entitlement, Runtime-profile, or canonical-path admission creates
+  a terminal Run with status `denied` and persists a deny Decision Receipt.
 - Return HTTP `403` with `runId`, `receiptId`, `status`, and a safe reason.
 - Do not call the Runner, create a Codex thread, or save an assistant message
   for a denied Run.
 - Reject structurally malformed requests before Run creation with an ordinary
   request-validation response.
+- Persist the authorization Receipt before returning an admitted Capsule Run.
+  An allowed Run cancelled before Runner invocation keeps its allow Receipt
+  with `runnerStarted: false`; cancellation is not an authorization denial.
+- Commit the initial Capsule Run, user Message, Agent state transition, and
+  Decision Receipt atomically. Retain a stop or delete request that arrives
+  during that commit through the handoff to execution.
+- Commit pre-Runner cancellation or late-denial Receipt correction together
+  with the Run terminal state, including recovery from a one-shot store fault.
+- Recheck the Entitlement generation at the final Runtime seam. A concurrent
+  revoke that completes before Runner invocation finalizes the Run and Receipt
+  as denied and leaves the Runner call count at zero.
 - Preserve existing behavior for ordinary Runs that select no Protected
   Resource.
 
@@ -132,6 +147,12 @@ and per-Run Delegation are in
   Receipt.
 - Retain historical Runs, Messages, Receipts, workspaces, and Codex threads
   after revocation.
+- When the user explicitly deletes an Agent under the existing destructive
+  lifecycle contract, delete its Runs, Messages, and correlated Receipts
+  together so no orphaned Receipt remains.
+- Continue reading owner-scoped historical version 2 Receipts whose reason is
+  `ownership_denied`, while prohibiting that reason in new Receipt writes and
+  HTTP denial responses.
 
 ### Protected Resource Registry and Grants
 
@@ -209,8 +230,8 @@ and per-Run Delegation are in
 6. The server compiles a readonly `ValidatedRunMountPlan`.
 7. `ContainerCodexRunner` starts a real container with the approved mount.
 8. The Agent reads `orders-incident` and completes its analysis.
-9. The server persists an allow Decision Receipt with
-   `runnerStarted: true`.
+9. The server persists one allow Decision Receipt. Its `runnerStarted` field is
+   false until the invocation is actually attempted and true thereafter.
 
 ### Deny
 

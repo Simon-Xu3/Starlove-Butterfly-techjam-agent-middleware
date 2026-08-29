@@ -12,6 +12,7 @@ import {
   DecisionReceiptCard,
   ResourcePicker,
 } from "./resource-capsule";
+import { pollActiveRun } from "./run-polling";
 import type {
   Agent,
   AgentRun,
@@ -318,29 +319,29 @@ export default function App() {
     if (pollingRunIds.current.has(runId)) return;
     pollingRunIds.current.add(runId);
     try {
-      while (
-        mountedRef.current &&
-        sessionEpoch === sessionEpochRef.current
-      ) {
-        await new Promise((resolve) => window.setTimeout(resolve, 900));
-        if (
-          !mountedRef.current ||
-          sessionEpoch !== sessionEpochRef.current
-        ) {
-          return;
-        }
-        const result = await api.run(runId);
-        if (sessionEpoch !== sessionEpochRef.current) return;
-        if (selectedIdRef.current === agentId) setActiveRun(result.run);
-        if (!["queued", "running"].includes(result.run.status)) {
+      await pollActiveRun({
+        runId,
+        wait: () =>
+          new Promise((resolve) => window.setTimeout(resolve, 900)),
+        shouldContinue: () =>
+          mountedRef.current && sessionEpoch === sessionEpochRef.current,
+        getRun: api.run,
+        onRun: (run) => {
+          if (selectedIdRef.current === agentId) setActiveRun(run);
+        },
+        refreshReceipt: async () => {
+          if (selectedIdRef.current === agentId) await loadReceipt(runId);
+        },
+        onTerminal: async () => {
           await Promise.all([
             refreshMessages(agentId),
             refreshAgents(),
-            loadReceipt(runId),
+            selectedIdRef.current === agentId
+              ? loadReceipt(runId)
+              : Promise.resolve(),
           ]);
-          return;
-        }
-      }
+        },
+      });
     } finally {
       pollingRunIds.current.delete(runId);
     }
