@@ -1,12 +1,14 @@
 import type {
+  CapsuleDenialReason,
   DecisionReceipt,
   DeniedRunResponse,
   ProtectedResource,
   SendMessageBody,
 } from "./types";
 
-const denialLabels: Record<DeniedRunResponse["reason"], string> = {
-  ownership_denied: "The current demo principal does not own this Agent.",
+const denialLabels: Record<CapsuleDenialReason, string> = {
+  ownership_denied:
+    "A legacy Receipt recorded an ownership denial before Agent lookup was hidden.",
   unknown_resource: "The selected Resource is not registered.",
   entitlement_missing: "The current principal is not entitled to this Resource.",
   entitlement_revoked: "Access to this Resource has been revoked.",
@@ -79,6 +81,10 @@ export function ResourcePicker({
           You approved a read-only delegation for this Run only.
         </p>
       ) : null}
+      <p className="resource-picker-note">
+        Revocation blocks future Runner starts only; it does not hot-unmount an
+        active Run or erase content already retained in model or thread memory.
+      </p>
     </section>
   );
 }
@@ -110,7 +116,9 @@ export function DecisionReceiptCard({
       </div>
       <p>
         {reason === "allowed"
-          ? "The approved read-only mount crossed the Runtime seam."
+          ? receipt?.runnerStarted
+            ? "The approved read-only mount crossed the Runtime seam."
+            : "Authorization is recorded; the Runner has not started."
           : (denialLabels[reason] ?? "Run denied by server policy.")}
       </p>
       <dl>

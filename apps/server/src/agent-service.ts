@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AppConfig } from "./config.js";
 import { isArkConfigured } from "./config.js";
 import { HttpError, RunCancelledError } from "./errors.js";
@@ -10,16 +10,20 @@ import type {
   Agent,
   AgentRun,
   AgentRunner,
+  AllowDecisionReceipt,
   AllowedAuthorizationDecision,
   CapsuleCapableRunner,
-  CapsuleDenialReason,
   CreateAgentInput,
+  DatabaseV2,
   DeniedRunResponse,
+  EntitlementReader,
   HumanPrincipal,
   HumanPrincipalId,
   Message,
   MountPlanCompiler,
+  PublicCapsuleDenialReason,
   ResourceAuthorizer,
+  RunnerResult,
   SendMessageBody,
   UpdateAgentInput,
   ValidatedRunMountPlan,
@@ -28,14 +32,30 @@ import { WorkspaceManager } from "./workspace.js";
 
 const now = () => new Date().toISOString();
 
-// The frozen seams Capsule admission orchestrates. index.ts wires
-// integration stubs until P3 (authorizer, compiler) and P5/P2 (receipts)
-// integrate their real implementations at the Day 1 gate.
+// The frozen seams Capsule admission orchestrates. index.ts wires the real
+// implementations: P3's authorizer and mount-plan compiler, and P5's
+// persisted Receipt service. Tests substitute the frozen fakes.
 export interface CapsuleSeams {
   authorizer: ResourceAuthorizer;
   mountPlanCompiler: MountPlanCompiler;
+  entitlements: EntitlementReader;
   receipts: ReceiptSink;
 }
+
+export interface AgentServiceLogger {
+  error(bindings: Record<string, unknown>, message: string): void;
+}
+
+const silentLogger: AgentServiceLogger = { error: () => undefined };
+const SAFE_RUNTIME_ERROR_NAMES = new Set([
+  "Error",
+  "TypeError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "URIError",
+  "AggregateError",
+]);
 
 // Admission outcome for POST /api/agents/:id/messages: 202 when admitted,
 // 403 with the safe denied body otherwise.
@@ -46,10 +66,12 @@ export type AdmissionResult =
 interface CapsuleExecution {
   plan: ValidatedRunMountPlan;
   runner: CapsuleCapableRunner;
+  receipt: AllowDecisionReceipt;
 }
 
 export class AgentService {
   private readonly activeExecutions = new Map<string, Promise<void>>();
+  private readonly pendingAdmissions = new Map<string, Set<Promise<void>>>();
   private readonly cancellationRequests = new Set<string>();
 
   constructor(
@@ -58,6 +80,7 @@ export class AgentService {
     private readonly workspaces: WorkspaceManager,
     private readonly runner: AgentRunner,
     private readonly capsule: CapsuleSeams,
+    private readonly logger: AgentServiceLogger = silentLogger,
   ) {}
 
   async initialize(): Promise<void> {
@@ -159,14 +182,26 @@ export class AgentService {
     principalId: HumanPrincipalId,
   ): Promise<{ archivedWorkspace: string }> {
     const agent = this.getAgent(id, principalId);
-    await this.cancelExecution(id);
-    const archivedWorkspace = await this.workspaces.archive(agent);
-    await this.store.mutate((database) => {
-      database.agents = database.agents.filter((item) => item.id !== id);
-      database.messages = database.messages.filter((item) => item.agentId !== id);
-      database.runs = database.runs.filter((item) => item.agentId !== id);
-    });
-    return { archivedWorkspace };
+    try {
+      await this.cancelExecution(id);
+      const archivedWorkspace = await this.workspaces.archive(agent);
+      await this.store.mutate((database) => {
+        const deletedRunIds = new Set(
+          database.runs
+            .filter((item) => item.agentId === id)
+            .map((item) => item.id),
+        );
+        database.agents = database.agents.filter((item) => item.id !== id);
+        database.messages = database.messages.filter((item) => item.agentId !== id);
+        database.runs = database.runs.filter((item) => item.agentId !== id);
+        database.receipts = database.receipts.filter(
+          (receipt) => !deletedRunIds.has(receipt.runId),
+        );
+      });
+      return { archivedWorkspace };
+    } finally {
+      this.cancellationRequests.delete(id);
+    }
   }
 
   async startAgent(id: string, principalId: HumanPrincipalId): Promise<Agent> {
@@ -176,8 +211,12 @@ export class AgentService {
 
   async stopAgent(id: string, principalId: HumanPrincipalId): Promise<Agent> {
     this.getAgent(id, principalId);
-    await this.cancelExecution(id);
-    return this.setStatus(id, "stopped");
+    try {
+      await this.cancelExecution(id);
+      return await this.setStatus(id, "stopped");
+    } finally {
+      this.cancellationRequests.delete(id);
+    }
   }
 
   getMessages(agentId: string, principalId: HumanPrincipalId): Message[] {
@@ -211,8 +250,9 @@ export class AgentService {
   // Run admission. A baseline request (no resourceIds) follows the existing
   // path unchanged. A Capsule request orchestrates the frozen seams in the
   // approved order — ownership, authorization, Runtime profile, mount plan —
-  // entirely before the 202/403 is decided; every denial is a terminal
-  // denied Run with a correlated deny Receipt and zero Runner calls.
+  // entirely before the 202/403 is decided. Ownership-scoped Agent lookup is
+  // earlier still: missing/non-owned Agents are a uniform 404 with no Run,
+  // Message, Receipt, or Runner call.
   async sendMessage(
     agentId: string,
     principal: HumanPrincipal,
@@ -255,6 +295,11 @@ export class AgentService {
       resourceIds,
     );
     if (decision.decision === "deny") {
+      if (decision.reason === "ownership_denied") {
+        // Defence-in-depth: if ownership changes between Agent resolution and
+        // authorization, preserve the same 404 and create no artifacts.
+        throw new HttpError(404, "Agent not found");
+      }
       return this.denyCapsuleRun(agentId, principal, body.content, runId, {
         resourceId: decision.resourceId,
         reason: decision.reason,
@@ -298,11 +343,7 @@ export class AgentService {
       });
     }
 
-    const admitted = await this.admitRun(agentId, content, runId);
-    // Persisting the allow Receipt marks the commitment to cross the
-    // Runtime seam; runnerStarted stays true even if the Runtime later
-    // fails.
-    this.capsule.receipts.add({
+    const receipt: AllowDecisionReceipt = {
       receiptId: randomUUID(),
       runId,
       humanPrincipalId: principal.id,
@@ -311,17 +352,33 @@ export class AgentService {
       decision: "allow",
       reason: "allowed",
       grantGeneration: decision.grantGeneration,
-      runnerStarted: true,
+      runnerStarted: false,
       createdAt: now(),
-    });
-    this.beginExecution(admitted.agentAtStart, admitted.run, {
-      plan: planResult.plan,
-      runner,
-    });
-    return {
-      admitted: true,
-      response: { run: admitted.run, message: admitted.message },
     };
+    const releasePendingAdmission = this.registerPendingAdmission(agentId);
+    try {
+      // Run, Message, Agent busy state, and initial authorization evidence
+      // share one JsonStore commit. A failed persist leaves no partial Run.
+      const admitted = await this.admitRun(
+        agentId,
+        content,
+        runId,
+        (database) => this.capsule.receipts.add(receipt, database),
+      );
+      this.beginExecution(admitted.agentAtStart, admitted.run, {
+        plan: planResult.plan,
+        runner,
+        receipt,
+      });
+      return {
+        admitted: true,
+        response: { run: admitted.run, message: admitted.message },
+      };
+    } finally {
+      // stopAgent waits for this gate and keeps the cancellation request live
+      // until beginExecution is registered or admission fails.
+      releasePendingAdmission();
+    }
   }
 
   // Persists the terminal denied Run, the user Message, and the deny
@@ -334,7 +391,7 @@ export class AgentService {
     runId: string,
     denial: {
       resourceId: string;
-      reason: CapsuleDenialReason;
+      reason: PublicCapsuleDenialReason;
       grantGeneration: number | null;
     },
   ): Promise<AdmissionResult> {
@@ -360,7 +417,7 @@ export class AgentService {
       content,
       createdAt: timestamp,
     };
-    await this.store.mutate((database) => {
+    await this.store.mutate(async (database) => {
       const storedAgent = database.agents.find((item) => item.id === agentId);
       if (!storedAgent) {
         throw new HttpError(404, "Agent not found");
@@ -377,18 +434,21 @@ export class AgentService {
       database.runs.push(run);
       database.messages.push(message);
       storedAgent.updatedAt = timestamp;
-    });
-    this.capsule.receipts.add({
-      receiptId,
-      runId,
-      humanPrincipalId: principal.id,
-      agentId,
-      resourceId: denial.resourceId,
-      decision: "deny",
-      reason: denial.reason,
-      grantGeneration: denial.grantGeneration,
-      runnerStarted: false,
-      createdAt: timestamp,
+      await this.capsule.receipts.add(
+        {
+          receiptId,
+          runId,
+          humanPrincipalId: principal.id,
+          agentId,
+          resourceId: denial.resourceId,
+          decision: "deny",
+          reason: denial.reason,
+          grantGeneration: denial.grantGeneration,
+          runnerStarted: false,
+          createdAt: timestamp,
+        },
+        database,
+      );
     });
     return {
       admitted: false,
@@ -406,6 +466,7 @@ export class AgentService {
     agentId: string,
     prompt: string,
     runId: string = randomUUID(),
+    beforeCommit?: (database: DatabaseV2) => void | Promise<void>,
   ): Promise<{ agentAtStart: Agent; run: AgentRun; message: Message }> {
     const timestamp = now();
     const run: AgentRun = {
@@ -428,7 +489,7 @@ export class AgentService {
       content: prompt,
       createdAt: timestamp,
     };
-    const agentAtStart = await this.store.mutate((database) => {
+    const agentAtStart = await this.store.mutate(async (database) => {
       const storedAgent = database.agents.find((item) => item.id === agentId);
       if (!storedAgent) {
         throw new HttpError(404, "Agent not found");
@@ -445,6 +506,7 @@ export class AgentService {
       storedAgent.status = "busy";
       storedAgent.lastError = null;
       storedAgent.updatedAt = timestamp;
+      await beforeCommit?.(database);
       return snapshot;
     });
     return { agentAtStart, run, message };
@@ -466,6 +528,29 @@ export class AgentService {
       .catch(() => undefined);
   }
 
+  private registerPendingAdmission(agentId: string): () => void {
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const admissions = this.pendingAdmissions.get(agentId) ?? new Set();
+    admissions.add(pending);
+    this.pendingAdmissions.set(agentId, admissions);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      admissions.delete(pending);
+      if (
+        admissions.size === 0 &&
+        this.pendingAdmissions.get(agentId) === admissions
+      ) {
+        this.pendingAdmissions.delete(agentId);
+      }
+      release();
+    };
+  }
+
   async systemInfo(): Promise<Record<string, unknown>> {
     return {
       arkConfigured: isArkConfigured(this.config),
@@ -485,6 +570,159 @@ export class AgentService {
     };
   }
 
+  // Runner failures can carry credentials, Resource content, or host paths.
+  // Configured secrets and credential-shaped errors are dropped wholesale;
+  // partial masking is not reliable for attacker-controlled text. The
+  // container engine can also echo a bind-mount source, and path segments may
+  // contain spaces, so arbitrary path-bearing messages are likewise replaced
+  // instead of being rewritten. Non-file URIs are normalized before either
+  // detection or return so a scheme cannot smuggle the original path back.
+  private redactHostPaths(message: string): string {
+    const pathWithheld =
+      "Runtime failed. Details were withheld because the message referenced a filesystem path.";
+    const normalized = message.normalize("NFC");
+    const configuredSecrets = [this.config.arkApiKey, this.config.authToken].filter(
+      (secret) => secret.length > 0,
+    );
+    if (
+      configuredSecrets.some((secret) => normalized.includes(secret)) ||
+      /\bbearer\s+[^\p{White_Space}"'<>),;]+/iu.test(normalized) ||
+      /\b(?:api[_ -]?(?:key|token)|(?:access|refresh|id|auth|session)[_ -]?token|client[_ -]?secret|private[_ -]?key|token|authorization|password|secret|credential)\b\s*(?::|=|\bis\b|\bwas\b)?\s*["']?[^\p{White_Space}"'<>),;]+/iu.test(
+        normalized,
+      )
+    ) {
+      return "Runtime failed. Details were withheld because the message referenced sensitive information.";
+    }
+    if (/\bfile:\/\/[^\s"'<>)]*/iu.test(normalized)) return pathWithheld;
+
+    let publicMessage = normalized.replace(
+      /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>)]*/giu,
+      "[URI withheld]",
+    );
+    // A route named in a network error is useful context, but it is also
+    // indistinguishable from an absolute host path. Keep the surrounding
+    // error and replace the complete route, including any traversal suffix.
+    publicMessage = publicMessage.replace(
+      /\bendpoint\s+\/[^\p{White_Space}"'()]+/giu,
+      "endpoint [API route withheld]",
+    );
+    // Internal frame tokens are operationally useful only as a category. Do
+    // not return their path-shaped suffix: a Runtime error can forge
+    // `node:internal/Users/...` just as easily as a legitimate module frame.
+    publicMessage = publicMessage.replace(
+      /\bnode:internal\/[^\p{White_Space}"'()]+/giu,
+      "node:[internal frame]",
+    );
+    const detectionText = publicMessage.replace(
+      /([\\/])\p{White_Space}+/gu,
+      "$1",
+    );
+    const carriesPath =
+      /%(?:2f|5c)/iu.test(detectionText) ||
+      /(?:^|[\\/])\.\.(?=[\\/]|$)/u.test(detectionText) ||
+      /(?:^|[^\p{L}\p{N}_])(?:~[\\/]|[A-Za-z]:[\\/]|[\\/]{1,2})[^\p{White_Space}"'\\/()]+(?:[\\/][^\p{White_Space}"'\\/()]+)*/u.test(
+        detectionText,
+      );
+    if (carriesPath) {
+      return pathWithheld;
+    }
+    return publicMessage.slice(0, 2_000);
+  }
+
+  private currentCapsuleEntitlement(execution: CapsuleExecution): boolean {
+    const current = this.capsule.entitlements.getCurrentEntitlement(
+      execution.receipt.humanPrincipalId,
+      execution.plan.resourceId,
+    );
+    return Boolean(
+      current &&
+        current.principalId === execution.receipt.humanPrincipalId &&
+        current.resourceId === execution.plan.resourceId &&
+        current.permission === "read" &&
+        current.status === "active" &&
+        current.generation === execution.plan.grantGeneration,
+    );
+  }
+
+  private async finalizeLateCapsuleDenial(
+    agentId: string,
+    runId: string,
+    execution: CapsuleExecution,
+  ): Promise<void> {
+    const completedAt = now();
+    await this.store.mutate(async (database) => {
+      await this.capsule.receipts.replace(
+        {
+          ...execution.receipt,
+          decision: "deny",
+          reason: "stale_entitlement_generation",
+          runnerStarted: false,
+        },
+        database,
+      );
+      const storedRun = database.runs.find((candidate) => candidate.id === runId);
+      const agent = database.agents.find((candidate) => candidate.id === agentId);
+      if (storedRun) {
+        storedRun.status = "denied";
+        storedRun.error = "stale_entitlement_generation";
+        storedRun.completedAt = completedAt;
+      }
+      if (agent) {
+        if (agent.status !== "stopped") agent.status = "ready";
+        agent.lastError = null;
+        agent.updatedAt = completedAt;
+      }
+    });
+  }
+
+  private async finalizePreRunnerFailure(
+    agentId: string,
+    runId: string,
+    receipt: AllowDecisionReceipt,
+    cancelled: boolean,
+    message: string,
+  ): Promise<void> {
+    const completedAt = now();
+    await this.store.mutate(async (database) => {
+      // This transaction also repairs a transient failure that happened after
+      // runnerStarted:true was persisted but before the Runner handoff.
+      await this.capsule.receipts.replace(receipt, database);
+      const storedRun = database.runs.find((candidate) => candidate.id === runId);
+      const agent = database.agents.find((candidate) => candidate.id === agentId);
+      if (storedRun) {
+        storedRun.status = cancelled ? "cancelled" : "failed";
+        storedRun.error = message;
+        storedRun.completedAt = completedAt;
+      }
+      if (agent) {
+        if (agent.status !== "stopped") agent.status = "ready";
+        agent.lastError = cancelled ? null : message;
+        agent.updatedAt = completedAt;
+      }
+    });
+  }
+
+  private logRuntimeFailure(error: unknown, agentId: string, runId: string): void {
+    const source = error instanceof Error ? error.message : String(error);
+    const candidateName = error instanceof Error ? error.name : "";
+    this.logger.error(
+      {
+        agentId,
+        runId,
+        error: {
+          name: SAFE_RUNTIME_ERROR_NAMES.has(candidateName)
+            ? candidateName
+            : "RuntimeError",
+          // Runtime stderr can contain credentials, Resource contents, or
+          // host paths. A fingerprint supports correlation without copying
+          // unbounded attacker-controlled detail into server logs.
+          fingerprint: createHash("sha256").update(source).digest("hex"),
+        },
+      },
+      "Runtime execution failed",
+    );
+  }
+
   private async executeRun(
     agentAtStart: Agent,
     run: AgentRun,
@@ -497,6 +735,7 @@ export class AgentService {
         storedRun.startedAt = now();
       }
     });
+    let runnerAttempted = false;
     try {
       if (this.cancellationRequests.has(agentAtStart.id)) {
         throw new RunCancelledError();
@@ -507,9 +746,43 @@ export class AgentService {
         prompt: run.prompt,
         threadId: agentAtStart.codexThreadId,
       };
-      const result = capsuleExecution
-        ? await capsuleExecution.runner.run(request, capsuleExecution.plan)
-        : await this.runner.run(request);
+      let result: RunnerResult;
+      if (capsuleExecution) {
+        if (!this.currentCapsuleEntitlement(capsuleExecution)) {
+          await this.finalizeLateCapsuleDenial(
+            agentAtStart.id,
+            run.id,
+            capsuleExecution,
+          );
+          return;
+        }
+        await this.capsule.receipts.replace({
+          ...capsuleExecution.receipt,
+          runnerStarted: true,
+        });
+        // The awaited Receipt write is itself a race window. Recheck both
+        // cancellation and Entitlement after it; once these pass there is no
+        // await before Runner invocation.
+        if (this.cancellationRequests.has(agentAtStart.id)) {
+          await this.capsule.receipts.replace(capsuleExecution.receipt);
+          throw new RunCancelledError();
+        }
+        if (!this.currentCapsuleEntitlement(capsuleExecution)) {
+          await this.finalizeLateCapsuleDenial(
+            agentAtStart.id,
+            run.id,
+            capsuleExecution,
+          );
+          return;
+        }
+        runnerAttempted = true;
+        result = await capsuleExecution.runner.run(
+          request,
+          capsuleExecution.plan,
+        );
+      } else {
+        result = await this.runner.run(request);
+      }
       const completedAt = now();
       await this.store.mutate((database) => {
         const storedRun = database.runs.find((item) => item.id === run.id);
@@ -534,8 +807,44 @@ export class AgentService {
       });
     } catch (error) {
       const completedAt = now();
-      const cancelled = error instanceof RunCancelledError;
-      const message = error instanceof Error ? error.message : String(error);
+      const preRunnerCapsule = Boolean(capsuleExecution && !runnerAttempted);
+      const cancelled =
+        error instanceof RunCancelledError ||
+        (preRunnerCapsule && this.cancellationRequests.has(agentAtStart.id));
+      if (!cancelled) this.logRuntimeFailure(error, agentAtStart.id, run.id);
+      if (capsuleExecution && !runnerAttempted && !cancelled) {
+        try {
+          // A one-shot failure may have interrupted the atomic stale-denial
+          // transaction. If the Entitlement is still stale, retry that exact
+          // terminal state before falling back to a non-authorization failure.
+          if (!this.currentCapsuleEntitlement(capsuleExecution)) {
+            await this.finalizeLateCapsuleDenial(
+              agentAtStart.id,
+              run.id,
+              capsuleExecution,
+            );
+            return;
+          }
+        } catch {
+          // The fallback below atomically restores runnerStarted:false while
+          // publishing the failed Run, provided persistence has recovered.
+        }
+      }
+      const message = cancelled
+        ? "Run cancelled"
+        : this.redactHostPaths(
+            error instanceof Error ? error.message : String(error),
+          );
+      if (capsuleExecution && !runnerAttempted) {
+        await this.finalizePreRunnerFailure(
+          agentAtStart.id,
+          run.id,
+          capsuleExecution.receipt,
+          cancelled,
+          message,
+        );
+        return;
+      }
       await this.store.mutate((database) => {
         const storedRun = database.runs.find((item) => item.id === run.id);
         const agent = database.agents.find((item) => item.id === agentAtStart.id);
@@ -546,7 +855,10 @@ export class AgentService {
         }
         if (agent) {
           if (agent.status !== "stopped") {
-            agent.status = cancelled ? "ready" : "error";
+            agent.status =
+              cancelled || (capsuleExecution && !runnerAttempted)
+                ? "ready"
+                : "error";
           }
           agent.lastError = cancelled ? null : message;
           agent.updatedAt = completedAt;
@@ -573,14 +885,22 @@ export class AgentService {
 
   private async cancelExecution(agentId: string): Promise<void> {
     this.cancellationRequests.add(agentId);
-    try {
-      await this.runner.cancel(agentId);
+    await this.runner.cancel(agentId);
+    while (true) {
+      const pending = [...(this.pendingAdmissions.get(agentId) ?? [])];
+      if (pending.length > 0) {
+        await Promise.all(pending);
+      }
       const execution = this.activeExecutions.get(agentId);
       if (execution) {
         await execution;
       }
-    } finally {
-      this.cancellationRequests.delete(agentId);
+      if (
+        (this.pendingAdmissions.get(agentId)?.size ?? 0) === 0 &&
+        !this.activeExecutions.has(agentId)
+      ) {
+        return;
+      }
     }
   }
 }

@@ -9,13 +9,22 @@ import {
   makeDenyDecision,
   makeFakeAuthorizer,
   makeFakeCapsuleRunner,
+  makeFakeEntitlementReader,
   makeFakeMountPlanCompiler,
 } from "./capsule-test-support.js";
 import { loadConfig } from "./config.js";
-import { InMemoryReceiptStore } from "./receipt-store.js";
+import { createStoreOwnershipReader } from "./demo-principal.js";
+import { RunCancelledError } from "./errors.js";
+import {
+  StoreReceiptRepository,
+  createStoreRunReader,
+} from "./receipt-repository.js";
+import { DecisionReceiptService } from "./receipt-service.js";
 import { JsonStore } from "./store.js";
 import type {
   AgentRunner,
+  DatabaseV2,
+  DecisionReceipt,
   RunnerRequest,
   RunnerResult,
   ValidatedRunMountPlan,
@@ -42,38 +51,51 @@ interface TestAppOptions {
   runner?: AgentRunner;
   capsule?: Partial<CapsuleSeams>;
   appAuthToken?: string;
+  // Builds the app the way production does (static plugin registered), which
+  // is the only configuration that can catch error-handler wiring bugs.
+  nodeEnv?: "test" | "production";
+  arkConfigured?: boolean;
+  storeFactory?: (filePath: string) => JsonStore;
 }
 
 async function makeTestApp(options: TestAppOptions = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "launchpad-http-"));
   temporaryDirectories.push(root);
   const config = loadConfig({
-    NODE_ENV: "test",
+    NODE_ENV: options.nodeEnv ?? "test",
+    HOST: "127.0.0.1",
     APP_DATA_DIR: path.join(root, "data"),
     AGENT_WORKSPACE_ROOT: path.join(root, "workspaces"),
     CODEX_HOME: path.join(root, "codex"),
-    ARK_API_KEY: "test-key",
-    ARK_MODEL: "ep-test",
+    ARK_API_KEY: options.arkConfigured === false ? "" : "test-key",
+    ARK_MODEL: options.arkConfigured === false ? "" : "ep-test",
     RUNTIME_PROVIDER: options.runtimeProvider ?? "local-process",
     ...(options.appAuthToken ? { APP_AUTH_TOKEN: options.appAuthToken } : {}),
   });
   const runner = options.runner ?? makeFakeCapsuleRunner();
-  const receipts = new InMemoryReceiptStore();
+  const storePath = path.join(root, "data", "db.json");
+  const store = options.storeFactory?.(storePath) ?? new JsonStore(storePath);
+  const receipts = new DecisionReceiptService(
+    new StoreReceiptRepository(store),
+    createStoreRunReader(store),
+    createStoreOwnershipReader(store),
+  );
   const service = new AgentService(
     config,
-    new JsonStore(path.join(root, "data", "db.json")),
+    store,
     new WorkspaceManager(path.join(root, "workspaces")),
     runner,
     {
       authorizer: makeFakeAuthorizer(),
       mountPlanCompiler: makeFakeMountPlanCompiler(),
+      entitlements: makeFakeEntitlementReader(),
       receipts,
       ...options.capsule,
     },
   );
   await service.initialize();
   const app = await createApp(config, service);
-  return { app, service, receipts, runner };
+  return { app, service, receipts, runner, store };
 }
 
 async function createAgent(
@@ -102,6 +124,104 @@ describe("HTTP boundary", () => {
       headers: { authorization: "Bearer a-strong-test-token", ...sessionA },
     });
     expect(allowed.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it("keeps validation and error contracts in the production build", async () => {
+    // Regression: the error handler used to be registered after the static
+    // plugin, so in production every validation failure fell through to
+    // Fastify's default 500 with a raw internal message.
+    const { app } = await makeTestApp({ nodeEnv: "production" });
+    const agent = await createAgent(app);
+
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ content: "x", resourceIds: ["../../etc"] }),
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const tooMany = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "x",
+        resourceIds: ["orders-incident", "payments-incident"],
+      }),
+    });
+    expect(tooMany.statusCode).toBe(400);
+
+    // HttpError statuses and their safe messages still round-trip.
+    const missing = await app.inject({
+      method: "GET",
+      url: "/api/agents/6b3f4f57-3b52-4f7b-9a71-2f24b7a2b111",
+      headers: sessionA,
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error).toBe("Agent not found");
+
+    const unauthenticated = await app.inject({
+      method: "GET",
+      url: "/api/agents",
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it("returns a generic body for a genuine 500 and never the internal message", async () => {
+    // The 5xx branch is the one that could echo a filesystem error carrying
+    // host paths, so it needs direct coverage rather than inference.
+    const exploding = {
+      listAgents: () => {
+        throw new Error(
+          "ENOENT: no such file or directory, open '/Users/demo/private/db.json'",
+        );
+      },
+    } as unknown as AgentService;
+    const root = await mkdtemp(path.join(tmpdir(), "launchpad-500-"));
+    temporaryDirectories.push(root);
+    const app = await createApp(
+      loadConfig({
+        NODE_ENV: "test",
+        HOST: "127.0.0.1",
+        APP_DATA_DIR: path.join(root, "data"),
+        AGENT_WORKSPACE_ROOT: path.join(root, "workspaces"),
+        CODEX_HOME: path.join(root, "codex"),
+        ARK_API_KEY: "test-key",
+        ARK_MODEL: "ep-test",
+      }),
+      exploding,
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/agents",
+      headers: sessionA,
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ error: "Internal server error" });
+    expect(response.body).not.toContain("/Users/demo");
+    expect(response.body).not.toContain("ENOENT");
+    await app.close();
+  });
+
+  it("preserves the curated Ark setup message for an HttpError 503", async () => {
+    const { app } = await makeTestApp({ arkConfigured: false });
+    const agent = await createAgent(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ content: "hello" }),
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      error: "Ark is not configured. Set ARK_API_KEY and ARK_MODEL, then restart.",
+    });
     await app.close();
   });
 
@@ -152,6 +272,26 @@ describe("HTTP boundary", () => {
       payload: JSON.stringify({ name: "x".repeat(1_100_000) }),
     });
     expect(oversized.statusCode).toBe(413);
+    await app.close();
+  });
+
+  it("returns a concise safe validation error instead of dumping Zod issues", async () => {
+    const { app } = await makeTestApp();
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/agents/not-a-uuid",
+      headers: sessionA,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: "Invalid request",
+      details: [
+        expect.objectContaining({ path: ["id"], message: expect.any(String) }),
+      ],
+    });
+    expect(response.body).not.toContain('"origin"');
+    expect(response.body).not.toContain('"pattern"');
     await app.close();
   });
 });
@@ -317,6 +457,49 @@ describe("Agent ownership over HTTP", () => {
     expect(mine.json().agent.ownerPrincipalId).toBe("user-a");
     await app.close();
   });
+
+  it("makes non-owned and missing Capsule targets identical with zero side effects", async () => {
+    const authorizer = makeFakeAuthorizer(makeAllowDecision());
+    const receiptWrites: unknown[] = [];
+    const { app, service, runner } = await makeTestApp({
+      runtimeProvider: "container",
+      capsule: {
+        authorizer,
+        receipts: {
+          async add(receipt) {
+            receiptWrites.push(receipt);
+          },
+          async replace(receipt) {
+            receiptWrites.push(receipt);
+          },
+        },
+      },
+    });
+    const agent = await createAgent(app, sessionA);
+    const request = (agentId: string) =>
+      app.inject({
+        method: "POST",
+        url: "/api/agents/" + agentId + "/messages",
+        headers: { ...json, ...sessionB },
+        payload: JSON.stringify({
+          content: "probe",
+          resourceIds: ["payments-incident"],
+        }),
+      });
+
+    const nonOwned = await request(agent.id);
+    const missing = await request("6b3f4f57-3b52-4f7b-9a71-2f24b7a2b111");
+    expect(nonOwned.statusCode).toBe(404);
+    expect(missing.statusCode).toBe(404);
+    expect(nonOwned.json()).toEqual({ error: "Agent not found" });
+    expect(missing.json()).toEqual(nonOwned.json());
+    expect(service.getRuns(agent.id, "user-a")).toHaveLength(0);
+    expect(service.getMessages(agent.id, "user-a")).toHaveLength(0);
+    expect(authorizer.calls).toHaveLength(0);
+    expect((runner as ReturnType<typeof makeFakeCapsuleRunner>).calls).toHaveLength(0);
+    expect(receiptWrites).toHaveLength(0);
+    await app.close();
+  });
 });
 
 describe("Run admission", () => {
@@ -436,7 +619,6 @@ describe("Run admission", () => {
 
   it("propagates every frozen denial reason to the response and Receipt", async () => {
     for (const denial of [
-      { reason: "ownership_denied" as const, grantGeneration: null },
       { reason: "entitlement_revoked" as const, grantGeneration: 2 },
       { reason: "stale_entitlement_generation" as const, grantGeneration: 1 },
     ]) {
@@ -471,6 +653,44 @@ describe("Run admission", () => {
       });
       await app.close();
     }
+  });
+
+  it("maps an authorizer ownership defence to 404 without artifacts", async () => {
+    const receiptWrites: unknown[] = [];
+    const { app, service, runner } = await makeTestApp({
+      runtimeProvider: "container",
+      capsule: {
+        authorizer: makeFakeAuthorizer(
+          makeDenyDecision({ reason: "ownership_denied" }),
+        ),
+        receipts: {
+          async add(receipt) {
+            receiptWrites.push(receipt);
+          },
+          async replace(receipt) {
+            receiptWrites.push(receipt);
+          },
+        },
+      },
+    });
+    const agent = await createAgent(app);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "probe",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: "Agent not found" });
+    expect(service.getRuns(agent.id, "user-a")).toHaveLength(0);
+    expect(service.getMessages(agent.id, "user-a")).toHaveLength(0);
+    expect((runner as ReturnType<typeof makeFakeCapsuleRunner>).calls).toHaveLength(0);
+    expect(receiptWrites).toHaveLength(0);
+    await app.close();
   });
 
   it("denies a Capsule Run under local-process with zero Runner calls", async () => {
@@ -565,6 +785,210 @@ describe("Run admission", () => {
     await app.close();
   });
 
+  it("fails admission cleanly when the Decision Receipt cannot be persisted", async () => {
+    const runner = makeFakeCapsuleRunner();
+    const { app, service } = await makeTestApp({
+      runtimeProvider: "container",
+      runner,
+      capsule: {
+        authorizer: makeFakeAuthorizer(makeAllowDecision()),
+        receipts: {
+          async add() {
+            throw new Error("receipt storage unavailable");
+          },
+          async replace() {
+            throw new Error("receipt storage unavailable");
+          },
+        },
+      },
+    });
+    const agent = await createAgent(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+
+    await expect
+      .poll(() => service.getAgent(agent.id, "user-a").status)
+      .not.toBe("busy");
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ error: "Internal server error" });
+    expect(runner.calls).toHaveLength(0);
+    expect(service.getAgent(agent.id, "user-a").status).toBe("ready");
+    expect(service.getRuns(agent.id, "user-a")).toHaveLength(0);
+    expect(service.getMessages(agent.id, "user-a")).toHaveLength(0);
+    await app.close();
+  });
+
+  it("atomically rejects Run, Message, and Receipt when the shared store fails", async () => {
+    class ReceiptWriteFailingStore extends JsonStore {
+      private broken = false;
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        if (this.broken) throw new Error("simulated persistent disk fault");
+        if (
+          data &&
+          data.receipts.length > this.snapshot().receipts.length
+        ) {
+          this.broken = true;
+          throw new Error("simulated persistent disk fault");
+        }
+        await super.persist(data);
+      }
+    }
+
+    const runner = makeFakeCapsuleRunner();
+    const { app, service, store } = await makeTestApp({
+      runtimeProvider: "container",
+      runner,
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+      storeFactory: (filePath) => new ReceiptWriteFailingStore(filePath),
+    });
+    const agent = await createAgent(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(service.getRuns(agent.id, "user-a")).toHaveLength(0);
+    expect(service.getMessages(agent.id, "user-a")).toHaveLength(0);
+    expect(service.getAgent(agent.id, "user-a").status).toBe("ready");
+    expect(store.snapshot().receipts).toHaveLength(0);
+    expect(runner.calls).toHaveLength(0);
+    await app.close();
+  });
+
+  it("does not let a failed deny write reset a concurrently admitted Run", async () => {
+    let secondMutationQueued!: () => void;
+    const queuedBehindFailure = new Promise<void>((resolve) => {
+      secondMutationQueued = resolve;
+    });
+    class QueueAwareStore extends JsonStore {
+      private monitoring = false;
+      private firstMutationActive = false;
+
+      arm(): void {
+        this.monitoring = true;
+      }
+
+      override async mutate<T>(
+        mutation: (database: DatabaseV2) => T | Promise<T>,
+      ): Promise<T> {
+        if (this.monitoring && this.firstMutationActive) {
+          secondMutationQueued();
+        }
+        const tracksFirst = this.monitoring && !this.firstMutationActive;
+        if (tracksFirst) this.firstMutationActive = true;
+        try {
+          return await super.mutate(mutation);
+        } finally {
+          if (tracksFirst) this.firstMutationActive = false;
+        }
+      }
+    }
+
+    let receiptWriteReached!: () => void;
+    const reachedReceiptWrite = new Promise<void>((resolve) => {
+      receiptWriteReached = resolve;
+    });
+    let releaseReceiptWrite!: () => void;
+    const receiptWriteReleased = new Promise<void>((resolve) => {
+      releaseReceiptWrite = resolve;
+    });
+    const failingReceipts: CapsuleSeams["receipts"] = {
+      async add(_receipt, transaction) {
+        expect(transaction).toBeDefined();
+        receiptWriteReached();
+        await receiptWriteReleased;
+        throw new Error("simulated deny Receipt failure");
+      },
+      async replace() {
+        throw new Error("unexpected Receipt update");
+      },
+    };
+
+    let finishRunner!: (result: RunnerResult) => void;
+    const pendingRunner = new Promise<RunnerResult>((resolve) => {
+      finishRunner = resolve;
+    });
+    const runner = makeFakeCapsuleRunner();
+    runner.run = async (
+      request: RunnerRequest,
+      validatedMountPlan?: ValidatedRunMountPlan,
+    ) => {
+      runner.calls.push({ request, validatedMountPlan });
+      return pendingRunner;
+    };
+    let store!: QueueAwareStore;
+    const { app, service } = await makeTestApp({
+      runner,
+      capsule: {
+        authorizer: makeFakeAuthorizer(
+          makeDenyDecision({ reason: "entitlement_missing" }),
+        ),
+        receipts: failingReceipts,
+      },
+      storeFactory: (filePath) => {
+        store = new QueueAwareStore(filePath);
+        return store;
+      },
+    });
+    const agent = await createAgent(app);
+    store.arm();
+
+    const denying = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "denied request",
+        resourceIds: ["payments-incident"],
+      }),
+    });
+    await reachedReceiptWrite;
+    const admitting = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ content: "baseline request" }),
+    });
+    await queuedBehindFailure;
+    releaseReceiptWrite();
+
+    const [failed, admitted] = await Promise.all([denying, admitting]);
+    expect(failed.statusCode).toBe(500);
+    expect(admitted.statusCode).toBe(202);
+    const admittedRunId = admitted.json().run.id;
+    expect(service.getRuns(agent.id, "user-a")).toEqual([
+      expect.objectContaining({ id: admittedRunId }),
+    ]);
+    expect(service.getMessages(agent.id, "user-a")).toEqual([
+      expect.objectContaining({ runId: admittedRunId, role: "user" }),
+    ]);
+    expect(store.snapshot().receipts).toHaveLength(0);
+    expect(service.getAgent(agent.id, "user-a").status).toBe("busy");
+    await expect.poll(() => runner.calls.length).toBe(1);
+
+    finishRunner({ output: "done", threadId: null, usage: null });
+    await expect
+      .poll(() => service.getRun(admittedRunId, "user-a").status)
+      .toBe("completed");
+    await app.close();
+  });
+
   it("admits only one of two concurrent Capsule requests and writes one Receipt", async () => {
     let finish!: (result: RunnerResult) => void;
     const pending = new Promise<RunnerResult>((resolve) => {
@@ -607,8 +1031,9 @@ describe("Run admission", () => {
 
     const admitted = first.statusCode === 202 ? first : second;
     const runId = admitted.json().run.id;
-    expect(receipts.getReceiptsForRun(runId)).toHaveLength(1);
-    // The Runner call happens in the async execution phase.
+    // Admission durably creates one Receipt; the Runtime boundary updates its
+    // runnerStarted evidence without minting a second record.
+    await expect.poll(() => receipts.getReceiptsForRun(runId).length).toBe(1);
     await expect.poll(() => plansSeen.length).toBe(1);
     expect(plansSeen[0]?.resourceId).toBe("orders-incident");
 
@@ -616,6 +1041,307 @@ describe("Run admission", () => {
     await expect
       .poll(() => service.getRun(runId, "user-a").status)
       .toBe("completed");
+    await app.close();
+  });
+
+  it("writes an allow Receipt with runnerStarted false when cancelled before the Runner", async () => {
+    let runningMutationReached!: () => void;
+    const reachedRunningMutation = new Promise<void>((resolve) => {
+      runningMutationReached = resolve;
+    });
+    let releaseRunningMutation!: () => void;
+    const runningMutationReleased = new Promise<void>((resolve) => {
+      releaseRunningMutation = resolve;
+    });
+    class PauseAfterRunningStore extends JsonStore {
+      private paused = false;
+
+      override async mutate<T>(
+        mutation: (database: DatabaseV2) => T | Promise<T>,
+      ): Promise<T> {
+        const result = await super.mutate(mutation);
+        if (
+          !this.paused &&
+          this.snapshot().runs.some((run) => run.status === "running")
+        ) {
+          this.paused = true;
+          runningMutationReached();
+          await runningMutationReleased;
+        }
+        return result;
+      }
+    }
+
+    let cancelObserved!: () => void;
+    const cancellationReachedRunner = new Promise<void>((resolve) => {
+      cancelObserved = resolve;
+    });
+    const runner = makeFakeCapsuleRunner();
+    runner.cancel = async () => {
+      cancelObserved();
+      return false;
+    };
+    const { app, service, receipts } = await makeTestApp({
+      runtimeProvider: "container",
+      runner,
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+      storeFactory: (filePath) => new PauseAfterRunningStore(filePath),
+    });
+    const agent = await createAgent(app);
+
+    const accepting = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+    await reachedRunningMutation;
+    const stopping = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/stop",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({}),
+    });
+    await cancellationReachedRunner;
+    releaseRunningMutation();
+
+    const [accepted, stopped] = await Promise.all([accepting, stopping]);
+    expect(accepted.statusCode).toBe(202);
+    expect(stopped.statusCode).toBe(200);
+    const runId = accepted.json().run.id;
+    await expect.poll(() => service.getRun(runId, "user-a").status).toBe("cancelled");
+    expect(runner.calls).toHaveLength(0);
+    expect(receipts.getReceiptsForRun(runId)).toEqual([
+      expect.objectContaining({
+        decision: "allow",
+        reason: "allowed",
+        runnerStarted: false,
+      }),
+    ]);
+    await app.close();
+  });
+
+  it("repairs Runner evidence after a one-shot cancellation write fault", async () => {
+    let runnerStartedWriteReached!: () => void;
+    const reachedRunnerStartedWrite = new Promise<void>((resolve) => {
+      runnerStartedWriteReached = resolve;
+    });
+    let releaseRunnerStartedWrite!: () => void;
+    const runnerStartedWriteReleased = new Promise<void>((resolve) => {
+      releaseRunnerStartedWrite = resolve;
+    });
+    class OneShotCorrectionFailureStore extends JsonStore {
+      correctionFailures = 0;
+      private runnerStartedWriteSeen = false;
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        const currentReceipt = this.snapshot().receipts[0];
+        const nextReceipt = data?.receipts[0];
+        if (
+          !this.runnerStartedWriteSeen &&
+          currentReceipt?.decision === "allow" &&
+          !currentReceipt.runnerStarted &&
+          nextReceipt?.decision === "allow" &&
+          nextReceipt.runnerStarted
+        ) {
+          this.runnerStartedWriteSeen = true;
+          runnerStartedWriteReached();
+          await runnerStartedWriteReleased;
+        } else if (
+          this.runnerStartedWriteSeen &&
+          this.correctionFailures === 0 &&
+          currentReceipt?.decision === "allow" &&
+          currentReceipt.runnerStarted &&
+          nextReceipt?.decision === "allow" &&
+          !nextReceipt.runnerStarted
+        ) {
+          this.correctionFailures += 1;
+          throw new Error("simulated one-shot Receipt correction fault");
+        }
+        await super.persist(data);
+      }
+    }
+
+    const runner = makeFakeCapsuleRunner();
+    let store!: OneShotCorrectionFailureStore;
+    const { app, service, receipts } = await makeTestApp({
+      runtimeProvider: "container",
+      runner,
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+      storeFactory: (filePath) => {
+        store = new OneShotCorrectionFailureStore(filePath);
+        return store;
+      },
+    });
+    const agent = await createAgent(app);
+
+    const accepting = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+    await reachedRunnerStartedWrite;
+    const stopping = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/stop",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({}),
+    });
+    await expect.poll(() => runner.cancelledAgentIds).toContain(agent.id);
+    releaseRunnerStartedWrite();
+
+    const [accepted, stopped] = await Promise.all([accepting, stopping]);
+    expect(accepted.statusCode).toBe(202);
+    expect(stopped.statusCode).toBe(200);
+    const runId = accepted.json().run.id;
+    expect(store.correctionFailures).toBe(1);
+    expect(service.getRun(runId, "user-a").status).toBe("cancelled");
+    expect(runner.calls).toHaveLength(0);
+    expect(receipts.getReceiptsForRun(runId)).toEqual([
+      expect.objectContaining({ runnerStarted: false }),
+    ]);
+    await app.close();
+  });
+
+  it("does not lose a stop request while the initial Receipt commit is pending", async () => {
+    let receiptWriteReached!: () => void;
+    const reachedReceiptWrite = new Promise<void>((resolve) => {
+      receiptWriteReached = resolve;
+    });
+    let releaseReceiptWrite!: () => void;
+    const receiptWriteReleased = new Promise<void>((resolve) => {
+      releaseReceiptWrite = resolve;
+    });
+    const recorded: DecisionReceipt[] = [];
+    const delayedReceipts: CapsuleSeams["receipts"] = {
+      async add(receipt, transaction) {
+        receiptWriteReached();
+        await receiptWriteReleased;
+        transaction?.receipts.push(structuredClone(receipt));
+        recorded.push(structuredClone(receipt));
+      },
+      async replace(receipt, transaction) {
+        const replaceIn = (receipts: DecisionReceipt[]) => {
+          const index = receipts.findIndex(
+            (candidate) => candidate.receiptId === receipt.receiptId,
+          );
+          if (index < 0) throw new Error("Decision Receipt not found");
+          receipts[index] = structuredClone(receipt);
+        };
+        if (transaction) replaceIn(transaction.receipts);
+        replaceIn(recorded);
+      },
+    };
+    const runner = makeFakeCapsuleRunner();
+    const { app, service } = await makeTestApp({
+      runtimeProvider: "container",
+      runner,
+      capsule: {
+        authorizer: makeFakeAuthorizer(makeAllowDecision()),
+        receipts: delayedReceipts,
+      },
+    });
+    const agent = await createAgent(app);
+
+    const accepting = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+    await reachedReceiptWrite;
+    const stopping = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/stop",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({}),
+    });
+    await expect.poll(() => runner.cancelledAgentIds).toContain(agent.id);
+    releaseReceiptWrite();
+
+    const [accepted, stopped] = await Promise.all([accepting, stopping]);
+    expect(accepted.statusCode).toBe(202);
+    expect(stopped.statusCode).toBe(200);
+    const runId = accepted.json().run.id;
+    expect(service.getRun(runId, "user-a").status).toBe("cancelled");
+    expect(service.getAgent(agent.id, "user-a").status).toBe("stopped");
+    expect(runner.calls).toHaveLength(0);
+    expect(recorded).toEqual([
+      expect.objectContaining({ runId, runnerStarted: false }),
+    ]);
+    await app.close();
+  });
+
+  it("keeps runnerStarted true when cancellation follows Runner invocation", async () => {
+    let runnerEntered!: () => void;
+    const enteredRunner = new Promise<void>((resolve) => {
+      runnerEntered = resolve;
+    });
+    let rejectRun!: (error: Error) => void;
+    const pendingRun = new Promise<RunnerResult>((_resolve, reject) => {
+      rejectRun = reject;
+    });
+    const runner = makeFakeCapsuleRunner();
+    runner.run = async (
+      request,
+      validatedMountPlan?: ValidatedRunMountPlan,
+    ) => {
+      runner.calls.push({
+        request: { ...request },
+        validatedMountPlan: validatedMountPlan
+          ? structuredClone(validatedMountPlan)
+          : undefined,
+      });
+      runnerEntered();
+      return pendingRun;
+    };
+    runner.cancel = async (agentId) => {
+      runner.cancelledAgentIds.push(agentId);
+      rejectRun(new RunCancelledError());
+      return true;
+    };
+    const { app, service, receipts } = await makeTestApp({
+      runtimeProvider: "container",
+      runner,
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+    });
+    const agent = await createAgent(app);
+
+    const accepting = app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+    await enteredRunner;
+    const accepted = await accepting;
+    const stopped = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/stop",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({}),
+    });
+
+    const runId = accepted.json().run.id;
+    expect(stopped.statusCode).toBe(200);
+    expect(service.getRun(runId, "user-a").status).toBe("cancelled");
+    expect(runner.calls).toHaveLength(1);
+    expect(receipts.getReceiptsForRun(runId)).toEqual([
+      expect.objectContaining({ runnerStarted: true }),
+    ]);
     await app.close();
   });
 
@@ -656,6 +1382,43 @@ describe("Run admission", () => {
       runnerStarted: true,
       grantGeneration: 1,
     });
+    await app.close();
+  });
+
+  it("deletes Capsule Receipts with their Agent Runs without leaving orphans", async () => {
+    const { app, service, store } = await makeTestApp({
+      runtimeProvider: "container",
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+    });
+    const agent = await createAgent(app);
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+    const runId = accepted.json().run.id;
+    await expect
+      .poll(() => service.getRun(runId, "user-a").status)
+      .toBe("completed");
+    expect(store.snapshot().receipts).toHaveLength(1);
+
+    const deleted = await app.inject({
+      method: "DELETE",
+      url: "/api/agents/" + agent.id,
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({}),
+    });
+
+    expect(deleted.statusCode).toBe(200);
+    const snapshot = store.snapshot();
+    expect(snapshot.agents).toHaveLength(0);
+    expect(snapshot.runs).toHaveLength(0);
+    expect(snapshot.messages).toHaveLength(0);
+    expect(snapshot.receipts).toHaveLength(0);
     await app.close();
   });
 });

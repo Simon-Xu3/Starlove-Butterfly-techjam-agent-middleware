@@ -110,6 +110,27 @@ export function createMountPlanCompiler(
       );
       if (!pathResult.ok) return invalidPath();
 
+      // Re-check the Entitlement after the awaited path validation: a revoke
+      // completing during that filesystem I/O would otherwise still yield a
+      // plan, and the Runner would mount a Resource whose authorization was
+      // withdrawn. The spec requires the current generation to hold at the
+      // moment the plan is produced.
+      const entitlementAfterValidation =
+        dependencies.entitlements.getCurrentEntitlement(
+          decision.principalId,
+          resourceId,
+        );
+      if (
+        !entitlementAfterValidation ||
+        entitlementAfterValidation.principalId !== decision.principalId ||
+        entitlementAfterValidation.resourceId !== resourceId ||
+        entitlementAfterValidation.status !== "active" ||
+        entitlementAfterValidation.permission !== "read" ||
+        entitlementAfterValidation.generation !== decision.grantGeneration
+      ) {
+        return staleGeneration();
+      }
+
       const targetPath = RESOURCE_TARGET_PREFIX + resourceId;
       if (
         RESERVED_MOUNT_TARGETS.some((reservedTarget) =>

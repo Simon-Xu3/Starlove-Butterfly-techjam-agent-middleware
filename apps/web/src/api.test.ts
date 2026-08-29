@@ -9,6 +9,7 @@ import {
 
 const deniedRunId = "11111111-1111-4111-8111-111111111111";
 const deniedReceiptId = "22222222-2222-4222-8222-222222222222";
+const receiptAgentId = "33333333-3333-4333-8333-333333333333";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -108,6 +109,30 @@ describe("Resource Capsule API client", () => {
     await expect(request).rejects.not.toBeInstanceOf(DeniedRunApiError);
   });
 
+  it("does not expose legacy ownership denial as a new 403 admission result", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            runId: deniedRunId,
+            receiptId: deniedReceiptId,
+            status: "denied",
+            reason: "ownership_denied",
+          }),
+          { status: 403, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const request = api.sendMessage("agent-1", {
+      content: "probe",
+      resourceIds: ["orders-incident"],
+    });
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.not.toBeInstanceOf(DeniedRunApiError);
+  });
+
   it("discards a response from the previous demo principal", async () => {
     let resolveFetch: ((response: Response) => void) | undefined;
     vi.stubGlobal(
@@ -164,4 +189,109 @@ describe("Resource Capsule API client", () => {
 
     await expect(api.receipts(deniedRunId)).rejects.toBeInstanceOf(ApiError);
   });
+
+  it.each([false, true])(
+    "accepts an allow Receipt with runnerStarted=%s",
+    async (runnerStarted) => {
+      const receipt = {
+        receiptId: deniedReceiptId,
+        runId: deniedRunId,
+        humanPrincipalId: "user-a",
+        agentId: receiptAgentId,
+        resourceId: "payments-incident",
+        decision: "allow",
+        reason: "allowed",
+        grantGeneration: 1,
+        runnerStarted,
+        createdAt: "2026-08-28T00:00:00.000Z",
+      } as const;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ receipts: [receipt] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      await expect(api.receipts(deniedRunId)).resolves.toEqual({
+        receipts: [receipt],
+      });
+    },
+  );
+
+  it("accepts a historical ownership-denied Receipt for an owned Run", async () => {
+    const receipt = {
+      receiptId: deniedReceiptId,
+      runId: deniedRunId,
+      humanPrincipalId: "user-a",
+      agentId: receiptAgentId,
+      resourceId: "orders-incident",
+      decision: "deny",
+      reason: "ownership_denied",
+      grantGeneration: null,
+      runnerStarted: false,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    } as const;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ receipts: [receipt] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(api.receipts(deniedRunId)).resolves.toEqual({
+      receipts: [receipt],
+    });
+  });
+
+  it.each([
+    {
+      decision: "allow",
+      reason: "allowed",
+      runnerStarted: false,
+    },
+    {
+      decision: "deny",
+      reason: "entitlement_revoked",
+      runnerStarted: false,
+    },
+  ] as const)(
+    "rejects generation zero on a $decision Receipt",
+    async ({ decision, reason, runnerStarted }) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              receipts: [
+                {
+                  receiptId: deniedReceiptId,
+                  runId: deniedRunId,
+                  humanPrincipalId: "user-a",
+                  agentId: receiptAgentId,
+                  resourceId: "payments-incident",
+                  decision,
+                  reason,
+                  grantGeneration: 0,
+                  runnerStarted,
+                  createdAt: "2026-08-28T00:00:00.000Z",
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        ),
+      );
+
+      await expect(api.receipts(deniedRunId)).rejects.toBeInstanceOf(ApiError);
+    },
+  );
 });

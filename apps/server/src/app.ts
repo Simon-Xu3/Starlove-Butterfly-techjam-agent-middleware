@@ -1,8 +1,12 @@
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, {
+  type FastifyBaseLogger,
+  type FastifyInstance,
+} from "fastify";
 import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import pino from "pino";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
 import {
@@ -46,12 +50,10 @@ const messageBody = z
 export async function createApp(
   config: AppConfig,
   service: AgentService,
+  loggerInstance: FastifyBaseLogger = createAppLogger(config),
 ): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: {
-      level: config.logLevel,
-      redact: ["req.headers.authorization", "req.headers.cookie"],
-    },
+    loggerInstance,
     bodyLimit: 1_048_576,
   });
 
@@ -186,20 +188,12 @@ export async function createApp(
     return { run: service.getRun(id, principal.id) };
   });
 
-  if (config.nodeEnv === "production") {
-    const webRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
-    await app.register(fastifyStatic, {
-      root: webRoot,
-      prefix: "/",
-    });
-    app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith("/api/")) {
-        return reply.code(404).send({ error: "API route not found" });
-      }
-      return reply.sendFile("index.html");
-    });
-  }
-
+  // Registered before any `await app.register(...)` below: awaiting a
+  // register finalizes the route contexts declared so far, and an error
+  // handler attached afterwards never applies to them. With the static
+  // plugin registered first, every /api validation failure fell through to
+  // Fastify's default 500 in production while tests (NODE_ENV=test, no
+  // static plugin) still saw the correct 400.
   app.setErrorHandler((error, request, reply) => {
     const appError = error instanceof Error ? error : new Error(String(error));
     const validationError = error instanceof z.ZodError;
@@ -215,14 +209,50 @@ export async function createApp(
           : frameworkStatus && frameworkStatus >= 400 && frameworkStatus <= 599
             ? frameworkStatus
             : 500;
+    if (error instanceof HttpError) {
+      if (statusCode >= 500) request.log.error(appError);
+      return reply.code(statusCode).send({ error: appError.message });
+    }
+    if (validationError) {
+      return reply.code(400).send({
+        error: "Invalid request",
+        details: error.issues.map((issue) => ({
+          path: issue.path,
+          message: issue.message,
+        })),
+      });
+    }
     if (statusCode >= 500) {
       request.log.error(appError);
+      // Never echo an internal failure message: it can carry host paths
+      // from the filesystem, store, or container engine.
+      return reply.code(statusCode).send({ error: "Internal server error" });
     }
     return reply.code(statusCode).send({
       error: appError.message,
-      ...(validationError ? { details: error.issues } : {}),
     });
   });
 
+  if (config.nodeEnv === "production") {
+    const webRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
+    await app.register(fastifyStatic, {
+      root: webRoot,
+      prefix: "/",
+    });
+    app.setNotFoundHandler((request, reply) => {
+      if (request.url.startsWith("/api/")) {
+        return reply.code(404).send({ error: "API route not found" });
+      }
+      return reply.sendFile("index.html");
+    });
+  }
+
   return app;
+}
+
+export function createAppLogger(config: AppConfig): FastifyBaseLogger {
+  return pino({
+    level: config.logLevel,
+    redact: ["req.headers.authorization", "req.headers.cookie"],
+  });
 }

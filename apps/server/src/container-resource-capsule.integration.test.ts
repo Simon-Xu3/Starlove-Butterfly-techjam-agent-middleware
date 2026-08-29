@@ -98,5 +98,9 @@ describe("Container Resource Capsule Kill Test", () => {
         await rm(directory, { recursive: true, force: true });
       }
     },
+    // The case builds an image and starts a container; vitest's 5s default
+    // fails on a cold engine even though the assertions themselves are fast,
+    // which made the published evidence command unreliable to reproduce.
+    120_000,
   );
 });

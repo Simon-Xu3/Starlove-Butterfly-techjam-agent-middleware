@@ -64,7 +64,7 @@ async function makeApp(service: DecisionReceiptService) {
 }
 
 describe("Decision Receipt service and route", () => {
-  it("records an explicitly redacted Receipt and rejects duplicates", () => {
+  it("records an explicitly redacted Receipt and rejects duplicates", async () => {
     const { repository, service } = makeReceiptService();
     const unsafe = {
       ...allowReceipt(),
@@ -75,7 +75,7 @@ describe("Decision Receipt service and route", () => {
       resourceBody: "protected contents",
     } as AllowDecisionReceipt;
 
-    service.add(unsafe);
+    await service.add(unsafe);
     const serialized = JSON.stringify(repository.getReceiptsForRun(runId));
     for (const forbidden of [
       "secret prompt",
@@ -87,23 +87,46 @@ describe("Decision Receipt service and route", () => {
     ]) {
       expect(serialized).not.toContain(forbidden);
     }
-    expect(() => service.add(allowReceipt())).toThrow("only one");
+    await expect(service.add(allowReceipt())).rejects.toThrow("only one");
   });
 
-  it("rejects a Receipt that does not correlate to its Run", () => {
+  it("rejects a Receipt that does not correlate to its Run", async () => {
     const { repository, service } = makeReceiptService();
     const mismatched = {
       ...allowReceipt(),
       agentId: "55555555-5555-4555-8555-555555555555",
     };
 
-    expect(() => service.add(mismatched)).toThrow("does not match its Run");
+    await expect(service.add(mismatched)).rejects.toThrow(
+      "does not match its Run",
+    );
     expect(repository.getReceiptsForRun(runId)).toEqual([]);
+  });
+
+  it("updates Runner evidence in place while preserving one correlated Receipt", async () => {
+    const { repository, service } = makeReceiptService();
+    const initial = { ...allowReceipt(), runnerStarted: false };
+    await service.add(initial);
+    await service.replace({ ...initial, runnerStarted: true });
+
+    expect(repository.getReceiptsForRun(runId)).toEqual([
+      expect.objectContaining({
+        receiptId: initial.receiptId,
+        decision: "allow",
+        runnerStarted: true,
+      }),
+    ]);
+    await expect(
+      service.replace({
+        ...initial,
+        receiptId: "99999999-9999-4999-8999-999999999999",
+      }),
+    ).rejects.toThrow("correlation mismatch");
   });
 
   it("returns the correlated safe Receipt to the owning principal", async () => {
     const { service } = makeReceiptService();
-    service.add(allowReceipt());
+    await service.add(allowReceipt());
     const app = await makeApp(service);
 
     const response = await app.inject({
@@ -131,7 +154,7 @@ describe("Decision Receipt service and route", () => {
       runnerStarted: false,
       createdAt: "2026-08-28T00:00:00.000Z",
     };
-    service.add(denied);
+    await service.add(denied);
     const app = await makeApp(service);
     const response = await app.inject({
       method: "GET",
@@ -143,9 +166,47 @@ describe("Decision Receipt service and route", () => {
     await app.close();
   });
 
+  it("reads but never creates a legacy ownership-denied Receipt", async () => {
+    const { repository, service } = makeReceiptService();
+    const legacy: DenyDecisionReceipt = {
+      receiptId: "44444444-4444-4444-8444-444444444444",
+      runId,
+      // Historical ownership probes recorded the non-owner who attempted the
+      // request, not the principal who owns the target Agent.
+      humanPrincipalId: "user-b",
+      agentId,
+      resourceId: "orders-incident",
+      decision: "deny",
+      reason: "ownership_denied",
+      grantGeneration: null,
+      runnerStarted: false,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
+    await expect(service.add(legacy)).rejects.toThrow("read-only legacy");
+    await repository.add(legacy);
+
+    const app = await makeApp(service);
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/runs/${runId}/receipts`,
+      headers: { "x-demo-session": "demo-session-a" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ receipts: [legacy] });
+
+    const probingPrincipal = await app.inject({
+      method: "GET",
+      url: `/api/runs/${runId}/receipts`,
+      headers: { "x-demo-session": "demo-session-b" },
+    });
+    expect(probingPrincipal.statusCode).toBe(404);
+    expect(probingPrincipal.json()).toEqual({ error: "Run not found" });
+    await app.close();
+  });
+
   it("hides a Run from another principal and rejects missing identity", async () => {
     const { service } = makeReceiptService();
-    service.add(allowReceipt());
+    await service.add(allowReceipt());
     const app = await makeApp(service);
 
     const crossPrincipal = await app.inject({

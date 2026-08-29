@@ -83,12 +83,20 @@ or Agent-initiated scope expansion.
 
 ### 5. Recheck immediately before execution
 
-The server re-resolves the principal and verifies current Agent ownership,
+The server re-resolves the principal and resolves the Agent through that
+principal. A missing or non-owned Agent produces the same `404` before any Run,
+Message, or Receipt is written. For an owned Agent, the server verifies current
 Entitlement status and generation, the explicit delegation, Registry entry,
 canonical path, and Runtime profile. It does not trust earlier UI state.
 
-On allow, the server produces one immutable readonly mount plan. On denial, it
-persists a denied Run and Decision Receipt and does not invoke the Runner.
+On allow, the server produces one immutable readonly mount plan and persists
+the Run, user Message, Agent state transition, and authorization Receipt in one
+atomic commit. It rechecks Entitlement status and generation at the final
+Runtime seam. A concurrent revoke finalizes the Run and Receipt as denied
+without invoking the Runner. A user cancellation received during admission or
+before that seam remains active through the execution handoff and keeps the
+allow Receipt with `runnerStarted: false`, because cancellation does not
+rewrite the authorization decision.
 
 ### 6. Show the result and evidence
 

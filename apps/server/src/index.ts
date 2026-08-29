@@ -1,12 +1,17 @@
 import path from "node:path";
 import { AgentService } from "./agent-service.js";
-import { createApp } from "./app.js";
+import { createApp, createAppLogger } from "./app.js";
 import { loadConfig, writeCodexConfig } from "./config.js";
 import { createStoreOwnershipReader } from "./demo-principal.js";
 import { createEntitlementRoutes } from "./entitlement-routes.js";
 import { PrincipalEntitlementService } from "./entitlement-service.js";
 import { createMountPlanCompiler } from "./mount-plan-compiler.js";
-import { InMemoryReceiptStore } from "./receipt-store.js";
+import {
+  StoreReceiptRepository,
+  createStoreRunReader,
+} from "./receipt-repository.js";
+import { createReceiptRoutes } from "./receipt-routes.js";
+import { DecisionReceiptService } from "./receipt-service.js";
 import { createResourceAuthorizer } from "./resource-authorizer.js";
 import { ResourcePathValidator } from "./resource-path-validator.js";
 import { StaticResourceRegistry } from "./resource-registry.js";
@@ -16,6 +21,7 @@ import { JsonStore } from "./store.js";
 import { WorkspaceManager } from "./workspace.js";
 
 const config = loadConfig();
+const logger = createAppLogger(config);
 await writeCodexConfig(config);
 
 const store = new JsonStore(path.join(config.dataDirectory, "launchpad.json"));
@@ -33,18 +39,33 @@ const mountPlanCompiler = createMountPlanCompiler({
 });
 const workspaces = new WorkspaceManager(config.workspaceRoot);
 const runner = createRunner(config);
-const service = new AgentService(config, store, workspaces, runner, {
-  authorizer,
-  mountPlanCompiler,
-  // P5 owns the persisted Receipt integration. Keep its current seam while
-  // P2/P3 use the real Store, Registry, Entitlement, and mount-plan services.
-  receipts: new InMemoryReceiptStore(),
-});
+// P5's persisted Receipt service, backed by the store: admission records
+// through its ReceiptSink; the receipts route queries through its
+// principal-scoped reader.
+const receipts = new DecisionReceiptService(
+  new StoreReceiptRepository(store),
+  createStoreRunReader(store),
+  createStoreOwnershipReader(store),
+);
+const service = new AgentService(
+  config,
+  store,
+  workspaces,
+  runner,
+  {
+    authorizer,
+    mountPlanCompiler,
+    entitlements,
+    receipts,
+  },
+  logger.child({ component: "agent-service" }),
+);
 await service.initialize();
 
-const app = await createApp(config, service);
+const app = await createApp(config, service, logger);
 await app.register(createResourceRoutes({ registry, entitlements }));
 await app.register(createEntitlementRoutes({ entitlements }));
+await app.register(createReceiptRoutes(receipts));
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "Shutting down");

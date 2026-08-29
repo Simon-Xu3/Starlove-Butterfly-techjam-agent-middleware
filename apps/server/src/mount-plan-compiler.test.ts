@@ -51,6 +51,72 @@ describe("mount-plan compiler", () => {
     });
   }
 
+  it("rejects a revoke that lands during path validation", async () => {
+    // The Entitlement is active when compilation starts and revoked while the
+    // awaited realpath/stat work is in flight. Without a post-validation
+    // re-check the stale decision would still yield a plan and the Runner
+    // would mount a Resource whose authorization was withdrawn.
+    let entitlement: PrincipalResourceEntitlement = makeEntitlement();
+    const revokingValidator = new ResourcePathValidator(allowedRoot);
+    const originalValidateResource =
+      revokingValidator.validateResource.bind(revokingValidator);
+    revokingValidator.validateResource = async (resource, registry) => {
+      const result = await originalValidateResource(resource, registry);
+      entitlement = makeEntitlement({
+        status: "revoked",
+        revokedAt: "2026-08-29T00:00:00.000Z",
+      });
+      return result;
+    };
+
+    const racing = createMountPlanCompiler({
+      registry: makeFakeRegistryReader([ordersResource]),
+      entitlements: {
+        getCurrentEntitlement: () => entitlement,
+      },
+      pathValidator: revokingValidator,
+    });
+
+    const result = await racing.compileMountPlan(
+      "run-race",
+      makeAllowDecision({ resource: ordersResource }),
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: "stale_entitlement_generation",
+    });
+  });
+
+  it.each([
+    makeEntitlement({ principalId: "user-b" }),
+    makeEntitlement({ resourceId: "payments-incident" }),
+  ])(
+    "rejects a post-validation Entitlement whose identity changed",
+    async (mismatchedEntitlement) => {
+      let reads = 0;
+      const identityChanging = createMountPlanCompiler({
+        registry: makeFakeRegistryReader([ordersResource]),
+        entitlements: {
+          getCurrentEntitlement: () => {
+            reads += 1;
+            return reads === 1 ? makeEntitlement() : mismatchedEntitlement;
+          },
+        },
+        pathValidator: new ResourcePathValidator(allowedRoot),
+      });
+
+      await expect(
+        identityChanging.compileMountPlan(
+          "run-identity-race",
+          makeAllowDecision({ resource: ordersResource }),
+        ),
+      ).resolves.toEqual({
+        ok: false,
+        reason: "stale_entitlement_generation",
+      });
+    },
+  );
+
   it("produces the frozen readonly plan with a server-generated target", async () => {
     const result = await compiler().compileMountPlan(
       "run-1",
@@ -74,6 +140,34 @@ describe("mount-plan compiler", () => {
       expect(Object.isFrozen(result.plan)).toBe(true);
       expect(Reflect.set(result.plan, "targetPath", "/workspace")).toBe(false);
     }
+  });
+
+  it("mounts only the delegated Resource when the principal has two Entitlements", async () => {
+    const payments = path.join(allowedRoot, "payments-incident");
+    await mkdir(payments);
+    const paymentsResource = makeRegisteredResource({
+      id: "payments-incident",
+      canonicalSourcePath: payments,
+    });
+    const result = await compiler({
+      resources: [ordersResource, paymentsResource],
+      entitlements: [
+        makeEntitlement(),
+        makeEntitlement({ resourceId: "payments-incident" }),
+      ],
+    }).compileMountPlan(
+      "run-one-delegation",
+      makeAllowDecision({ resource: ordersResource }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        resourceId: "orders-incident",
+        targetPath: "/resources/orders-incident",
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("payments-incident");
   });
 
   it("rejects revoked, missing, changed, and invalid Entitlement generations", async () => {

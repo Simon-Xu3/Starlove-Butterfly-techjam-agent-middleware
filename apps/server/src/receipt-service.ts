@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ReceiptSink } from "./receipt-store.js";
 import type {
   AgentOwnershipReader,
-  CapsuleDenialReason,
+  DatabaseV2,
   DecisionReceipt,
   HumanPrincipalId,
   ReceiptReader,
@@ -16,15 +16,19 @@ export interface ReceiptRunReader {
   getAgentIdForRun(runId: string): string | undefined;
 }
 
-const denialReasons = [
-  "ownership_denied",
+const publicDenialReasons = [
   "unknown_resource",
   "entitlement_missing",
   "entitlement_revoked",
   "stale_entitlement_generation",
   "runtime_profile_unsupported",
   "invalid_resource_path",
-] as const satisfies readonly CapsuleDenialReason[];
+] as const;
+
+const persistedDenialReasons = [
+  "ownership_denied",
+  ...publicDenialReasons,
+] as const;
 
 const receiptBase = {
   receiptId: z.string().uuid(),
@@ -44,14 +48,14 @@ const decisionReceiptSchema = z.discriminatedUnion("decision", [
     ...receiptBase,
     decision: z.literal("allow"),
     reason: z.literal("allowed"),
-    grantGeneration: z.number().int().nonnegative(),
-    runnerStarted: z.literal(true),
+    grantGeneration: z.number().int().positive(),
+    runnerStarted: z.boolean(),
   }),
   z.object({
     ...receiptBase,
     decision: z.literal("deny"),
-    reason: z.enum(denialReasons),
-    grantGeneration: z.number().int().nonnegative().nullable(),
+    reason: z.enum(persistedDenialReasons),
+    grantGeneration: z.number().int().positive().nullable(),
     runnerStarted: z.literal(false),
   }),
 ]);
@@ -66,6 +70,14 @@ function safeReceipt(receipt: unknown): DecisionReceipt {
   return parsed.data;
 }
 
+function safeWritableReceipt(receipt: unknown): DecisionReceipt {
+  const sanitized = safeReceipt(receipt);
+  if (sanitized.decision === "deny" && sanitized.reason === "ownership_denied") {
+    throw new Error("ownership_denied is a read-only legacy Receipt reason");
+  }
+  return sanitized;
+}
+
 // The single P5 service used at both sides of the Receipt seam. Admission
 // records through ReceiptSink; the independent route queries through the
 // principal-scoped method below. Explicit field picking is intentional: a
@@ -78,15 +90,51 @@ export class DecisionReceiptService implements ReceiptSink, ReceiptReader {
     private readonly ownership: AgentOwnershipReader,
   ) {}
 
-  add(receipt: DecisionReceipt): void {
-    const sanitized = safeReceipt(receipt);
-    if (this.runs.getAgentIdForRun(sanitized.runId) !== sanitized.agentId) {
+  async add(receipt: DecisionReceipt, transaction?: DatabaseV2): Promise<void> {
+    const sanitized = safeWritableReceipt(receipt);
+    const runAgentId = transaction
+      ? transaction.runs.find((run) => run.id === sanitized.runId)?.agentId
+      : this.runs.getAgentIdForRun(sanitized.runId);
+    if (runAgentId !== sanitized.agentId) {
       throw new Error("Decision Receipt does not match its Run");
     }
-    if (this.repository.getReceiptsForRun(sanitized.runId).length > 0) {
+    const existing = transaction
+      ? transaction.receipts.filter((item) => item.runId === sanitized.runId)
+      : this.repository.getReceiptsForRun(sanitized.runId);
+    if (existing.length > 0) {
       throw new Error("A Capsule Run may have only one Decision Receipt");
     }
-    this.repository.add(sanitized);
+    await this.repository.add(sanitized, transaction);
+  }
+
+  async replace(
+    receipt: DecisionReceipt,
+    transaction?: DatabaseV2,
+  ): Promise<void> {
+    const sanitized = safeWritableReceipt(receipt);
+    const existing = transaction
+      ? transaction.receipts.filter((item) => item.runId === sanitized.runId)
+      : this.repository.getReceiptsForRun(sanitized.runId);
+    if (existing.length !== 1) {
+      throw new Error("A Capsule Run must have one Decision Receipt to update");
+    }
+    const current = existing[0];
+    if (
+      !current ||
+      current.receiptId !== sanitized.receiptId ||
+      current.runId !== sanitized.runId ||
+      current.humanPrincipalId !== sanitized.humanPrincipalId ||
+      current.agentId !== sanitized.agentId ||
+      current.resourceId !== sanitized.resourceId ||
+      current.createdAt !== sanitized.createdAt ||
+      current.grantGeneration !== sanitized.grantGeneration ||
+      (transaction
+        ? transaction.runs.find((run) => run.id === sanitized.runId)?.agentId
+        : this.runs.getAgentIdForRun(sanitized.runId)) !== sanitized.agentId
+    ) {
+      throw new Error("Decision Receipt update correlation mismatch");
+    }
+    await this.repository.replace(sanitized, transaction);
   }
 
   getReceiptsForRun(runId: string): DecisionReceipt[] {
@@ -110,12 +158,20 @@ export class DecisionReceiptService implements ReceiptSink, ReceiptReader {
       throw new HttpError(404, "Run not found");
     }
     const receipts = this.getReceiptsForRun(runId);
+    // A pre-ADR-003 ownership denial names the probing non-owner as the Human
+    // Principal. Only the Agent owner may reach this point; retain that one
+    // historical exception without weakening Run/Agent correlation or
+    // granting the probing principal read access.
     if (
       receipts.some(
         (receipt) =>
           receipt.runId !== runId ||
           receipt.agentId !== agentId ||
-          receipt.humanPrincipalId !== principalId,
+          (receipt.humanPrincipalId !== principalId &&
+            !(
+              receipt.decision === "deny" &&
+              receipt.reason === "ownership_denied"
+            )),
       )
     ) {
       throw new Error("Decision Receipt correlation mismatch");

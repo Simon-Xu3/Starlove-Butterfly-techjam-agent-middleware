@@ -44,6 +44,12 @@ Volcengine ECS.
 > hardened audit system. Do not use production data or credentials. See
 > [SECURITY.md](SECURITY.md).
 
+Resource revocation is prospective: it prevents a later Runner start but does
+not hot-unmount a container that is already running. It also does not erase
+content that a model legitimately read into an earlier Codex thread, Message,
+output, or Agent workspace. Stop the active Run when immediate containment is
+required, and do not treat revocation as a model-memory erasure guarantee.
+
 ## Screenshots
 
 ### Agent Playground

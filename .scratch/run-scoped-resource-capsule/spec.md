@@ -33,11 +33,13 @@ its canonical host path, and compiles an immutable readonly
 
 Only `ContainerCodexRunner` may execute a Capsule Run. It mounts the validated
 directory at a server-generated `/resources/<resourceId>` target in a real
-container. A well-formed Capsule request that fails admission becomes a
-terminal denied Run with a correlated Decision Receipt. The Runner is never
-called for that Run. Ordinary Runs that select no Resource retain their current
-behavior, including support for the local-process profile and multi-turn Codex
-sessions.
+container. After the request resolves an Agent owned by the current principal,
+a well-formed Capsule request that fails admission becomes a terminal denied
+Run with a correlated Decision Receipt. The Runner is never called for that
+Run. A missing or non-owned Agent is instead hidden by a uniform `404` before
+any Run, Message, or Receipt is created. Ordinary Runs that select no Resource
+retain their current behavior, including support for the local-process profile
+and multi-turn Codex sessions.
 
 The MVP includes two mock principals, two static fixture Resources, a static
 read Entitlement matrix, explicit per-Run Delegation, allow/deny/revoke/
@@ -131,6 +133,9 @@ complete supported MVP. The MVP supports readonly access only.
 - New Agents receive the resolved `ownerPrincipalId`.
 - Agent-scoped CRUD, lifecycle, Message, Run, and Receipt operations enforce
   ownership. Collection results are scoped to the current principal.
+- Agent lookup is ownership-scoped before Run admission. Missing and non-owned
+  Agent IDs produce the same `404` response and create no Run, Message, or
+  Receipt. This avoids an Agent-existence oracle and cross-principal writes.
 - Existing version 1 Agents migrate to `ownerPrincipalId: "user-a"`.
 - Principal Resource Entitlements are server-owned policy. A current principal
   may delegate only an entitled Resource to a Run; this is an MVP control, not
@@ -145,10 +150,10 @@ complete supported MVP. The MVP supports readonly access only.
   `400` validation failure with no Run or Receipt.
 - For a Capsule Run, the selected ID is the explicit Run Delegation. A request
   never creates or expands a Principal Resource Entitlement.
-- A syntactically valid Capsule request that fails ownership, Registry, Grant,
-  Runtime-profile, or canonical-path admission creates a terminal denied Run
-  and deny Receipt, then returns `403` with `runId`, `receiptId`,
-  `status: "denied"`, and a safe reason code.
+- After an owned Agent is resolved, a syntactically valid Capsule request that
+  fails Registry, Entitlement, Runtime-profile, or canonical-path admission
+  creates a terminal denied Run and deny Receipt, then returns `403` with
+  `runId`, `receiptId`, `status: "denied"`, and a safe reason code.
 - Denied Runs do not call the Runner, start a Codex thread, or save an assistant
   Message.
 - Successful admission retains the existing asynchronous `202` response and
@@ -160,17 +165,23 @@ complete supported MVP. The MVP supports readonly access only.
   has one authorization Receipt; a baseline Run returns no Capsule Receipt.
 - Resource responses expose IDs and safe display metadata, never canonical host
   paths.
-- Stable denial reasons include ownership denied, unknown Resource, missing or
-  revoked Grant, unsupported Runtime profile, and invalid registered Resource
-  path. Internal filesystem details must not appear in HTTP responses.
+- Stable HTTP denial reasons include unknown Resource, missing or revoked
+  Entitlement, stale Entitlement generation, unsupported Runtime profile, and
+  invalid registered Resource path. `ownership_denied` remains a lower-seam
+  fail-closed authorizer reason, but is not exposed through the Agent-scoped
+  HTTP admission path. Internal filesystem details must not appear in HTTP
+  responses.
+- Historical version 2 Receipts with `ownership_denied` remain owner-scoped
+  readable evidence for compatibility. New HTTP responses and Receipt writes
+  must not create that reason.
 
 ### Run admission and authorization
 
 - Keep the existing atomic one-active-Run-per-Agent admission behavior.
-- For every Capsule Run, resolve the Human Principal and current Agent, then
-  call `authorizeResources(principal, agentId, resourceIds)` before Runtime
-  invocation. The submitted Resource ID is the human's explicit Run
-  Delegation.
+- For every Capsule Run, resolve the Human Principal and an Agent owned by that
+  principal, then call `authorizeResources(principal, agentId, resourceIds)`
+  before Runtime invocation. The submitted Resource ID is the human's explicit
+  Run Delegation.
 - Authorization checks Agent ownership, exact Resource cardinality, current
   Principal Resource Entitlement status, `permission: "read"`, and current
   generation.
@@ -184,6 +195,18 @@ complete supported MVP. The MVP supports readonly access only.
   before any matching Grant generation exists.
 - Revoke prevents future plans and Runner starts but does not interrupt an
   already running container.
+- Recheck the same principal, Resource, permission, status, and generation at
+  the final Runtime seam, after admission persistence. If a revoke or re-grant
+  completed before Runner invocation, finalize the Run and Receipt as denied
+  with `stale_entitlement_generation`; no Runner call occurs.
+- A stop or delete request received while Capsule admission persistence is
+  pending remains effective through the admission-to-execution handoff. If it
+  wins before Runner invocation, the Run is cancelled and the allow Receipt
+  remains `runnerStarted: false`.
+- Pre-Runner cancellation or late Entitlement denial must publish its Receipt,
+  Run, and Agent terminal state atomically. After a recoverable one-shot store
+  failure, it must converge without a `runnerStarted: true` Receipt when the
+  Runner was never called.
 
 ### Persistence
 
@@ -198,11 +221,17 @@ complete supported MVP. The MVP supports readonly access only.
 - Persist Receipts with `receiptId`, `runId`, `humanPrincipalId`, `agentId`,
   `resourceId`, `decision`, safe `reason`, nullable `grantGeneration`,
   `runnerStarted`, and `createdAt`.
+- Persist the initial Capsule Run, user Message, Agent state transition, and
+  Receipt in one atomic store commit before returning a successful admission
+  or denial response. A failed commit publishes none of those records.
 - A Receipt never contains an auth token, demo session value, secret, full
   prompt, Resource body, or host source path.
 - Historical Entitlements, Runs, Messages, Receipts, workspaces, and Codex
   threads remain after revoke. Re-grant updates the current authorization
   generation without rewriting historical Receipts.
+- The existing destructive Agent-delete lifecycle removes that Agent's Runs,
+  Messages, and correlated Receipts in one store transaction. Revoke never
+  invokes this deletion behavior.
 
 ### Protected Resource Registry and fixtures
 
@@ -254,16 +283,19 @@ complete supported MVP. The MVP supports readonly access only.
   `runtime_profile_unsupported` and `runnerStarted: false`; Runner call count is
   zero.
 - The formal demo uses the local container profile.
-- `runnerStarted` means the authorized Runner invocation was attempted. It is
-  always false for pre-Runtime denial and true for an allowed decision that
-  crosses the Runtime seam, even if the Runtime later fails.
+- `runnerStarted` is execution evidence, independent of the authorization
+  decision. It is false before Runtime invocation and true once the authorized
+  Runner invocation is attempted, even if the Runtime later fails. Therefore
+  an allowed Capsule Run cancelled before invocation has an allow Receipt with
+  `runnerStarted: false`.
 - Existing cancellation, timeout, output limits, one-active-container behavior,
   Codex event parsing, and thread persistence remain applicable.
 
 ### Decision Receipts and UI
 
 - Persist one Decision Receipt for each syntactically valid Capsule Run after
-  principal resolution, whether allow or deny.
+  principal and owned-Agent resolution, whether allow or deny. Receipt writes
+  are awaited; they are not fire-and-forget.
 - The Receipt correlates Human Principal, Agent, Run, explicit Resource
   Delegation, decision, reason, applicable Entitlement generation,
   Runner-start evidence, and timestamp.
@@ -276,6 +308,9 @@ complete supported MVP. The MVP supports readonly access only.
   eligible to the principal; it cannot authorize or auto-submit a selection.
 - A `403` denied response is rendered as a terminal denied Run and Receipt, not
   discarded as an unstructured UI error.
+- The UI retries Receipt lookup while an admitted Capsule Run is active so a
+  Receipt finalized at the Runtime seam is not hidden by an earlier empty
+  lookup.
 
 ### Revocation and known security boundary
 
@@ -310,7 +345,9 @@ complete supported MVP. The MVP supports readonly access only.
   focused lower seams exist only where filesystem attacks or real container
   behavior cannot be proven safely at the HTTP layer alone.
 - **HTTP Run seam:** exercise `POST /api/agents/:agentId/messages` for baseline,
-  allow, deny, revoke, unsupported Runtime, ownership, safe response shape, Run
+  allow, deny, revoke (including a concurrent revoke after Run persistence),
+  unsupported Runtime, ownership-scoped `404` with zero side effects,
+  cancellation before and after Runner invocation, safe response shape, Run
   persistence, Receipt persistence, and Runner call count.
 - **Authorization seam:** exercise
   `authorizeResources(principal, agentId, resourceIds)` for owner mismatch,
