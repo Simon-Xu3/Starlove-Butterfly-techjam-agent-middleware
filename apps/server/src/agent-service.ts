@@ -20,6 +20,7 @@ import type {
   Message,
   MountPlanCompiler,
   ResourceAuthorizer,
+  RunnerResult,
   SendMessageBody,
   UpdateAgentInput,
   ValidatedRunMountPlan,
@@ -46,6 +47,9 @@ export type AdmissionResult =
 interface CapsuleExecution {
   plan: ValidatedRunMountPlan;
   runner: CapsuleCapableRunner;
+  // Invoked immediately before the Runner call so the allow Receipt's
+  // runnerStarted claim is true at the moment it is recorded.
+  recordAllowReceipt: () => void;
 }
 
 export class AgentService {
@@ -299,24 +303,27 @@ export class AgentService {
     }
 
     const admitted = await this.admitRun(agentId, content, runId);
-    // Persisting the allow Receipt marks the commitment to cross the
-    // Runtime seam; runnerStarted stays true even if the Runtime later
-    // fails.
-    this.capsule.receipts.add({
-      receiptId: randomUUID(),
-      runId,
-      humanPrincipalId: principal.id,
-      agentId,
-      resourceId: decision.resource.id,
-      decision: "allow",
-      reason: "allowed",
-      grantGeneration: decision.grantGeneration,
-      runnerStarted: true,
-      createdAt: now(),
-    });
+    // The allow Receipt is recorded by executeRun immediately before the
+    // Runner call, so runnerStarted: true is accurate when written — a
+    // cancellation or crash between admission and invocation must not leave
+    // an audit record claiming the Runtime seam was crossed.
     this.beginExecution(admitted.agentAtStart, admitted.run, {
       plan: planResult.plan,
       runner,
+      recordAllowReceipt: () => {
+        this.capsule.receipts.add({
+          receiptId: randomUUID(),
+          runId,
+          humanPrincipalId: principal.id,
+          agentId,
+          resourceId: decision.resource.id,
+          decision: "allow",
+          reason: "allowed",
+          grantGeneration: decision.grantGeneration,
+          runnerStarted: true,
+          createdAt: now(),
+        });
+      },
     });
     return {
       admitted: true,
@@ -530,9 +537,18 @@ export class AgentService {
         prompt: run.prompt,
         threadId: agentAtStart.codexThreadId,
       };
-      const result = capsuleExecution
-        ? await capsuleExecution.runner.run(request, capsuleExecution.plan)
-        : await this.runner.run(request);
+      let result: RunnerResult;
+      if (capsuleExecution) {
+        // Record the allow Receipt here, not at admission: runnerStarted
+        // must mean the invocation was actually attempted.
+        capsuleExecution.recordAllowReceipt();
+        result = await capsuleExecution.runner.run(
+          request,
+          capsuleExecution.plan,
+        );
+      } else {
+        result = await this.runner.run(request);
+      }
       const completedAt = now();
       await this.store.mutate((database) => {
         const storedRun = database.runs.find((item) => item.id === run.id);

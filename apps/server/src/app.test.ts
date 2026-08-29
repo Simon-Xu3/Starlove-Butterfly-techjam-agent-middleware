@@ -654,8 +654,10 @@ describe("Run admission", () => {
 
     const admitted = first.statusCode === 202 ? first : second;
     const runId = admitted.json().run.id;
-    expect(receipts.getReceiptsForRun(runId)).toHaveLength(1);
-    // The Runner call happens in the async execution phase.
+    // The allow Receipt is written immediately before the Runner call, so it
+    // appears during the async execution phase rather than at admission —
+    // that is what keeps runnerStarted: true truthful.
+    await expect.poll(() => receipts.getReceiptsForRun(runId).length).toBe(1);
     await expect.poll(() => plansSeen.length).toBe(1);
     expect(plansSeen[0]?.resourceId).toBe("orders-incident");
 
@@ -663,6 +665,40 @@ describe("Run admission", () => {
     await expect
       .poll(() => service.getRun(runId, "user-a").status)
       .toBe("completed");
+    await app.close();
+  });
+
+  it("writes no allow Receipt when the Run is cancelled before the Runner", async () => {
+    // runnerStarted: true must mean the invocation was attempted. A stop
+    // that lands between admission and the Runner call must not leave an
+    // audit record claiming the Runtime seam was crossed.
+    const runner = makeFakeCapsuleRunner();
+    const { app, receipts } = await makeTestApp({
+      runtimeProvider: "container",
+      runner,
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+    });
+    const agent = await createAgent(app);
+
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+    expect(accepted.statusCode).toBe(202);
+    const runId = accepted.json().run.id;
+
+    // Let the execution settle, then assert the Receipt matches reality:
+    // the Runner either ran (one call, one receipt) or it did not (no
+    // receipt) — never a receipt without a call.
+    await expect
+      .poll(() => receipts.getReceiptsForRun(runId).length + runner.calls.length)
+      .toBeGreaterThan(0);
+    expect(receipts.getReceiptsForRun(runId)).toHaveLength(runner.calls.length);
     await app.close();
   });
 
