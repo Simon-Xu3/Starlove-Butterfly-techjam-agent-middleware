@@ -51,6 +51,42 @@ describe("mount-plan compiler", () => {
     });
   }
 
+  it("rejects a revoke that lands during path validation", async () => {
+    // The Entitlement is active when compilation starts and revoked while the
+    // awaited realpath/stat work is in flight. Without a post-validation
+    // re-check the stale decision would still yield a plan and the Runner
+    // would mount a Resource whose authorization was withdrawn.
+    let entitlement: PrincipalResourceEntitlement = makeEntitlement();
+    const revokingValidator = new ResourcePathValidator(allowedRoot);
+    const originalValidateResource =
+      revokingValidator.validateResource.bind(revokingValidator);
+    revokingValidator.validateResource = async (resource, registry) => {
+      const result = await originalValidateResource(resource, registry);
+      entitlement = makeEntitlement({
+        status: "revoked",
+        revokedAt: "2026-08-29T00:00:00.000Z",
+      });
+      return result;
+    };
+
+    const racing = createMountPlanCompiler({
+      registry: makeFakeRegistryReader([ordersResource]),
+      entitlements: {
+        getCurrentEntitlement: () => entitlement,
+      },
+      pathValidator: revokingValidator,
+    });
+
+    const result = await racing.compileMountPlan(
+      "run-race",
+      makeAllowDecision({ resource: ordersResource }),
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: "stale_entitlement_generation",
+    });
+  });
+
   it("produces the frozen readonly plan with a server-generated target", async () => {
     const result = await compiler().compileMountPlan(
       "run-1",
