@@ -34,6 +34,28 @@ type ManualUiState = {
 };
 
 describe("Resource Advisor state coordinator", () => {
+  it("accepts only the latest overlapping request for the same prompt", async () => {
+    const coordinator = new ResourceAdvisorCoordinator();
+    coordinator.setPrompt("inventory issue");
+    const older = deferred<{ suggestion: ResourceSuggestion | null }>();
+    const newer = deferred<{ suggestion: ResourceSuggestion | null }>();
+
+    const olderResult = coordinator.suggest(
+      "inventory issue",
+      () => older.promise,
+    );
+    const newerResult = coordinator.suggest(
+      "inventory issue",
+      () => newer.promise,
+    );
+
+    newer.resolve({ suggestion: null });
+    expect(await newerResult).toEqual({ status: "no-match" });
+
+    older.resolve({ suggestion });
+    expect(await olderResult).toBeNull();
+  });
+
   it("suppresses an in-flight result after a prompt edit", async () => {
     const coordinator = new ResourceAdvisorCoordinator();
     coordinator.setPrompt("inventory stock issue");

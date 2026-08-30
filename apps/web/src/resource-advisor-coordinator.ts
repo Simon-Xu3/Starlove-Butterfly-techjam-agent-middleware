@@ -14,6 +14,7 @@ type SuggestResourceRequest = (
 type RequestSnapshot = {
   revision: number;
   principalRevision: number;
+  requestRevision: number;
   prompt: string;
 };
 
@@ -25,6 +26,7 @@ type RequestSnapshot = {
 export class ResourceAdvisorCoordinator {
   private revision = 0;
   private principalRevision = 0;
+  private requestRevision = 0;
   private prompt = "";
 
   setPrompt(prompt: string): void {
@@ -48,6 +50,7 @@ export class ResourceAdvisorCoordinator {
     const snapshot: RequestSnapshot = {
       revision: this.revision,
       principalRevision: this.principalRevision,
+      requestRevision: ++this.requestRevision,
       prompt: this.prompt.trim(),
     };
     const normalizedContent = content.trim();
@@ -72,6 +75,7 @@ export class ResourceAdvisorCoordinator {
     return (
       snapshot.revision === this.revision &&
       snapshot.principalRevision === this.principalRevision &&
+      snapshot.requestRevision === this.requestRevision &&
       snapshot.prompt === this.prompt.trim()
     );
   }
