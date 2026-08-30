@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import {
   api,
   ApiError,
@@ -12,10 +19,13 @@ import {
   type CapsuleProofContext,
   DecisionProofChain,
   ResourceAdvisor,
-  type ResourceAdvisorState,
   ResourcePicker,
 } from "./resource-capsule";
-import { ResourceAdvisorCoordinator } from "./resource-advisor-coordinator";
+import {
+  guidedDelegationReducer,
+  initialGuidedDelegationState,
+  ResourceAdvisorCoordinator,
+} from "./resource-advisor-coordinator";
 import {
   isNearMessageEnd,
   RunProgressBanner,
@@ -75,14 +85,14 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [prompt, setPrompt] = useState("");
-  const [advisorState, setAdvisorState] = useState<ResourceAdvisorState>({
-    status: "idle",
-  });
+  const [guidedDelegation, dispatchGuidedDelegation] = useReducer(
+    guidedDelegationReducer,
+    initialGuidedDelegationState,
+  );
   const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
   const [activeReceipt, setActiveReceipt] = useState<DecisionReceipt | null>(null);
   const [deniedRun, setDeniedRun] = useState<DeniedRunResponse | null>(null);
   const [resources, setResources] = useState<ProtectedResource[]>([]);
-  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [resourceUnavailable, setResourceUnavailable] = useState<string | null>(null);
   const [submittedCapsule, setSubmittedCapsule] =
     useState<CapsuleProofContext | null>(null);
@@ -103,6 +113,8 @@ export default function App() {
   const receiptRequestRef = useRef(0);
   const suggestionCoordinatorRef = useRef(new ResourceAdvisorCoordinator());
   const suggestionCoordinator = suggestionCoordinatorRef.current;
+  const advisorState = guidedDelegation.advisor;
+  const selectedResourceId = guidedDelegation.selectedResourceId;
   selectedIdRef.current = selectedId;
 
   const selected = useMemo(
@@ -150,7 +162,7 @@ export default function App() {
     if (value.trim()) setRunSetupOpen(true);
     suggestionCoordinator.setPrompt(value);
     setPrompt(value);
-    setAdvisorState({ status: "idle" });
+    dispatchGuidedDelegation({ type: "prompt_changed" });
   };
 
   const refreshAgents = useCallback(async () => {
@@ -184,11 +196,10 @@ export default function App() {
       if (!mountedRef.current || sessionEpoch !== sessionEpochRef.current) return;
       setResources(result.resources);
       setResourceUnavailable(null);
-      setSelectedResourceId((current) =>
-        current && result.resources.some((resource) => resource.id === current)
-          ? current
-          : null,
-      );
+      dispatchGuidedDelegation({
+        type: "eligible_resources_refreshed",
+        resourceIds: result.resources.map((resource) => resource.id),
+      });
     } catch (reason) {
       if (
         !mountedRef.current ||
@@ -198,7 +209,10 @@ export default function App() {
         return;
       }
       setResources([]);
-      setSelectedResourceId(null);
+      dispatchGuidedDelegation({
+        type: "resource_selected",
+        resourceId: null,
+      });
       setResourceUnavailable(
         reason instanceof ApiError && reason.status === 404
           ? "Resource catalog is awaiting the P2 integration adapter. Baseline Runs remain available."
@@ -273,11 +287,10 @@ export default function App() {
     const sessionEpoch = sessionEpochRef.current;
     receiptRequestRef.current += 1;
     suggestionCoordinator.invalidate();
-    setAdvisorState({ status: "idle" });
+    dispatchGuidedDelegation({ type: "agent_changed" });
     setActiveRun(null);
     setActiveReceipt(null);
     setDeniedRun(null);
-    setSelectedResourceId(null);
     setSubmittedCapsule(null);
     setRunSetupOpen(true);
     followLatestMessagesRef.current = true;
@@ -466,7 +479,7 @@ export default function App() {
     receiptRequestRef.current += 1;
     setSubmittedCapsule(null);
     updatePrompt("");
-    setSelectedResourceId(null);
+    dispatchGuidedDelegation({ type: "run_submitted" });
     setRunSetupOpen(false);
     followLatestMessagesRef.current = true;
     setShowJumpToLatest(false);
@@ -565,12 +578,14 @@ export default function App() {
   const suggestResource = async () => {
     if (!selected || !prompt.trim()) return;
     const content = prompt.trim();
-    setAdvisorState({ status: "loading" });
+    dispatchGuidedDelegation({ type: "suggestion_requested" });
     const state = await suggestionCoordinator.suggest(
       content,
       api.suggestResource,
     );
-    if (mountedRef.current && state) setAdvisorState(state);
+    if (mountedRef.current && state) {
+      dispatchGuidedDelegation({ type: "suggestion_resolved", state });
+    }
   };
 
   const changeDemoSession = async (value: DemoSessionValue) => {
@@ -589,7 +604,7 @@ export default function App() {
     setMessages([]);
     setResources([]);
     setResourceUnavailable(null);
-    setSelectedResourceId(null);
+    dispatchGuidedDelegation({ type: "principal_changed" });
     setSubmittedCapsule(null);
     setRunSetupOpen(true);
     followLatestMessagesRef.current = true;
@@ -1003,14 +1018,24 @@ export default function App() {
                       <ResourceAdvisor
                         state={advisorState}
                         onSuggest={() => void suggestResource()}
-                        onUseSuggestion={setSelectedResourceId}
+                        onUseSuggestion={(resourceId) =>
+                          dispatchGuidedDelegation({
+                            type: "resource_selected",
+                            resourceId,
+                          })
+                        }
                         selectedResourceId={selectedResourceId}
                         disabled={runControlsDisabled || !prompt.trim()}
                       />
                       <ResourcePicker
                         resources={resources}
                         selectedResourceId={selectedResourceId}
-                        onSelect={setSelectedResourceId}
+                        onSelect={(resourceId) =>
+                          dispatchGuidedDelegation({
+                            type: "resource_selected",
+                            resourceId,
+                          })
+                        }
                         unavailableMessage={resourceUnavailable}
                         disabled={runControlsDisabled}
                       />

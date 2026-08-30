@@ -323,6 +323,10 @@ complete supported MVP. The MVP supports readonly access only.
   eligible to the principal; it cannot authorize or auto-submit a selection.
   Its explicit Web action has idle, loading, suggested, no-match, and
   recoverable-error states. Prompt or principal changes suppress stale advice.
+- Advisor candidates and explicit Picker selections remain separate. A prompt
+  edit invalidates an unaccepted candidate but preserves a confirmed or manual
+  Human Principal choice. Changing Agent or principal, or submitting the Run,
+  clears both states; confirmation itself never submits.
 - A `403` denied response is rendered as a terminal denied Run and Receipt, not
   discarded as an unstructured UI error.
 - The UI retries Receipt lookup while an admitted Capsule Run is active so a
