@@ -307,8 +307,15 @@ complete supported MVP. The MVP supports readonly access only.
 - The Receipt correlates Human Principal, Agent, Run, explicit Resource
   Delegation, decision, reason, applicable Entitlement generation,
   Runner-start evidence, and timestamp.
-- The minimal Receipt UI displays the safe correlation fields and reason but no
-  host path, prompt, token, secret, or Resource body.
+- The Decision Proof Chain projects existing Run and Receipt facts into three
+  stages: `Delegated`, `Decided`, and `Executed`. It displays the principal,
+  Agent, explicit Resource, read-only Run scope, decision, safe reason,
+  Entitlement generation, `runnerStarted`, and current or final Run status.
+- A missing Receipt keeps Receipt-derived facts in a neutral pending state.
+  The UI does not infer execution from timing or claim per-stage timestamps,
+  container health, namespace inspection, successful reads, or host integrity.
+- The Proof Chain displays no host path, prompt, token, session, secret, or
+  Resource body.
 - The Resource Picker supports an explicit accept/remove/manual-choice step and
   submits only the approved `resourceIds` value. It supports one Resource and
   must preserve the ability to submit an ordinary Run without a Resource.

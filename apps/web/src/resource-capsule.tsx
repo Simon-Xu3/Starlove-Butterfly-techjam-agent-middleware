@@ -1,4 +1,5 @@
 import type {
+  AgentRun,
   CapsuleDenialReason,
   DecisionReceipt,
   DeniedRunResponse,
@@ -9,6 +10,12 @@ import type {
 import type { ResourceAdvisorState } from "./resource-advisor-coordinator";
 
 export type { ResourceAdvisorState } from "./resource-advisor-coordinator";
+
+export interface CapsuleProofContext {
+  runId: string;
+  agentId: string;
+  resourceId: string;
+}
 
 const denialLabels: Record<CapsuleDenialReason, string> = {
   ownership_denied:
@@ -200,58 +207,193 @@ export function ResourceAdvisor({
   );
 }
 
-export function DecisionReceiptCard({
+function executionMessage(
+  receipt: DecisionReceipt | null,
+  run: AgentRun | null,
+): string {
+  if (!receipt) {
+    return "Receipt evidence is pending; no Runner fact is inferred.";
+  }
+  if (receipt.runnerStarted) {
+    return "The authorized Runner invocation was attempted.";
+  }
+  if (receipt.decision === "deny") {
+    return "Expected security result — execution stopped before the Runner.";
+  }
+  if (run?.status === "cancelled") {
+    return "The allowed Run was cancelled before Runner invocation.";
+  }
+  if (run?.status === "queued" || run?.status === "running") {
+    return "Authorization is recorded; the Runner has not started yet.";
+  }
+  return "The allowed Run ended before Runner invocation.";
+}
+
+/**
+ * Projects the existing Run and Decision Receipt facts into the three stages
+ * defined by Issue #21. It does not invent timestamps, namespace checks, or
+ * container health facts that are absent from those persisted contracts.
+ */
+export function DecisionProofChain({
+  run,
   receipt,
   denied,
+  submittedContext = null,
 }: {
+  run: AgentRun | null;
   receipt: DecisionReceipt | null;
   denied?: DeniedRunResponse | null;
+  submittedContext?: CapsuleProofContext | null;
 }) {
-  const decision = receipt?.decision ?? denied?.status;
-  const reason = receipt?.reason ?? denied?.reason;
-  if (!decision || !reason) return null;
+  const hasCapsuleContext = Boolean(receipt || denied || submittedContext);
+  if (!hasCapsuleContext) return null;
 
-  const runId = receipt?.runId ?? denied?.runId ?? "";
-  const receiptId = receipt?.receiptId ?? denied?.receiptId ?? "";
+  const correlationMismatch = Boolean(
+    (run && receipt &&
+      (run.id !== receipt.runId ||
+        run.agentId !== receipt.agentId ||
+        ((run.status === "denied") !== (receipt.decision === "deny")))) ||
+      (run && denied &&
+        (run.id !== denied.runId || run.status !== denied.status)) ||
+      (receipt && denied &&
+        (receipt.decision !== "deny" ||
+          receipt.runId !== denied.runId ||
+          receipt.receiptId !== denied.receiptId ||
+          receipt.reason !== denied.reason)) ||
+      (submittedContext && run &&
+        (submittedContext.runId !== run.id ||
+          submittedContext.agentId !== run.agentId)) ||
+      (submittedContext && receipt &&
+        (submittedContext.runId !== receipt.runId ||
+          submittedContext.agentId !== receipt.agentId ||
+          submittedContext.resourceId !== receipt.resourceId)) ||
+      (submittedContext && denied && submittedContext.runId !== denied.runId),
+  );
+  if (correlationMismatch) {
+    return (
+      <article
+        className="proof-chain proof-chain-pending"
+        aria-label="Decision Proof Chain"
+      >
+        <div className="proof-heading">
+          <div>
+            <span className="eyebrow">Decision Proof Chain</span>
+            <strong>Evidence correlation pending</strong>
+          </div>
+          <span className="proof-decision">Evidence unavailable</span>
+        </div>
+        <p className="proof-boundary">
+          Run and Receipt facts did not correlate, so no proof stages were
+          combined.
+        </p>
+      </article>
+    );
+  }
+
+  const runId =
+    receipt?.runId ??
+    run?.id ??
+    denied?.runId ??
+    submittedContext?.runId ??
+    "Awaiting Run";
+  const agentId =
+    receipt?.agentId ??
+    run?.agentId ??
+    submittedContext?.agentId ??
+    "Awaiting Receipt";
+  const resourceId =
+    receipt?.resourceId ?? submittedContext?.resourceId ?? "Awaiting Receipt";
+  const decisionTone = receipt?.decision ?? "pending";
+  const decisionLabel = receipt
+    ? receipt.decision === "allow"
+      ? "Allowed"
+      : "Denied"
+    : "Decision pending";
+  const decisionReason = receipt
+    ? receipt.reason === "allowed"
+      ? "The explicit delegation passed the current authorization checks."
+      : denialLabels[receipt.reason]
+    : "Awaiting Decision Receipt.";
+  const runnerLabel = receipt
+    ? receipt.runnerStarted
+      ? "Runner started"
+      : "Runner not started"
+    : "Execution evidence pending";
+  const runStatus = run?.status ?? denied?.status ?? "pending";
+
   return (
     <article
-      className={"receipt-card receipt-" + (decision === "allow" ? "allow" : "deny")}
-      aria-label="Decision Receipt"
+      className={"proof-chain proof-chain-" + decisionTone}
+      aria-label="Decision Proof Chain"
     >
-      <div className="receipt-heading">
+      <div className="proof-heading">
         <div>
-          <span className="eyebrow">Decision Receipt</span>
-          <strong>{decision === "allow" ? "Resource authorized" : "Run denied"}</strong>
+          <span className="eyebrow">Decision Proof Chain</span>
+          <strong>Delegation, authorization, and execution facts</strong>
         </div>
-        <span className="receipt-decision">{decision}</span>
+        <span className="proof-decision">{decisionLabel}</span>
       </div>
-      <p>
-        {reason === "allowed"
-          ? receipt?.runnerStarted
-            ? "The approved read-only mount crossed the Runtime seam."
-            : "Authorization is recorded; the Runner has not started."
-          : (denialLabels[reason] ?? "Run denied by server policy.")}
-      </p>
-      <dl>
-        <div><dt>Run</dt><dd>{runId}</dd></div>
-        <div><dt>Receipt</dt><dd>{receiptId}</dd></div>
-        {receipt ? <div><dt>Principal</dt><dd>{receipt.humanPrincipalId}</dd></div> : null}
-        {receipt ? <div><dt>Agent</dt><dd>{receipt.agentId}</dd></div> : null}
-        {receipt ? <div><dt>Resource</dt><dd>{receipt.resourceId}</dd></div> : null}
-        {receipt ? (
-          <div>
-            <dt>Grant generation</dt>
-            <dd>{receipt.grantGeneration ?? "not available"}</dd>
+      <ol className="proof-stages">
+        <li className="proof-stage">
+          <div className="proof-stage-heading">
+            <span>1</span>
+            <div>
+              <strong>Delegated</strong>
+              <small>Explicit Resource scope for this Run</small>
+            </div>
           </div>
-        ) : null}
-        {receipt ? (
-          <div><dt>Runner started</dt><dd>{receipt.runnerStarted ? "yes" : "no"}</dd></div>
-        ) : null}
-        {receipt ? <div><dt>Created</dt><dd>{receipt.createdAt}</dd></div> : null}
-      </dl>
-      {!receipt ? (
-        <span className="receipt-pending">Receipt details are awaiting the query seam.</span>
-      ) : null}
+          <dl>
+            <div><dt>Principal</dt><dd>{receipt?.humanPrincipalId ?? "Awaiting Receipt"}</dd></div>
+            <div><dt>Agent</dt><dd>{agentId}</dd></div>
+            <div><dt>Resource</dt><dd>{resourceId}</dd></div>
+            <div><dt>Mode</dt><dd>read-only</dd></div>
+            <div><dt>Lifetime</dt><dd>this Run only</dd></div>
+            <div><dt>Run</dt><dd>{runId}</dd></div>
+          </dl>
+        </li>
+        <li className="proof-stage">
+          <div className="proof-stage-heading">
+            <span>2</span>
+            <div>
+              <strong>Decided</strong>
+              <small>{decisionLabel}</small>
+            </div>
+          </div>
+          <p>{decisionReason}</p>
+          <dl>
+            <div>
+              <dt>Entitlement generation</dt>
+              <dd>
+                {receipt
+                  ? receipt.grantGeneration ?? "not available"
+                  : "Awaiting Receipt"}
+              </dd>
+            </div>
+            <div>
+              <dt>Receipt</dt>
+              <dd>{receipt?.receiptId ?? denied?.receiptId ?? "Awaiting Receipt"}</dd>
+            </div>
+          </dl>
+        </li>
+        <li className="proof-stage">
+          <div className="proof-stage-heading">
+            <span>3</span>
+            <div>
+              <strong>Executed</strong>
+              <small>{runnerLabel}</small>
+            </div>
+          </div>
+          <p>{executionMessage(receipt, run)}</p>
+          <dl>
+            <div><dt>Runner</dt><dd>{runnerLabel}</dd></div>
+            <div><dt>Run status</dt><dd>{runStatus}</dd></div>
+          </dl>
+        </li>
+      </ol>
+      <p className="proof-boundary">
+        This chain reports stored Run and Receipt facts. It does not claim a
+        per-Run namespace inspection or host-integrity attestation.
+      </p>
     </article>
   );
 }

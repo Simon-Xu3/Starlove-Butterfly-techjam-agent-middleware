@@ -32,7 +32,7 @@ const DEFAULT_RESOURCE_DEFINITIONS: ReadonlyArray<ResourceDefinition> = [
     relativeDirectory: "inventory-incident",
     advisorDescription:
       "Investigate stock availability and warehouse synchronization failures.",
-    advisorTags: ["inventory", "stock", "warehouse", "incident"],
+    advisorTags: ["inventory", "stock", "warehouse", "fulfillment", "incident"],
   },
   {
     id: "payments-incident",
