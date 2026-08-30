@@ -1,6 +1,6 @@
 # Run-scoped Resource Capsule
 
-Status: ready-for-agent
+Status: feature-frozen — Issue #9 acceptance evidence recorded 2026-08-29
 
 ## Problem Statement
 

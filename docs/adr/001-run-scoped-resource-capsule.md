@@ -1,6 +1,6 @@
 # ADR-001: Use a run-scoped resource capsule
 
-- **Status:** Proposed — validate with the first-hour container gate
+- **Status:** Accepted
 - **Date:** 2026-08-27
 - **Decision owners:** Starlove Butterfly TechJam team
 
@@ -88,7 +88,9 @@ changed Runtime capability rather than observation alone.
 
 ## Validation gate
 
-This ADR remains **Proposed** until the formal Spec's container validation gate
-passes on the target engine. If the mount and path boundary cannot be proved,
-the team will revise the decision instead of reinterpreting it as a prompt or
-UI convention.
+The formal container gate passed on Docker Desktop and was reproduced during
+the Day 2 feature freeze on Docker 29.5.2 through Colima. The evidence proves
+that the delegated Resource is readable, the undelegated Resource is absent,
+the mount rejects writes, and host hashes and modification times remain
+unchanged. See
+[`day2-feature-freeze-2026-08-29.md`](../evidence/day2-feature-freeze-2026-08-29.md).

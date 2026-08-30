@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
@@ -11,6 +11,16 @@ import { ContainerCodexRunner } from "./container-codex-runner.js";
 const execFileAsync = promisify(execFile);
 const runContainerTests = process.env.RUN_CONTAINER_TESTS === "1";
 const runWhenContainerTestsEnabled = runContainerTests ? it : it.skip;
+
+function containerBindTempRoot(): string {
+  if (process.env.CONTAINER_TEST_TEMP_ROOT) {
+    return process.env.CONTAINER_TEST_TEMP_ROOT;
+  }
+
+  // Docker Desktop shares macOS temporary directories, but Colima exposes
+  // /Users by default and cannot bind-mount Node's /var/folders temp path.
+  return process.platform === "darwin" ? homedir() : tmpdir();
+}
 
 async function buildKillTestImage(engine: string, directory: string): Promise<string> {
   const image = "scopedrun-kill-test:" + path.basename(directory);
@@ -49,7 +59,9 @@ describe("Container Resource Capsule Kill Test", () => {
     "allows only the delegated readonly Resource without modifying its host fixture",
     async () => {
       const engine = process.env.CONTAINER_ENGINE ?? "docker";
-      const directory = await mkdtemp(path.join(tmpdir(), "scopedrun-kill-test-"));
+      const directory = await mkdtemp(
+        path.join(containerBindTempRoot(), "scopedrun-kill-test-"),
+      );
       const workspacePath = path.join(directory, "workspace");
       const codexHome = path.join(directory, "codex-home");
       const plan = makeMountPlan();
