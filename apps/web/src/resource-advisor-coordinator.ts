@@ -7,6 +7,56 @@ export type ResourceAdvisorState =
   | { status: "no-match" }
   | { status: "error"; message: string };
 
+export type GuidedDelegationState = {
+  advisor: ResourceAdvisorState;
+  selectedResourceId: string | null;
+};
+
+export type GuidedDelegationAction =
+  | { type: "prompt_changed" }
+  | { type: "suggestion_requested" }
+  | { type: "suggestion_resolved"; state: ResourceAdvisorState }
+  | { type: "resource_selected"; resourceId: string | null }
+  | { type: "eligible_resources_refreshed"; resourceIds: string[] }
+  | { type: "agent_changed" }
+  | { type: "principal_changed" }
+  | { type: "run_submitted" };
+
+export const initialGuidedDelegationState: GuidedDelegationState = {
+  advisor: { status: "idle" },
+  selectedResourceId: null,
+};
+
+/**
+ * Keeps an Advisor candidate separate from the Human Principal's explicit
+ * Picker choice. Prompt edits invalidate advice but preserve that choice;
+ * changing Agent/principal or submitting the Run clears both.
+ */
+export function guidedDelegationReducer(
+  state: GuidedDelegationState,
+  action: GuidedDelegationAction,
+): GuidedDelegationState {
+  switch (action.type) {
+    case "prompt_changed":
+      return { ...state, advisor: { status: "idle" } };
+    case "suggestion_requested":
+      return { ...state, advisor: { status: "loading" } };
+    case "suggestion_resolved":
+      return { ...state, advisor: action.state };
+    case "resource_selected":
+      return { ...state, selectedResourceId: action.resourceId };
+    case "eligible_resources_refreshed":
+      return state.selectedResourceId &&
+        !action.resourceIds.includes(state.selectedResourceId)
+        ? { ...state, selectedResourceId: null }
+        : state;
+    case "agent_changed":
+    case "principal_changed":
+    case "run_submitted":
+      return { advisor: { status: "idle" }, selectedResourceId: null };
+  }
+}
+
 type SuggestResourceRequest = (
   content: string,
 ) => Promise<SuggestResourceResponse>;
@@ -14,6 +64,7 @@ type SuggestResourceRequest = (
 type RequestSnapshot = {
   revision: number;
   principalRevision: number;
+  requestRevision: number;
   prompt: string;
 };
 
@@ -25,6 +76,7 @@ type RequestSnapshot = {
 export class ResourceAdvisorCoordinator {
   private revision = 0;
   private principalRevision = 0;
+  private requestRevision = 0;
   private prompt = "";
 
   setPrompt(prompt: string): void {
@@ -48,6 +100,7 @@ export class ResourceAdvisorCoordinator {
     const snapshot: RequestSnapshot = {
       revision: this.revision,
       principalRevision: this.principalRevision,
+      requestRevision: ++this.requestRevision,
       prompt: this.prompt.trim(),
     };
     const normalizedContent = content.trim();
@@ -72,6 +125,7 @@ export class ResourceAdvisorCoordinator {
     return (
       snapshot.revision === this.revision &&
       snapshot.principalRevision === this.principalRevision &&
+      snapshot.requestRevision === this.requestRevision &&
       snapshot.prompt === this.prompt.trim()
     );
   }

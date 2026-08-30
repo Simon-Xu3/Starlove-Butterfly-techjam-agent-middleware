@@ -145,8 +145,25 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
     ]);
     expect(listed.body).not.toContain("canonicalSourcePath");
 
-    // (2) Explicit delegation of exactly that Resource; (3) the server
-    // rechecks and admits.
+    // (2) Advice is optional and side-effect free. It proposes only safe,
+    // eligible metadata and does not create a Run or call the Runner.
+    const suggestion = await gate.app.inject({
+      method: "POST",
+      url: "/api/resources/suggest",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ content: "orders checkout failure" }),
+    });
+    expect(suggestion.statusCode).toBe(200);
+    expect(suggestion.json().suggestion).toMatchObject({
+      resource: { id: "orders-incident" },
+      reason: "tag_match",
+    });
+    expect(gate.service.getRuns(agentId, "user-a")).toEqual([]);
+    expect(gate.service.getMessages(agentId, "user-a")).toEqual([]);
+    expect(gate.runner.calls).toHaveLength(0);
+
+    // (3) The user explicitly delegates exactly that Resource; (4) the server
+    // repeats every trusted check and admits.
     const allowed = await sendCapsule(gate, agentId, "orders-incident");
     expect(allowed.statusCode).toBe(202);
     const runId = allowed.json().run.id;
@@ -155,7 +172,7 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
       .poll(() => gate.service.getRun(runId, "user-a").status)
       .toBe("completed");
 
-    // (4) Only the delegated Resource crossed the Runtime seam — exactly
+    // (5) Only the delegated Resource crossed the Runtime seam — exactly
     // one call, one plan, readonly, the generated target, and (negative
     // assertion) nothing else from the Registry.
     expect(gate.runner.calls).toHaveLength(1);
@@ -219,6 +236,52 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
     await gate.app.close();
   });
 
+  it("rechecks a suggested Resource after revocation with zero Runner calls", async () => {
+    const gate = await makeGateApp("container");
+    const agentId = await createAgent(gate);
+
+    const suggestion = await gate.app.inject({
+      method: "POST",
+      url: "/api/resources/suggest",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ content: "orders checkout failure" }),
+    });
+    expect(suggestion.statusCode).toBe(200);
+    expect(suggestion.json().suggestion.resource.id).toBe("orders-incident");
+    expect(gate.runner.calls).toHaveLength(0);
+
+    const revoked = await gate.app.inject({
+      method: "POST",
+      url: "/api/entitlements/revoke",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ resourceId: "orders-incident" }),
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    const denied = await sendCapsule(gate, agentId, "orders-incident");
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json()).toMatchObject({
+      status: "denied",
+      reason: "entitlement_revoked",
+    });
+    expect(gate.runner.calls).toHaveLength(0);
+
+    const receipts = await gate.app.inject({
+      method: "GET",
+      url: "/api/runs/" + denied.json().runId + "/receipts",
+      headers: sessionA,
+    });
+    expect(receipts.statusCode).toBe(200);
+    expect(receipts.json().receipts[0]).toMatchObject({
+      decision: "deny",
+      reason: "entitlement_revoked",
+      runnerStarted: false,
+    });
+
+    await gate.drain();
+    await gate.app.close();
+  });
+
   it("revoke over HTTP has prospective effect and keeps history auditable", async () => {
     const gate = await makeGateApp("container");
     const agentId = await createAgent(gate);
@@ -229,6 +292,15 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
     await expect
       .poll(() => gate.service.getRun(allowedRunId, "user-a").status)
       .toBe("completed");
+
+    const suggestion = await gate.app.inject({
+      method: "POST",
+      url: "/api/resources/suggest",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({ content: "orders checkout failure" }),
+    });
+    expect(suggestion.statusCode).toBe(200);
+    expect(suggestion.json().suggestion.resource.id).toBe("orders-incident");
 
     const revoked = await gate.app.inject({
       method: "POST",
@@ -242,6 +314,8 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
     const afterRevoke = await sendCapsule(gate, agentId, "orders-incident");
     expect(afterRevoke.statusCode).toBe(403);
     expect(afterRevoke.json().reason).toBe("entitlement_revoked");
+    // The earlier suggestion was not reusable authority. Admission rechecked
+    // the current Entitlement and failed closed.
     // Still exactly the one pre-revoke Runner call.
     expect(gate.runner.calls).toHaveLength(1);
 

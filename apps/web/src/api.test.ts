@@ -294,4 +294,85 @@ describe("Resource Capsule API client", () => {
       await expect(api.receipts(deniedRunId)).rejects.toBeInstanceOf(ApiError);
     },
   );
+
+  it("sends only transient task text and keeps only the safe Advisor projection", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          suggestion: {
+            resource: {
+              id: "inventory-incident",
+              displayName: "Inventory Incident",
+              kind: "directory",
+              description: "Investigate stock availability failures.",
+              tags: ["inventory", "stock"],
+              sourcePath: "/private/protected/inventory",
+              resourceBody: "private stock records",
+            },
+            matchedTerms: ["inventory", "stock"],
+            reason: "tag_match",
+            confidence: 0.99,
+            token: "Bearer secret",
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await api.suggestResource("inventory stock mismatch");
+    expect(result).toEqual({
+      suggestion: {
+        resource: {
+          id: "inventory-incident",
+          displayName: "Inventory Incident",
+          kind: "directory",
+          description: "Investigate stock availability failures.",
+          tags: ["inventory", "stock"],
+        },
+        matchedTerms: ["inventory", "stock"],
+        reason: "tag_match",
+      },
+    });
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/resources/suggest");
+    expect(JSON.parse(String(options.body))).toEqual({
+      content: "inventory stock mismatch",
+    });
+    expect(options.headers).toMatchObject({
+      "X-Demo-Session": "demo-session-a",
+    });
+    expect(JSON.stringify(result)).not.toContain("sourcePath");
+    expect(JSON.stringify(result)).not.toContain("resourceBody");
+    expect(JSON.stringify(result)).not.toContain("confidence");
+    expect(JSON.stringify(result)).not.toContain("Bearer secret");
+  });
+
+  it("rejects malformed Advisor evidence instead of rendering it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            suggestion: {
+              resource: {
+                id: "inventory-incident",
+                displayName: "Inventory Incident",
+                kind: "directory",
+                description: "Investigate stock availability failures.",
+                tags: ["inventory"],
+              },
+              matchedTerms: ["/private/protected/inventory"],
+              reason: "tag_match",
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    await expect(
+      api.suggestResource("inventory stock mismatch"),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
 });

@@ -4,13 +4,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   buildSendMessageBody,
-  DecisionReceiptCard,
+  DecisionProofChain,
   ResourceAdvisor,
   ResourcePicker,
 } from "./resource-capsule";
-import type { DecisionReceipt, ResourceSuggestion } from "./types";
+import type { AgentRun, DecisionReceipt, ResourceSuggestion } from "./types";
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+
+function makeRun(status: AgentRun["status"]): AgentRun {
+  return {
+    id: "run-1",
+    agentId: "agent-1",
+    status,
+    prompt: "secret prompt that must not be rendered",
+    output: "protected Resource body that must not be rendered",
+    error: "/private/protected/path that must not be rendered",
+    usage: null,
+    createdAt: "2026-08-28T00:00:00.000Z",
+  };
+}
 
 function elementChildren(node: ReactElement): ReactNode[] {
   return Children.toArray(
@@ -249,7 +262,7 @@ describe("Resource Capsule UI", () => {
     expect(replacedMarkup).not.toContain("nothing is delegated yet");
   });
 
-  it("renders safe allow and deny Receipt evidence", () => {
+  it("renders the three-stage Proof Chain for an allowed started Run", () => {
     const receipt: DecisionReceipt = {
       receiptId: "receipt-1",
       runId: "run-1",
@@ -263,34 +276,333 @@ describe("Resource Capsule UI", () => {
       createdAt: "2026-08-28T00:00:00.000Z",
     };
     const allowMarkup = renderToStaticMarkup(
-      <DecisionReceiptCard receipt={receipt} />,
-    );
-    expect(allowMarkup).toContain("Resource authorized");
-    expect(allowMarkup).toContain("orders-incident");
-    expect(allowMarkup).toContain("Runner started");
-
-    const preRuntimeMarkup = renderToStaticMarkup(
-      <DecisionReceiptCard
-        receipt={{ ...receipt, runnerStarted: false }}
+      <DecisionProofChain
+        run={makeRun("completed")}
+        receipt={receipt}
+        submittedContext={{
+          runId: "run-1",
+          agentId: "agent-1",
+          resourceId: "orders-incident",
+        }}
       />,
     );
-    expect(preRuntimeMarkup).toContain("Runner has not started");
-    expect(preRuntimeMarkup).not.toContain("crossed the Runtime seam");
+    expect(allowMarkup).toContain('aria-label="Decision Proof Chain"');
+    expect(allowMarkup).toContain("Delegated");
+    expect(allowMarkup).toContain("Decided");
+    expect(allowMarkup).toContain("Executed");
+    expect(allowMarkup).toContain("user-a");
+    expect(allowMarkup).toContain("agent-1");
+    expect(allowMarkup).toContain("orders-incident");
+    expect(allowMarkup).toContain("read-only");
+    expect(allowMarkup).toContain("this Run only");
+    expect(allowMarkup).toContain("Allowed");
+    expect(allowMarkup).toContain("Entitlement generation");
+    expect(allowMarkup).toContain(">3<");
+    expect(allowMarkup).toContain("Runner started");
+    expect(allowMarkup).toContain("completed");
+    expect(allowMarkup).toContain("does not claim a per-Run namespace inspection");
+  });
 
+  it("keeps allow plus runnerStarted false truthful after cancellation", () => {
+    const receipt: DecisionReceipt = {
+      receiptId: "receipt-1",
+      runId: "run-1",
+      humanPrincipalId: "user-a",
+      agentId: "agent-1",
+      resourceId: "orders-incident",
+      decision: "allow",
+      reason: "allowed",
+      grantGeneration: 3,
+      runnerStarted: false,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
+    const preRuntimeMarkup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("cancelled")}
+        receipt={receipt}
+        submittedContext={{
+          runId: "run-1",
+          agentId: "agent-1",
+          resourceId: "orders-incident",
+        }}
+      />,
+    );
+    expect(preRuntimeMarkup).toContain("Allowed");
+    expect(preRuntimeMarkup).toContain("Runner not started");
+    expect(preRuntimeMarkup).toContain("cancelled before Runner invocation");
+    expect(preRuntimeMarkup).toContain("cancelled");
+    expect(preRuntimeMarkup).not.toContain("Expected security result");
+  });
+
+  it("shows denial as an expected pre-Runner security result", () => {
+    const deniedReceipt: DecisionReceipt = {
+      receiptId: "receipt-2",
+      runId: "run-2",
+      humanPrincipalId: "user-a",
+      agentId: "agent-1",
+      resourceId: "payments-incident",
+      decision: "deny",
+      reason: "entitlement_missing",
+      grantGeneration: null,
+      runnerStarted: false,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
     const denyMarkup = renderToStaticMarkup(
-      <DecisionReceiptCard
-        receipt={null}
+      <DecisionProofChain
+        run={{ ...makeRun("denied"), id: "run-2" }}
+        receipt={deniedReceipt}
         denied={{
           runId: "run-2",
           receiptId: "receipt-2",
           status: "denied",
           reason: "entitlement_missing",
         }}
+        submittedContext={{
+          runId: "run-2",
+          agentId: "agent-1",
+          resourceId: "payments-incident",
+        }}
       />,
     );
-    expect(denyMarkup).toContain("Run denied");
+    expect(denyMarkup).toContain("Denied");
     expect(denyMarkup).toContain("not entitled");
-    for (const forbidden of ["sourcePath", "prompt", "token", "demo-session"])
+    expect(denyMarkup).toContain("not available");
+    expect(denyMarkup).toContain("Runner not started");
+    expect(denyMarkup).toContain("Expected security result");
+    expect(denyMarkup).toContain("denied");
+    for (const forbidden of [
+      "sourcePath",
+      "secret prompt",
+      "protected Resource body",
+      "/private/protected/path",
+      "token",
+      "demo-session",
+    ])
       expect(denyMarkup).not.toContain(forbidden);
+  });
+
+  it("keeps every Receipt-derived stage neutral while evidence is pending", () => {
+    for (const status of [
+      "queued",
+      "running",
+      "completed",
+      "failed",
+      "cancelled",
+      "denied",
+    ] as const) {
+      const pendingMarkup = renderToStaticMarkup(
+        <DecisionProofChain
+          run={makeRun(status)}
+          receipt={null}
+          submittedContext={{
+            runId: "run-1",
+            agentId: "agent-1",
+            resourceId: "inventory-incident",
+          }}
+        />,
+      );
+      expect(pendingMarkup).toContain("inventory-incident");
+      expect(pendingMarkup).toContain("Decision pending");
+      expect(pendingMarkup).toContain("Awaiting Decision Receipt");
+      expect(pendingMarkup).toContain("Execution evidence pending");
+      expect(pendingMarkup).toContain("no Runner fact is inferred");
+      expect(pendingMarkup).toContain(status);
+      expect(pendingMarkup).not.toContain("Runner started");
+      expect(pendingMarkup).not.toContain("Runner not started");
+    }
+  });
+
+  it("does not render a Proof Chain from an old Run without admitted Capsule context", () => {
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("completed")}
+        receipt={null}
+        submittedContext={null}
+      />,
+    );
+    expect(markup).toBe("");
+  });
+
+  it("refuses to combine mismatched Run and Receipt facts", () => {
+    const receipt: DecisionReceipt = {
+      receiptId: "receipt-other",
+      runId: "run-other",
+      humanPrincipalId: "user-a",
+      agentId: "agent-other",
+      resourceId: "payments-incident",
+      decision: "allow",
+      reason: "allowed",
+      grantGeneration: 9,
+      runnerStarted: true,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("completed")}
+        receipt={receipt}
+        submittedContext={{
+          runId: "run-1",
+          agentId: "agent-1",
+          resourceId: "orders-incident",
+        }}
+      />,
+    );
+    expect(markup).toContain("Evidence unavailable");
+    expect(markup).toContain("did not correlate");
+    expect(markup).not.toContain("payments-incident");
+    expect(markup).not.toContain("orders-incident");
+    expect(markup).not.toContain("Runner started");
+    expect(markup).not.toContain("receipt-other");
+  });
+
+  it("refuses a Receipt Resource that differs from the admitted request", () => {
+    const receipt: DecisionReceipt = {
+      receiptId: "receipt-wrong-resource",
+      runId: "run-1",
+      humanPrincipalId: "user-a",
+      agentId: "agent-1",
+      resourceId: "payments-incident",
+      decision: "allow",
+      reason: "allowed",
+      grantGeneration: 9,
+      runnerStarted: true,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("completed")}
+        receipt={receipt}
+        submittedContext={{
+          runId: "run-1",
+          agentId: "agent-1",
+          resourceId: "orders-incident",
+        }}
+      />,
+    );
+    expect(markup).toContain("Evidence unavailable");
+    expect(markup).not.toContain("payments-incident");
+    expect(markup).not.toContain("orders-incident");
+    expect(markup).not.toContain("receipt-wrong-resource");
+    expect(markup).not.toContain("Runner started");
+  });
+
+  it("refuses to combine a Decision with an incompatible Run status", () => {
+    const allowReceipt: DecisionReceipt = {
+      receiptId: "receipt-allow",
+      runId: "run-1",
+      humanPrincipalId: "user-a",
+      agentId: "agent-1",
+      resourceId: "orders-incident",
+      decision: "allow",
+      reason: "allowed",
+      grantGeneration: 3,
+      runnerStarted: false,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
+    const denyReceipt: DecisionReceipt = {
+      receiptId: "receipt-deny",
+      runId: "run-1",
+      humanPrincipalId: "user-a",
+      agentId: "agent-1",
+      resourceId: "orders-incident",
+      decision: "deny",
+      reason: "entitlement_revoked",
+      grantGeneration: 3,
+      runnerStarted: false,
+      createdAt: "2026-08-28T00:00:00.000Z",
+    };
+    for (const [run, receipt] of [
+      [makeRun("denied"), allowReceipt],
+      [makeRun("queued"), denyReceipt],
+    ] as const) {
+      const markup = renderToStaticMarkup(
+        <DecisionProofChain
+          run={run}
+          receipt={receipt}
+          submittedContext={{
+            runId: "run-1",
+            agentId: "agent-1",
+            resourceId: "orders-incident",
+          }}
+        />,
+      );
+      expect(markup).toContain("Evidence unavailable");
+      expect(markup).not.toContain("orders-incident");
+      expect(markup).not.toContain(receipt.receiptId);
+      expect(markup).not.toContain("Runner not started");
+    }
+  });
+
+  it("refuses a denial response paired with a non-denied Run", () => {
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("completed")}
+        receipt={null}
+        denied={{
+          runId: "run-1",
+          receiptId: "receipt-denied",
+          status: "denied",
+          reason: "entitlement_revoked",
+        }}
+        submittedContext={{
+          runId: "run-1",
+          agentId: "agent-1",
+          resourceId: "orders-incident",
+        }}
+      />,
+    );
+    expect(markup).toContain("Evidence unavailable");
+    expect(markup).not.toContain("orders-incident");
+    expect(markup).not.toContain("receipt-denied");
+    expect(markup).not.toContain("completed");
+  });
+
+  it("shows the submitted principal while Receipt evidence is pending", () => {
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("queued")}
+        receipt={null}
+        submittedContext={{
+          runId: "run-1",
+          principalId: "user-a",
+          agentId: "agent-1",
+          resourceId: "orders-incident",
+        }}
+      />,
+    );
+
+    expect(markup).toContain("user-a");
+    expect(markup).toContain("orders-incident");
+    expect(markup).toContain("Decision pending");
+    expect(markup).toContain("Execution evidence pending");
+  });
+
+  it("shows a safe denial proof before the Receipt query catches up", () => {
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("denied")}
+        receipt={null}
+        denied={{
+          runId: "run-1",
+          receiptId: "receipt-denied",
+          status: "denied",
+          reason: "entitlement_missing",
+        }}
+        submittedContext={{
+          runId: "run-1",
+          principalId: "user-a",
+          agentId: "agent-1",
+          resourceId: "payments-incident",
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Denied");
+    expect(markup).toContain("not entitled");
+    expect(markup).toContain("Runner not started");
+    expect(markup).toContain("Expected security result");
+    expect(markup).toContain("not available");
+    expect(markup).toContain("user-a");
+    expect(markup).not.toContain("Runner failure");
   });
 });

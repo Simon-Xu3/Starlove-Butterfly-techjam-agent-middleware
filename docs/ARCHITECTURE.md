@@ -74,6 +74,12 @@ current principal's Entitlements and uses only Registry-owned safe metadata.
 The result returns to the browser without creating a Run, Message, Receipt, or
 delegation. The user must still approve it in the picker.
 
+The browser keeps the Advisor candidate and the explicit Picker selection as
+separate state. Editing task text invalidates only the candidate; a confirmed
+or manual selection remains the Human Principal's choice. Changing Agent or
+principal, or submitting the Run, clears both. Confirmation only updates the
+Picker, so the form submission remains a separate deliberate action.
+
 The Run request sends a Resource ID, never a host source path, target path,
 principal ID, or mount mode. Path-like words in the task prompt do not affect
 the mount plan: only the explicitly selected Resource ID can become a
@@ -102,6 +108,11 @@ invocation, the service rechecks the Entitlement generation and any pending
 cancellation. `runnerStarted` is execution evidence, not a second authorization
 decision: the Receipt is updated to true when the authorized Runner invocation
 is attempted.
+
+The Web UI projects these persisted facts as a three-stage Decision Proof
+Chain: `Delegated`, `Decided`, and `Executed`. The projection does not create a
+new event stream or claim per-Run namespace inspection. When a Receipt is not
+yet available, Receipt-derived fields remain neutral and pending.
 
 ## Data and lifecycle
 
