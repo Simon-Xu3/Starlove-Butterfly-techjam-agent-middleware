@@ -15,6 +15,11 @@ import {
   ResourcePicker,
 } from "./resource-capsule";
 import { ResourceAdvisorCoordinator } from "./resource-advisor-coordinator";
+import {
+  isNearMessageEnd,
+  RunProgressBanner,
+  scrollMessagePaneToEnd,
+} from "./playground-feedback";
 import { pollActiveRun } from "./run-polling";
 import type {
   Agent,
@@ -78,13 +83,17 @@ export default function App() {
   const [resources, setResources] = useState<ProtectedResource[]>([]);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [resourceUnavailable, setResourceUnavailable] = useState<string | null>(null);
+  const [submittedResourceId, setSubmittedResourceId] = useState<string | null>(null);
+  const [runSetupOpen, setRunSetupOpen] = useState(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [demoSessionValue, setDemoSessionValue] =
     useState<DemoSessionValue>("demo-session-a");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState<boolean | null>(null);
   const [authInput, setAuthInput] = useState("");
-  const messageEnd = useRef<HTMLDivElement>(null);
+  const messagesPane = useRef<HTMLDivElement>(null);
+  const followLatestMessagesRef = useRef(true);
   const selectedIdRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const pollingRunIds = useRef(new Set<string>());
@@ -104,8 +113,38 @@ export default function App() {
     selected.status === "busy" ||
     (activeRun != null && ["queued", "running"].includes(activeRun.status));
   const emptyPlayground = messages.length === 0 && !activeRun;
+  const selectedResourceLabel = useMemo(
+    () =>
+      resources.find((resource) => resource.id === selectedResourceId)?.displayName ??
+      null,
+    [resources, selectedResourceId],
+  );
+  const activeResourceId = activeReceipt?.resourceId ?? submittedResourceId;
+  const activeResourceLabel = useMemo(
+    () =>
+      resources.find((resource) => resource.id === activeResourceId)?.displayName ??
+      activeResourceId,
+    [activeResourceId, resources],
+  );
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const pane = messagesPane.current;
+    if (!pane) return;
+    followLatestMessagesRef.current = true;
+    setShowJumpToLatest(false);
+    scrollMessagePaneToEnd(pane, behavior);
+  }, []);
+
+  const handleMessagesScroll = () => {
+    const pane = messagesPane.current;
+    if (!pane) return;
+    const isFollowing = isNearMessageEnd(pane);
+    followLatestMessagesRef.current = isFollowing;
+    setShowJumpToLatest(!isFollowing && !emptyPlayground);
+  };
 
   const updatePrompt = (value: string) => {
+    if (value.trim()) setRunSetupOpen(true);
     suggestionCoordinator.setPrompt(value);
     setPrompt(value);
     setAdvisorState({ status: "idle" });
@@ -175,7 +214,9 @@ export default function App() {
         sessionEpoch === sessionEpochRef.current &&
         requestId === receiptRequestRef.current
       ) {
-        setActiveReceipt(result.receipts[0] ?? null);
+        const receipt = result.receipts[0] ?? null;
+        setActiveReceipt(receipt);
+        setSubmittedResourceId(receipt?.resourceId ?? null);
       }
     } catch (reason) {
       if (
@@ -218,6 +259,10 @@ export default function App() {
     setActiveReceipt(null);
     setDeniedRun(null);
     setSelectedResourceId(null);
+    setSubmittedResourceId(null);
+    setRunSetupOpen(true);
+    followLatestMessagesRef.current = true;
+    setShowJumpToLatest(false);
     setShowSettings(false);
     if (!selectedId) {
       setMessages([]);
@@ -265,8 +310,23 @@ export default function App() {
   }, [selected]);
 
   useEffect(() => {
-    messageEnd.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeRun, activeReceipt]);
+    const frame = window.requestAnimationFrame(() => {
+      const pane = messagesPane.current;
+      if (!pane) return;
+      if (followLatestMessagesRef.current) {
+        scrollToLatest(messages.length === 0 ? "auto" : "smooth");
+      } else {
+        setShowJumpToLatest(!isNearMessageEnd(pane));
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    activeReceipt?.runnerStarted,
+    activeRun?.status,
+    deniedRun?.receiptId,
+    messages.length,
+    scrollToLatest,
+  ]);
 
   const createAgent = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -376,8 +436,12 @@ export default function App() {
     const body = buildSendMessageBody(content, selectedResourceId);
     const sessionEpoch = sessionEpochRef.current;
     receiptRequestRef.current += 1;
+    setSubmittedResourceId(selectedResourceId);
     updatePrompt("");
     setSelectedResourceId(null);
+    setRunSetupOpen(false);
+    followLatestMessagesRef.current = true;
+    setShowJumpToLatest(false);
     setError(null);
     setActiveReceipt(null);
     setDeniedRun(null);
@@ -457,6 +521,10 @@ export default function App() {
     setResources([]);
     setResourceUnavailable(null);
     setSelectedResourceId(null);
+    setSubmittedResourceId(null);
+    setRunSetupOpen(true);
+    followLatestMessagesRef.current = true;
+    setShowJumpToLatest(false);
     suggestionCoordinator.changePrincipal();
     updatePrompt("");
     setForm(emptyForm);
@@ -725,65 +793,92 @@ export default function App() {
                   <span className="eyebrow">Playground</span>
                   <h2>Build something with your Agent</h2>
                 </div>
-                <div className="session-info">
-                  <span className="pulse" />
-                  {selected.codexThreadId ? "Session connected" : "New session"}
+                <div className="playground-topbar-status">
+                  {activeRun && (
+                    <RunProgressBanner
+                      run={activeRun}
+                      receipt={activeReceipt}
+                      resourceLabel={activeResourceLabel}
+                    />
+                  )}
+                  <div className="session-info">
+                    <span className="pulse" />
+                    {selected.codexThreadId ? "Session connected" : "New session"}
+                  </div>
                 </div>
               </div>
 
-              <div className="messages">
-                {emptyPlayground ? (
-                  <div className="welcome">
-                    <div className="welcome-orbit">
-                      <div>⌁</div>
-                    </div>
-                    <h3>What should {selected.name} build?</h3>
-                    <p>
-                      The Agent can inspect files, write code, run commands, and continue the
-                      same Codex session across messages.
-                    </p>
-                    <div className="prompt-grid">
-                      {starterPrompts.map((item) => (
-                        <button key={item} onClick={() => updatePrompt(item)}>
-                          <span>↗</span>
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((message) => (
-                    <article className={"message message-" + message.role} key={message.id}>
-                      <div className="message-meta">
-                        <strong>{message.role === "user" ? "You" : selected.name}</strong>
-                        <span>{formatTime(message.createdAt)}</span>
+              <div className="message-stage">
+                <div
+                  className="messages"
+                  ref={messagesPane}
+                  onScroll={handleMessagesScroll}
+                  role="log"
+                  aria-live="polite"
+                  aria-relevant="additions text"
+                >
+                  {emptyPlayground ? (
+                    <div className="welcome">
+                      <div className="welcome-orbit">
+                        <div>⌁</div>
                       </div>
-                      <div className="message-body">{message.content}</div>
+                      <h3>What should {selected.name} build?</h3>
+                      <p>
+                        The Agent can inspect files, write code, run commands, and continue the
+                        same Codex session across messages.
+                      </p>
+                      <div className="prompt-grid">
+                        {starterPrompts.map((item) => (
+                          <button key={item} onClick={() => updatePrompt(item)}>
+                            <span>↗</span>
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    messages.map((message) => (
+                      <article className={"message message-" + message.role} key={message.id}>
+                        <div className="message-meta">
+                          <strong>{message.role === "user" ? "You" : selected.name}</strong>
+                          <span>{formatTime(message.createdAt)}</span>
+                        </div>
+                        <div className="message-body">{message.content}</div>
+                      </article>
+                    ))
+                  )}
+                  {activeRun && ["queued", "running"].includes(activeRun.status) && (
+                    <article className="message message-assistant thinking">
+                      <div className="message-meta">
+                        <strong>{selected.name}</strong>
+                        <span>working in the Agent workspace</span>
+                      </div>
+                      <div className="thinking-row">
+                        <Spinner />
+                        Codex is reading, editing, or running commands…
+                      </div>
                     </article>
-                  ))
+                  )}
+                  {activeRun?.status === "failed" && (
+                    <article className="run-error">
+                      <strong>Run failed</strong>
+                      <span>{activeRun.error}</span>
+                    </article>
+                  )}
+                  {(activeReceipt || deniedRun) && (
+                    <DecisionReceiptCard receipt={activeReceipt} denied={deniedRun} />
+                  )}
+                </div>
+                {showJumpToLatest && (
+                  <button
+                    type="button"
+                    className="jump-to-latest"
+                    onClick={() => scrollToLatest()}
+                    aria-label="Jump to latest response"
+                  >
+                    ↓ Latest response
+                  </button>
                 )}
-                {activeRun && ["queued", "running"].includes(activeRun.status) && (
-                  <article className="message message-assistant thinking">
-                    <div className="message-meta">
-                      <strong>{selected.name}</strong>
-                      <span>working in the Agent workspace</span>
-                    </div>
-                    <div className="thinking-row">
-                      <Spinner />
-                      Codex is reading, editing, or running commands…
-                    </div>
-                  </article>
-                )}
-                {activeRun?.status === "failed" && (
-                  <article className="run-error">
-                    <strong>Run failed</strong>
-                    <span>{activeRun.error}</span>
-                  </article>
-                )}
-                {(activeReceipt || deniedRun) && (
-                  <DecisionReceiptCard receipt={activeReceipt} denied={deniedRun} />
-                )}
-                <div ref={messageEnd} />
               </div>
 
               <form className="composer" onSubmit={sendMessage}>
@@ -808,31 +903,46 @@ export default function App() {
                     rows={3}
                   />
                 </div>
-                <section className="run-setup" aria-labelledby="run-setup-title">
-                  <div className="run-setup-heading">
+                <details
+                  className="run-setup"
+                  open={runSetupOpen}
+                  onToggle={(event) => setRunSetupOpen(event.currentTarget.open)}
+                >
+                  <summary className="run-setup-summary">
                     <div>
                       <span className="eyebrow">Run context</span>
                       <h3 id="run-setup-title">Prepare this Run</h3>
                     </div>
-                    <p>Review optional Resource guidance before you send.</p>
+                    <span className="run-setup-selection">
+                      {selectedResourceLabel
+                        ? "Next Run · " + selectedResourceLabel
+                        : "Next Run · No Resource"}
+                      <span className="run-setup-chevron" aria-hidden="true">⌄</span>
+                    </span>
+                  </summary>
+                  <div className="run-setup-body">
+                    <p className="run-setup-description">
+                      Review optional Resource guidance before you send. The picker applies
+                      only to the next Run.
+                    </p>
+                    <div className="run-context-grid">
+                      <ResourceAdvisor
+                        state={advisorState}
+                        onSuggest={() => void suggestResource()}
+                        onUseSuggestion={setSelectedResourceId}
+                        selectedResourceId={selectedResourceId}
+                        disabled={runControlsDisabled || !prompt.trim()}
+                      />
+                      <ResourcePicker
+                        resources={resources}
+                        selectedResourceId={selectedResourceId}
+                        onSelect={setSelectedResourceId}
+                        unavailableMessage={resourceUnavailable}
+                        disabled={runControlsDisabled}
+                      />
+                    </div>
                   </div>
-                  <div className="run-context-grid">
-                    <ResourceAdvisor
-                      state={advisorState}
-                      onSuggest={() => void suggestResource()}
-                      onUseSuggestion={setSelectedResourceId}
-                      selectedResourceId={selectedResourceId}
-                      disabled={runControlsDisabled || !prompt.trim()}
-                    />
-                    <ResourcePicker
-                      resources={resources}
-                      selectedResourceId={selectedResourceId}
-                      onSelect={setSelectedResourceId}
-                      unavailableMessage={resourceUnavailable}
-                      disabled={runControlsDisabled}
-                    />
-                  </div>
-                </section>
+                </details>
                 <div className="composer-footer">
                   <span>
                     Enter to send · Shift + Enter for newline · {system?.codexSandboxMode ?? "checking sandbox"}
