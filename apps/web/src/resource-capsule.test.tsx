@@ -556,4 +556,53 @@ describe("Resource Capsule UI", () => {
     expect(markup).not.toContain("receipt-denied");
     expect(markup).not.toContain("completed");
   });
+
+  it("shows the submitted principal while Receipt evidence is pending", () => {
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("queued")}
+        receipt={null}
+        submittedContext={{
+          runId: "run-1",
+          principalId: "user-a",
+          agentId: "agent-1",
+          resourceId: "orders-incident",
+        }}
+      />,
+    );
+
+    expect(markup).toContain("user-a");
+    expect(markup).toContain("orders-incident");
+    expect(markup).toContain("Decision pending");
+    expect(markup).toContain("Execution evidence pending");
+  });
+
+  it("shows a safe denial proof before the Receipt query catches up", () => {
+    const markup = renderToStaticMarkup(
+      <DecisionProofChain
+        run={makeRun("denied")}
+        receipt={null}
+        denied={{
+          runId: "run-1",
+          receiptId: "receipt-denied",
+          status: "denied",
+          reason: "entitlement_missing",
+        }}
+        submittedContext={{
+          runId: "run-1",
+          principalId: "user-a",
+          agentId: "agent-1",
+          resourceId: "payments-incident",
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Denied");
+    expect(markup).toContain("not entitled");
+    expect(markup).toContain("Runner not started");
+    expect(markup).toContain("Expected security result");
+    expect(markup).toContain("not available");
+    expect(markup).toContain("user-a");
+    expect(markup).not.toContain("Runner failure");
+  });
 });

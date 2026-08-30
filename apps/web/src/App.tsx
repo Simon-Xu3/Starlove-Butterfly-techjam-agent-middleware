@@ -38,6 +38,7 @@ import type {
   DecisionReceipt,
   DemoSessionValue,
   DeniedRunResponse,
+  HumanPrincipalId,
   Message,
   ProtectedResource,
   SystemInfo,
@@ -127,6 +128,8 @@ export default function App() {
     selected.status === "busy" ||
     (activeRun != null && ["queued", "running"].includes(activeRun.status));
   const emptyPlayground = messages.length === 0 && !activeRun;
+  const currentPrincipalId: HumanPrincipalId =
+    demoSessionValue === "demo-session-a" ? "user-a" : "user-b";
   const selectedResourceLabel = useMemo(
     () =>
       resources.find((resource) => resource.id === selectedResourceId)?.displayName ??
@@ -244,6 +247,7 @@ export default function App() {
           setSubmittedCapsule((current) =>
             current ?? {
               runId: receipt.runId,
+              principalId: receipt.humanPrincipalId,
               agentId: receipt.agentId,
               resourceId: receipt.resourceId,
             },
@@ -497,6 +501,7 @@ export default function App() {
           requestedResourceId
             ? {
                 runId: result.run.id,
+                principalId: currentPrincipalId,
                 agentId: selected.id,
                 resourceId: requestedResourceId,
               }
@@ -530,6 +535,7 @@ export default function App() {
             requestedResourceId
               ? {
                   runId: denied.runId,
+                  principalId: currentPrincipalId,
                   agentId: selected.id,
                   resourceId: requestedResourceId,
                 }

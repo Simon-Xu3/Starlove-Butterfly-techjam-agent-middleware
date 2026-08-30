@@ -3,6 +3,7 @@ import type {
   CapsuleDenialReason,
   DecisionReceipt,
   DeniedRunResponse,
+  HumanPrincipalId,
   ProtectedResource,
   ResourceSuggestion,
   SendMessageBody,
@@ -13,6 +14,7 @@ export type { ResourceAdvisorState } from "./resource-advisor-coordinator";
 
 export interface CapsuleProofContext {
   runId: string;
+  principalId?: HumanPrincipalId;
   agentId: string;
   resourceId: string;
 }
@@ -209,16 +211,17 @@ export function ResourceAdvisor({
 
 function executionMessage(
   receipt: DecisionReceipt | null,
+  denied: DeniedRunResponse | null,
   run: AgentRun | null,
 ): string {
-  if (!receipt) {
-    return "Receipt evidence is pending; no Runner fact is inferred.";
-  }
-  if (receipt.runnerStarted) {
+  if (receipt?.runnerStarted) {
     return "The authorized Runner invocation was attempted.";
   }
-  if (receipt.decision === "deny") {
+  if (receipt?.decision === "deny" || denied) {
     return "Expected security result — execution stopped before the Runner.";
+  }
+  if (!receipt) {
+    return "Receipt evidence is pending; no Runner fact is inferred.";
   }
   if (run?.status === "cancelled") {
     return "The allowed Run was cancelled before Runner invocation.";
@@ -231,7 +234,7 @@ function executionMessage(
 
 /**
  * Projects the existing Run and Decision Receipt facts into the three stages
- * defined by Issue #21. It does not invent timestamps, namespace checks, or
+ * defined by Issue #23. It does not invent timestamps, namespace checks, or
  * container health facts that are absent from those persisted contracts.
  */
 export function DecisionProofChain({
@@ -265,6 +268,8 @@ export function DecisionProofChain({
           submittedContext.agentId !== run.agentId)) ||
       (submittedContext && receipt &&
         (submittedContext.runId !== receipt.runId ||
+          (submittedContext.principalId !== undefined &&
+            submittedContext.principalId !== receipt.humanPrincipalId) ||
           submittedContext.agentId !== receipt.agentId ||
           submittedContext.resourceId !== receipt.resourceId)) ||
       (submittedContext && denied && submittedContext.runId !== denied.runId),
@@ -303,9 +308,12 @@ export function DecisionProofChain({
     "Awaiting Receipt";
   const resourceId =
     receipt?.resourceId ?? submittedContext?.resourceId ?? "Awaiting Receipt";
-  const decisionTone = receipt?.decision ?? "pending";
-  const decisionLabel = receipt
-    ? receipt.decision === "allow"
+  const principalId =
+    receipt?.humanPrincipalId ?? submittedContext?.principalId ?? "Awaiting Receipt";
+  const decision = receipt?.decision ?? (denied ? "deny" : null);
+  const decisionTone = decision ?? "pending";
+  const decisionLabel = decision
+    ? decision === "allow"
       ? "Allowed"
       : "Denied"
     : "Decision pending";
@@ -313,12 +321,15 @@ export function DecisionProofChain({
     ? receipt.reason === "allowed"
       ? "The explicit delegation passed the current authorization checks."
       : denialLabels[receipt.reason]
-    : "Awaiting Decision Receipt.";
-  const runnerLabel = receipt
-    ? receipt.runnerStarted
+    : denied
+      ? denialLabels[denied.reason]
+      : "Awaiting Decision Receipt.";
+  const runnerStarted = receipt?.runnerStarted ?? (denied ? false : null);
+  const runnerLabel = runnerStarted === null
+    ? "Execution evidence pending"
+    : runnerStarted
       ? "Runner started"
-      : "Runner not started"
-    : "Execution evidence pending";
+      : "Runner not started";
   const runStatus = run?.status ?? denied?.status ?? "pending";
 
   return (
@@ -343,7 +354,7 @@ export function DecisionProofChain({
             </div>
           </div>
           <dl>
-            <div><dt>Principal</dt><dd>{receipt?.humanPrincipalId ?? "Awaiting Receipt"}</dd></div>
+            <div><dt>Principal</dt><dd>{principalId}</dd></div>
             <div><dt>Agent</dt><dd>{agentId}</dd></div>
             <div><dt>Resource</dt><dd>{resourceId}</dd></div>
             <div><dt>Mode</dt><dd>read-only</dd></div>
@@ -366,7 +377,9 @@ export function DecisionProofChain({
               <dd>
                 {receipt
                   ? receipt.grantGeneration ?? "not available"
-                  : "Awaiting Receipt"}
+                  : denied
+                    ? "not available"
+                    : "Awaiting Receipt"}
               </dd>
             </div>
             <div>
@@ -383,7 +396,7 @@ export function DecisionProofChain({
               <small>{runnerLabel}</small>
             </div>
           </div>
-          <p>{executionMessage(receipt, run)}</p>
+          <p>{executionMessage(receipt, denied ?? null, run)}</p>
           <dl>
             <div><dt>Runner</dt><dd>{runnerLabel}</dd></div>
             <div><dt>Run status</dt><dd>{runStatus}</dd></div>
