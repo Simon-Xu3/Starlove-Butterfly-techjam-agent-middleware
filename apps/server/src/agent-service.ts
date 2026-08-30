@@ -258,6 +258,9 @@ export class AgentService {
     principal: HumanPrincipal,
     body: SendMessageBody,
   ): Promise<AdmissionResult> {
+    // Resolve ownership before any environment/setup response. Missing and
+    // non-owned IDs must remain one uniform 404 even when Ark is unavailable.
+    const agent = this.getAgent(agentId, principal.id);
     if (!isArkConfigured(this.config)) {
       throw new HttpError(
         503,
@@ -267,7 +270,6 @@ export class AgentService {
     const resourceIds = body.resourceIds ?? [];
     if (resourceIds.length === 0) {
       // Baseline Run — existing behavior, no Receipt.
-      this.getAgent(agentId, principal.id);
       const admitted = await this.admitRun(agentId, body.content);
       this.beginExecution(admitted.agentAtStart, admitted.run);
       return {
@@ -280,7 +282,6 @@ export class AgentService {
       throw new HttpError(400, "A Capsule Run selects exactly one Resource");
     }
 
-    const agent = this.getAgent(agentId, principal.id);
     if (agent.status === "stopped") {
       throw new HttpError(409, "Start the Agent before sending a message");
     }
@@ -728,15 +729,18 @@ export class AgentService {
     run: AgentRun,
     capsuleExecution?: CapsuleExecution,
   ): Promise<void> {
-    await this.store.mutate((database) => {
-      const storedRun = database.runs.find((item) => item.id === run.id);
-      if (storedRun) {
-        storedRun.status = "running";
-        storedRun.startedAt = now();
-      }
-    });
     let runnerAttempted = false;
     try {
+      // Keep the initial queued -> running persistence inside the same failure
+      // boundary as every later pre-Runner step. A transient write failure must
+      // converge the Run/Agent/Receipt instead of leaving queued + busy state.
+      await this.store.mutate((database) => {
+        const storedRun = database.runs.find((item) => item.id === run.id);
+        if (storedRun) {
+          storedRun.status = "running";
+          storedRun.startedAt = now();
+        }
+      });
       if (this.cancellationRequests.has(agentAtStart.id)) {
         throw new RunCancelledError();
       }

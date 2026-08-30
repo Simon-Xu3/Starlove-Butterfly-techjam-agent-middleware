@@ -207,16 +207,34 @@ describe("HTTP boundary", () => {
     await app.close();
   });
 
-  it("preserves the curated Ark setup message for an HttpError 503", async () => {
-    const { app } = await makeTestApp({ arkConfigured: false });
+  it("hides non-owned Agents before returning the curated Ark setup error", async () => {
+    const { app, service, runner } = await makeTestApp({ arkConfigured: false });
     const agent = await createAgent(app);
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/agents/" + agent.id + "/messages",
-      headers: { ...json, ...sessionA },
-      payload: JSON.stringify({ content: "hello" }),
-    });
+    const request = (agentId: string, headers: Record<string, string>) =>
+      app.inject({
+        method: "POST",
+        url: "/api/agents/" + agentId + "/messages",
+        headers: { ...json, ...headers },
+        payload: JSON.stringify({ content: "hello" }),
+      });
+
+    const nonOwned = await request(agent.id, sessionB);
+    const missing = await request(
+      "6b3f4f57-3b52-4f7b-9a71-2f24b7a2b111",
+      sessionA,
+    );
+    expect(nonOwned.statusCode).toBe(404);
+    expect(missing.statusCode).toBe(404);
+    expect(nonOwned.json()).toEqual({ error: "Agent not found" });
+    expect(missing.json()).toEqual(nonOwned.json());
+    expect(service.getRuns(agent.id, "user-a")).toHaveLength(0);
+    expect(service.getMessages(agent.id, "user-a")).toHaveLength(0);
+    expect(
+      (runner as ReturnType<typeof makeFakeCapsuleRunner>).calls,
+    ).toHaveLength(0);
+
+    const response = await request(agent.id, sessionA);
 
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({

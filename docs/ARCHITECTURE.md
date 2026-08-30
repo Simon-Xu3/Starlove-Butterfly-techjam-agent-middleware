@@ -13,15 +13,18 @@ flowchart LR
     subgraph Client["Browser · untrusted request input"]
         Task["Task text"]
         Picker["Eligible metadata + explicit<br/>zero-or-one Resource choice"]
-        Advisor["Optional Resource Advisor<br/>safe metadata only"]
+        SuggestUI["Optional Suggest action<br/>+ advisory result"]
     end
 
     subgraph Control["Fastify control plane · trusted policy boundary"]
+        SuggestAPI["Bounded transient<br/>suggest request"]
+        Advisor["Deterministic Resource Advisor<br/>no persistence or side effects"]
         Request["Outer bearer guard<br/>+ request validation"]
         Principal["Resolve mock principal<br/>from X-Demo-Session"]
         Ownership["Ownership-scoped<br/>Agent lookup"]
         Authorize{"Current Entitlement<br/>∩ explicit Run Delegation"}
         Profile{"Container profile +<br/>plan-aware Runner?"}
+        Entitlements["Current principal<br/>Entitlements"]
         Registry["Server-owned Registry"]
         Path["realpath + root containment<br/>+ overlap/collision checks"]
         Plan["Immutable readonly<br/>ValidatedRunMountPlan"]
@@ -38,10 +41,18 @@ flowchart LR
 
     Ark["Ark Responses API<br/>network is outside this control"]
 
-    Task --> Request
-    Picker --> Request
-    Advisor -. "suggests; never authorizes" .-> Picker
-    Request --> Principal --> Ownership --> Authorize
+    Task --> SuggestUI
+    SuggestUI -->|"suggest request"| Request
+    Task -->|"Run task"| Request
+    Picker -->|"explicit delegation"| Request
+    Request --> Principal
+    Principal -->|"suggest path"| SuggestAPI --> Advisor
+    Entitlements -->|"eligible IDs only"| Advisor
+    Registry -->|"safe metadata only"| Advisor
+    Advisor -. "zero-or-one suggestion;<br/>never authorizes" .-> SuggestUI
+    SuggestUI -. "user may approve" .-> Picker
+    Principal -->|"Run path"| Ownership --> Authorize
+    Entitlements --> Authorize
     Registry --> Authorize
     Authorize -->|"deny: no Runner call"| Store
     Authorize -->|allow| Profile
@@ -57,10 +68,16 @@ flowchart LR
     Runner -->|"set runnerStarted: true<br/>when invocation is attempted"| Store
 ```
 
-The browser sends a Resource ID, never a source path, target path, principal
-ID, or mount mode. The optional Advisor is outside the authorization chain: it
-may suggest only an already eligible Resource from task text and safe metadata,
-and the user must still approve the Run Delegation.
+The Advisor feature is built in, but invoking it is optional. The browser sends
+bounded task text to the Fastify suggestion endpoint; the server filters the
+current principal's Entitlements and uses only Registry-owned safe metadata.
+The result returns to the browser without creating a Run, Message, Receipt, or
+delegation. The user must still approve it in the picker.
+
+The Run request sends a Resource ID, never a host source path, target path,
+principal ID, or mount mode. Path-like words in the task prompt do not affect
+the mount plan: only the explicitly selected Resource ID can become a
+delegation after the trusted checks pass.
 
 The control plane resolves every trusted value again for every Capsule Run.
 Only the Registry owns host source paths. The container-profile gate runs

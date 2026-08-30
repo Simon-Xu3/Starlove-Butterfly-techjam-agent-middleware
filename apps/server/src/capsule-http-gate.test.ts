@@ -350,6 +350,63 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
     await gate.app.close();
   });
 
+  it("converges after a one-shot queued-to-running persistence failure", async () => {
+    class OneShotRunningFailureStore extends JsonStore {
+      runningFailures = 0;
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        const currentRun = this.snapshot().runs[0];
+        const nextRun = data?.runs[0];
+        if (
+          this.runningFailures === 0 &&
+          currentRun?.status === "queued" &&
+          nextRun?.status === "running"
+        ) {
+          this.runningFailures += 1;
+          throw new Error("simulated one-shot running transition fault");
+        }
+        await super.persist(data);
+      }
+    }
+
+    let store!: OneShotRunningFailureStore;
+    const gate = await makeGateApp(
+      "container",
+      (filePath) => {
+        store = new OneShotRunningFailureStore(filePath);
+        return store;
+      },
+    );
+    const agentId = await createAgent(gate);
+
+    const accepted = await sendCapsule(gate, agentId, "orders-incident");
+    expect(accepted.statusCode).toBe(202);
+    const runId = accepted.json().run.id;
+    await expect
+      .poll(() => gate.service.getRun(runId, "user-a").status)
+      .toBe("failed");
+
+    expect(store.runningFailures).toBe(1);
+    expect(gate.runner.calls).toHaveLength(0);
+    expect(gate.service.getAgent(agentId, "user-a").status).toBe("ready");
+    const evidence = await gate.app.inject({
+      method: "GET",
+      url: "/api/runs/" + runId + "/receipts",
+      headers: sessionA,
+    });
+    expect(evidence.statusCode).toBe(200);
+    expect(evidence.json().receipts).toEqual([
+      expect.objectContaining({
+        decision: "allow",
+        reason: "allowed",
+        runnerStarted: false,
+      }),
+    ]);
+
+    await gate.drain();
+    await gate.app.close();
+  });
+
   it("denies a Capsule Run under local-process with zero Runner calls", async () => {
     const gate = await makeGateApp("local-process");
     const agentId = await createAgent(gate);

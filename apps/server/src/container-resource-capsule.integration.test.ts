@@ -41,6 +41,7 @@ async function buildKillTestImage(engine: string, directory: string): Promise<st
       "#!/bin/sh",
       "set -eu",
       "test -r /resources/orders-incident/incident-report.md",
+      "test ! -e /resources/inventory-incident",
       "test ! -e /resources/payments-incident",
       "if touch /resources/orders-incident/.capsule-write-probe; then exit 1; fi",
       "printf '%s\\n' '{\"type\":\"thread.started\",\"thread_id\":\"kill-test-thread\"}'",
@@ -56,7 +57,7 @@ async function buildKillTestImage(engine: string, directory: string): Promise<st
 
 describe("Container Resource Capsule Kill Test", () => {
   runWhenContainerTestsEnabled(
-    "allows only the delegated readonly Resource without modifying its host fixture",
+    "allows only the explicitly delegated readonly Resource without modifying host fixtures",
     async () => {
       const engine = process.env.CONTAINER_ENGINE ?? "docker";
       const directory = await mkdtemp(
@@ -65,8 +66,10 @@ describe("Container Resource Capsule Kill Test", () => {
       const workspacePath = path.join(directory, "workspace");
       const codexHome = path.join(directory, "codex-home");
       const plan = makeMountPlan();
+      const inventoryPlan = makeMountPlan({ resourceId: "inventory-incident" });
       const paymentsPlan = makeMountPlan({ resourceId: "payments-incident" });
       const ordersBefore = await captureFixtureBaseline(plan.sourcePath);
+      const inventoryBefore = await captureFixtureBaseline(inventoryPlan.sourcePath);
       const paymentsBefore = await captureFixtureBaseline(paymentsPlan.sourcePath);
       let image: string | undefined;
 
@@ -101,6 +104,9 @@ describe("Container Resource Capsule Kill Test", () => {
         });
       } finally {
         expect(await captureFixtureBaseline(plan.sourcePath)).toEqual(ordersBefore);
+        expect(await captureFixtureBaseline(inventoryPlan.sourcePath)).toEqual(
+          inventoryBefore,
+        );
         expect(await captureFixtureBaseline(paymentsPlan.sourcePath)).toEqual(paymentsBefore);
         if (image) {
           await execFileAsync(engine, ["image", "rm", "--force", image]).catch(

@@ -13,8 +13,9 @@ are supporting evidence, not substitutes for the live path.
 1. An Entitlement is only the upper bound of what a Human Principal may
    delegate. It is not automatic Agent visibility.
 2. The user explicitly chooses zero or one eligible Resource for each Run.
-3. An optional Advisor can suggest from task text and entitled safe metadata,
-   but it cannot authorize, auto-submit, or inspect protected contents.
+3. The built-in Advisor is optional to use. It can suggest from task text and
+   entitled safe metadata, but it cannot authorize, auto-submit, or inspect
+   protected contents.
 4. The server rechecks identity, Agent ownership, Entitlement generation,
    Registry data, canonical path, and Runtime profile.
 5. Allow creates one read-only mount and a correlated Receipt. Deny, revoke,
@@ -62,14 +63,19 @@ correctly return `runtime_profile_unsupported`.
 Open <http://localhost:3000>. Keep the default **Demo User A** and create two
 Agents before the audience arrives:
 
-- **Live Agent** is reserved for the browser allow path; and
+- **Live Agent** is reserved for the browser allow path. Give it these
+  instructions: `When a Run includes a Resource Capsule, inspect the single
+  read-only directory available under /resources. Never modify it; cite the
+  filenames used.`; and
 - **Policy Agent** stays ready for terminal deny and revoke requests, avoiding
   the one-active-Run-per-Agent `409` guard.
 
 Complete one backup allow Run with Live Agent before the audience arrives:
 
-- task: analyze the delegated incident bundle;
-- explicit Resource choice: **Orders Incident**; and
+- task: `Analyze the orders checkout incident and summarize the root cause in
+  three bullets.`;
+- **Suggest Resource** returns **Orders Incident**, then the presenter presses
+  **Delegate for this Run** before submitting; and
 - expected evidence: completed model answer plus an allow Receipt with
   `orders-incident`, a positive generation, and `Runner started: yes`.
 
@@ -87,11 +93,14 @@ Policy Agent's UUID from the filtered result into a non-secret shell variable:
 
 ```bash
 export SCOPEDRUN_URL=http://127.0.0.1:3000
-curl --silent --show-error \
-  -H 'X-Demo-Session: demo-session-a' \
-  "$SCOPEDRUN_URL/api/agents" \
-  | jq '{agents: [.agents[] | {id, name, status}]}'
-export POLICY_AGENT_ID=<policy-agent-id-from-the-filtered-response>
+POLICY_AGENT_ID="$(
+  curl --fail --silent --show-error \
+    -H 'X-Demo-Session: demo-session-a' \
+    "$SCOPEDRUN_URL/api/agents" \
+    | jq -er '[.agents[] | select(.name == "Policy Agent")][0].id // empty'
+)"
+test -n "$POLICY_AGENT_ID"
+export POLICY_AGENT_ID
 ```
 
 If the demo is remote and `APP_AUTH_TOKEN` is enabled, add
@@ -104,12 +113,13 @@ terminal. It may inherit the already exported Ark variables; it must use fresh
 state and the `local-process` profile:
 
 ```bash
+export SCOPEDRUN_LOCAL_ID=demo-01-local  # Change this for every rehearsal.
 NODE_ENV=production \
 HOST=127.0.0.1 \
 PORT=3101 \
-APP_DATA_DIR="$PWD/.local/scopedrun-local-$SCOPEDRUN_REHEARSAL_ID/data" \
-AGENT_WORKSPACE_ROOT="$PWD/.local/scopedrun-local-$SCOPEDRUN_REHEARSAL_ID/workspaces" \
-CODEX_HOME="$PWD/.local/scopedrun-local-$SCOPEDRUN_REHEARSAL_ID/codex-home" \
+APP_DATA_DIR="$PWD/.local/$SCOPEDRUN_LOCAL_ID/data" \
+AGENT_WORKSPACE_ROOT="$PWD/.local/$SCOPEDRUN_LOCAL_ID/workspaces" \
+CODEX_HOME="$PWD/.local/$SCOPEDRUN_LOCAL_ID/codex-home" \
 RUNTIME_PROVIDER=local-process \
 npm start
 ```
@@ -117,16 +127,17 @@ npm start
 Create its Agent while suppressing the path-bearing raw response:
 
 ```bash
-export LOCAL_PROCESS_AGENT_ID="$(
+LOCAL_PROCESS_AGENT_ID="$(
   curl --fail --silent --show-error \
     -X POST \
     -H 'Content-Type: application/json' \
     -H 'X-Demo-Session: demo-session-a' \
     --data '{"name":"Unsupported Runtime Demo"}' \
     http://127.0.0.1:3101/api/agents \
-    | jq -r '.agent.id'
+    | jq -er '.agent.id // empty'
 )"
 test -n "$LOCAL_PROCESS_AGENT_ID"
+export LOCAL_PROCESS_AGENT_ID
 ```
 
 Arrange three windows before starting the timer: the architecture diagram, the
@@ -139,7 +150,7 @@ contain local paths.
 | Time | Show | Say |
 | --- | --- | --- |
 | 0:00–0:25 | [Trusted-sequence diagram](ARCHITECTURE.md#trusted-sequence) | “The task and Resource ID are untrusted input. A standing Entitlement only limits the choices; the user's explicit per-Run Delegation is the requested scope.” |
-| 0:25–1:10 | Browser: Demo User A, eligible picker, submit Live Agent allow; wait for `Runner started: yes` | “The picker reveals safe metadata only. I explicitly chose Orders Incident. The server rechecked policy and compiled one read-only mount. The Receipt correlates the decision and shows that invocation was attempted.” |
+| 0:25–1:10 | Browser: task text → **Suggest Resource** → show “suggestion only” → **Delegate for this Run** → submit; wait for `Runner started: yes` | “The server-side Advisor used only my eligible safe metadata. Its suggestion changed nothing until I explicitly delegated Orders Incident. Admission then rechecked policy and compiled one read-only mount.” |
 | 1:10–1:35 | Terminal: unauthorized request | “A caller cannot bypass the picker. Payments Incident is a valid Resource ID but is outside User A's Entitlement, so the server returns a stable denial before the Runner.” |
 | 1:35–2:10 | Terminal: revoke then retry | “Revocation is prospective. The next Run is denied; the earlier allow Receipt stays available for audit.” |
 | 2:10–2:35 | Terminal: `local-process` request | “A Capsule never falls back to a host process. This real server rejects the request because only the container profile can supply the namespace boundary.” |
@@ -219,7 +230,8 @@ private call counter.
 
 | Evidence | What it proves | What it does not prove |
 | --- | --- | --- |
-| [Final delivery](evidence/issue-10-final-delivery-2026-08-30.md) | Final checks, clean-checkout smoke, current real-container result, timed script budget, and redaction review. | Production-grade isolation or authentication. |
+| [Current final-submission audit](evidence/final-submission-audit-2026-08-30.md) | Current dependency, deterministic, real-container, Web component/production-SPA, documentation, redaction, and clean-archive status. | Screenshot-level browser QA, production-grade isolation or authentication, or a live Ark answer without valid credentials. |
+| [Issue #10 delivery](evidence/issue-10-final-delivery-2026-08-30.md) | Historical Issue #10 checks, clean-checkout smoke, real-container result, timed script budget, and redaction review at that revision. | The current post-Issue #10 audit or production-grade isolation. |
 | [Day 2 feature freeze](evidence/day2-feature-freeze-2026-08-29.md) | Deterministic four-scenario gate and frozen integrated revisions. | A current live model answer. |
 | [Real-container Kill Test](evidence/kill-test-2026-08-29.md) | Delegated Resource readable, undelegated Resource absent, write rejected, host fixtures unchanged. | Ark availability or model semantics. |
 | [Day 1 rehearsal](evidence/day1-rehearsal-2026-08-29.md) | Real built server and container reached Ark; safe failure behavior under upstream auth/quota errors. | A completed model response. |

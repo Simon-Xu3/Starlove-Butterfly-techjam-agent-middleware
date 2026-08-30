@@ -1,5 +1,9 @@
 # Issue #10 final delivery evidence
 
+> Historical record: this file captures the Issue #10 delivery revision. See
+> the [current final-submission audit](final-submission-audit-2026-08-30.md)
+> for the latest repository-wide validation.
+
 Date: 2026-08-30  
 Branch: `codex/issue-10-final-delivery`  
 Feature-freeze base: `a8e1d63`  
