@@ -36,8 +36,8 @@ suggestions never authorize or submit a delegation.
 - [Current final-submission audit](docs/evidence/final-submission-audit-2026-08-30.md)
 - [Issue #10 delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 
-The submission candidate passes deterministic HTTP, authorization, path,
-persistence, Advisor, Receipt, Web, and regression suites plus a real-container
+The feature-freeze gate has passed deterministic HTTP, authorization, path,
+persistence, Receipt, Web, and regression suites plus a real-container
 namespace and host-integrity test.
 
 A minimal Agent platform for three-day middleware hackathons. It provides Agent
@@ -226,12 +226,11 @@ In the Web UI:
    bullets.
    ```
 
-4. In **Resource Advisor**, select **Suggest Resource**. It should recommend
-   **Orders Incident** from safe metadata while leaving the picker unchanged.
-5. Select **Delegate for this Run**, then verify **Orders Incident** appears in
-   **Resource Capsule**. Demo User A can also choose Inventory Incident but
-   does not see Payments Incident in this eligible list.
-6. Submit the task. The UI sends only the Resource ID, never a host source
+4. In **Resource Capsule**, review the eligible choices and explicitly select
+   **Orders Incident**. Demo User A can also choose Inventory Incident but does
+   not see Payments Incident in this eligible list. The optional Advisor may
+   suggest a choice, but it is not required for this flow.
+5. Submit the task. The UI sends only the Resource ID, never a host source
    path. After
    the Run reaches the Runtime seam, inspect the Decision Receipt for the
    principal, Agent, Run, Resource, Entitlement generation, decision, and

@@ -34,7 +34,10 @@ variable "allowed_web_cidr" {
   description = "CIDR allowed to access the web UI. This must be an explicit, restricted network."
   type        = string
   validation {
-    condition     = can(cidrhost(trimspace(var.allowed_web_cidr), 0)) && !endswith(trimspace(var.allowed_web_cidr), "/0")
+    condition = (
+      can(cidrhost(trimspace(var.allowed_web_cidr), 0)) &&
+      try(tonumber(element(split("/", trimspace(var.allowed_web_cidr)), 1)) > 0, false)
+    )
     error_message = "allowed_web_cidr must be a valid CIDR narrower than /0; do not expose this code-execution POC to the entire Internet."
   }
 }
@@ -43,7 +46,10 @@ variable "allowed_ssh_cidr" {
   description = "CIDR allowed to SSH to the ECS."
   type        = string
   validation {
-    condition     = can(cidrhost(trimspace(var.allowed_ssh_cidr), 0)) && !endswith(trimspace(var.allowed_ssh_cidr), "/0")
+    condition = (
+      can(cidrhost(trimspace(var.allowed_ssh_cidr), 0)) &&
+      try(tonumber(element(split("/", trimspace(var.allowed_ssh_cidr)), 1)) > 0, false)
+    )
     error_message = "allowed_ssh_cidr must be a valid CIDR narrower than /0 and restrict SSH to an administrator network."
   }
 }

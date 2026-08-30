@@ -1,7 +1,6 @@
 # Run-scoped Resource Capsule
 
-Status: final-submission candidate — Issue #10 delivery merged and Resource
-Advisor integrated; current audit dated 2026-08-30
+Status: feature-frozen — Issue #9 acceptance evidence recorded 2026-08-29
 
 ## Problem Statement
 

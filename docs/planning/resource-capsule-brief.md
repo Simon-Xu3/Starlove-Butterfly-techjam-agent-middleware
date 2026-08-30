@@ -299,26 +299,31 @@ and per-Run Delegation are in
 - A syntactically valid denied Capsule request returns `403` with stable Run and
   Receipt identifiers.
 
-## Starter Kit gaps closed by the current implementation
+## Starter Kit baseline gaps
 
-This approved brief originally recorded the Starter Kit gaps below. The
-submission candidate closes them at the existing seams rather than duplicating
-the Run pipeline:
+At approval time, this brief was based on the following Starter Kit gaps. They
+record the starting point that motivated the target design; they are not a
+current implementation-status checklist:
 
-- Fastify now resolves a mock Human Principal separately from the optional
-  outer bearer guard.
-- Agents have owners, and Agent-scoped operations are principal-scoped.
-- Run admission accepts prompt content plus an optional single Resource ID.
-- `AgentService` keeps atomic one-active-Run admission while orchestrating
-  authorization, mount-plan compilation, Receipt persistence, and final
-  Entitlement recheck.
-- Capsule-capable Runner calls receive one validated immutable mount plan.
-- `ContainerCodexRunner` adds exactly one approved readonly Resource mount;
-  the host-process Runner remains intentionally unsupported for Capsule Runs.
-- JSON schema version 2 persists ownership, Entitlements, and Receipts while
-  migrating version 1 state.
-- The Playground includes the explicit Resource Picker, metadata-only Advisor,
-  denied Run handling, and safe Receipt view.
+- Fastify had only an optional shared bearer token and no Human Principal
+  resolver.
+- Agents had no owner, and Agent CRUD/list/read operations were not scoped by
+  principal.
+- Run admission accepted only prompt content.
+- `AgentService` had a useful atomic one-active-Run admission point but no
+  Resource authorization or mount-plan compilation.
+- `RunnerRequest` contained Agent ID, workspace path, prompt, and thread ID but
+  no Run ID or validated mount plan.
+- `ContainerCodexRunner` mounted only the Agent workspace and Codex home; it
+  had no Protected Resource mount manifest.
+- `CodexRunner` was a host process and could not supply the required container
+  namespace evidence.
+- JSON schema version 1 had no owner, Registry, Entitlement, or Receipt
+  records.
+- The Playground had no Resource Picker or Receipt view.
+
+The target design called for extending the existing seams rather than
+duplicating the Run pipeline.
 
 ## Confirmed test seams
 

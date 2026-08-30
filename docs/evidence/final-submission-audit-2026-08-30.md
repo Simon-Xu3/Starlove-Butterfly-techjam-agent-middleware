@@ -60,8 +60,9 @@ The resulting submission slice includes:
 - Corrected `.env` loading guidance, shell-safe package-list quoting, jq
   failure propagation in the Demo, repository/deployment caveats, architecture
   trust-path wiring, and stale planning/Grant terminology.
-- Added an optional but explicit Advisor-to-Delegation browser choreography,
-  deterministic tasks, safe terminal filtering, and a current evidence index.
+- Kept the explicit manual picker as the formal Demo path while adding a
+  deterministic task, safe terminal filtering, and a current evidence index;
+  the existing Advisor remains optional.
 
 ## Executed evidence
 

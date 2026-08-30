@@ -2,14 +2,13 @@
   "name": "volc-agent-launchpad",
   "version": "1.0.0",
   "private": true,
-  "description": "An Agent platform with ScopedRun resource-capsule middleware and Codex CLI Runtime support.",
+  "description": "A ScopedRun-enabled Agent platform starter kit running Codex CLI locally or on Volcengine ECS.",
   "type": "module",
   "workspaces": [
     "apps/*"
   ],
   "engines": {
-    "node": ">=22",
-    "npm": ">=10"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "concurrently -n server,web -c cyan,magenta \"npm run dev -w @launchpad/server\" \"npm run dev -w @launchpad/web\"",

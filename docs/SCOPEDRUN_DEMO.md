@@ -74,8 +74,7 @@ Complete one backup allow Run with Live Agent before the audience arrives:
 
 - task: `Analyze the orders checkout incident and summarize the root cause in
   three bullets.`;
-- **Suggest Resource** returns **Orders Incident**, then the presenter presses
-  **Delegate for this Run** before submitting; and
+- explicit Resource choice: **Orders Incident**; and
 - expected evidence: completed model answer plus an allow Receipt with
   `orders-incident`, a positive generation, and `Runner started: yes`.
 
@@ -150,7 +149,7 @@ contain local paths.
 | Time | Show | Say |
 | --- | --- | --- |
 | 0:00–0:25 | [Trusted-sequence diagram](ARCHITECTURE.md#trusted-sequence) | “The task and Resource ID are untrusted input. A standing Entitlement only limits the choices; the user's explicit per-Run Delegation is the requested scope.” |
-| 0:25–1:10 | Browser: task text → **Suggest Resource** → show “suggestion only” → **Delegate for this Run** → submit; wait for `Runner started: yes` | “The server-side Advisor used only my eligible safe metadata. Its suggestion changed nothing until I explicitly delegated Orders Incident. Admission then rechecked policy and compiled one read-only mount.” |
+| 0:25–1:10 | Browser: Demo User A, eligible picker, explicitly select Orders Incident, submit Live Agent allow; wait for `Runner started: yes` | “The picker reveals safe metadata only. I explicitly chose Orders Incident. The server rechecked policy and compiled one read-only mount. The Receipt correlates the decision and shows that invocation was attempted.” |
 | 1:10–1:35 | Terminal: unauthorized request | “A caller cannot bypass the picker. Payments Incident is a valid Resource ID but is outside User A's Entitlement, so the server returns a stable denial before the Runner.” |
 | 1:35–2:10 | Terminal: revoke then retry | “Revocation is prospective. The next Run is denied; the earlier allow Receipt stays available for audit.” |
 | 2:10–2:35 | Terminal: `local-process` request | “A Capsule never falls back to a host process. This real server rejects the request because only the container profile can supply the namespace boundary.” |

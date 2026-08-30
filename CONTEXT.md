@@ -41,9 +41,8 @@ and observable lifecycle.
 
 ### Resource Capsule
 
-The implemented product capability under final-submission review. A Resource
-Capsule is scoped to a specific Run rather than treated as unscoped global
-state.
+The product capability currently being developed. A Resource Capsule is scoped
+to a specific Run rather than treated as unscoped global state.
 
 One Capsule contains only the Resource explicitly delegated to that Run after
 the current principal's Entitlement, Agent ownership, and server validation
