@@ -154,7 +154,7 @@ and per-Run Delegation are in
   `ownership_denied`, while prohibiting that reason in new Receipt writes and
   HTTP denial responses.
 
-### Protected Resource Registry and Grants
+### Protected Resource Registry and Entitlements
 
 - Use a server-owned static Registry with three directory fixture resources for
   the MVP: `orders-incident`, `inventory-incident`, and `payments-incident`.
@@ -236,10 +236,10 @@ and per-Run Delegation are in
 ### Allow
 
 1. `user-a` owns Agent A.
-2. Agent A has a current read grant for `orders-incident`.
+2. `user-a` has a current read Entitlement for `orders-incident`.
 3. `user-a` starts a Capsule Run and selects `orders-incident`.
 4. The server resolves the principal and verifies Agent ownership, the current
-   grant, and the registered Resource.
+   Entitlement, and the registered Resource.
 5. The server canonicalizes the registered source and validates containment.
 6. The server compiles a readonly `ValidatedRunMountPlan`.
 7. `ContainerCodexRunner` starts a real container with the approved mount.
@@ -259,7 +259,7 @@ and per-Run Delegation are in
 
 ### Revoke
 
-1. Revoke Agent A's read grant for `orders-incident`.
+1. Revoke `user-a`'s read Entitlement for `orders-incident`.
 2. A later Capsule Run rechecks current status and generation.
 3. The later Run is denied before mount-plan creation and Runner invocation.
 4. Historical evidence remains available.
@@ -299,25 +299,31 @@ and per-Run Delegation are in
 - A syntactically valid denied Capsule request returns `403` with stable Run and
   Receipt identifiers.
 
-## Current code and target-design gaps
+## Starter Kit baseline gaps
 
-- Fastify currently has only an optional shared bearer token; there is no
-  Human Principal resolver.
-- Agents have no owner, and Agent CRUD/list/read operations are not scoped by
+At approval time, this brief was based on the following Starter Kit gaps. They
+record the starting point that motivated the target design; they are not a
+current implementation-status checklist:
+
+- Fastify had only an optional shared bearer token and no Human Principal
+  resolver.
+- Agents had no owner, and Agent CRUD/list/read operations were not scoped by
   principal.
-- Run admission currently accepts only prompt content.
-- `AgentService` has a useful atomic one-active-Run admission point but no
+- Run admission accepted only prompt content.
+- `AgentService` had a useful atomic one-active-Run admission point but no
   Resource authorization or mount-plan compilation.
-- `RunnerRequest` contains Agent ID, workspace path, prompt, and thread ID but
+- `RunnerRequest` contained Agent ID, workspace path, prompt, and thread ID but
   no Run ID or validated mount plan.
-- `ContainerCodexRunner` mounts only the Agent workspace and Codex home; it has
-  no Protected Resource mount manifest.
-- `CodexRunner` is a host process and cannot supply the required container
+- `ContainerCodexRunner` mounted only the Agent workspace and Codex home; it
+  had no Protected Resource mount manifest.
+- `CodexRunner` was a host process and could not supply the required container
   namespace evidence.
-- JSON schema version 1 has no owner, Registry, Grant, or Receipt records.
-- The Playground has no Resource Picker or Receipt view.
+- JSON schema version 1 had no owner, Registry, Entitlement, or Receipt
+  records.
+- The Playground had no Resource Picker or Receipt view.
 
-Existing seams should be extended rather than duplicating the Run pipeline.
+The target design called for extending the existing seams rather than
+duplicating the Run pipeline.
 
 ## Confirmed test seams
 

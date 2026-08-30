@@ -80,9 +80,9 @@ The execution boundary used by the control plane to run Codex-backed work.
 
 ### Resource Advisor
 
-An optional advisory feature that suggests eligible Resources from task text
-and safe Resource metadata. It cannot inspect protected contents, change an
-Entitlement, or create a Run Delegation.
+A built-in advisory feature whose use is optional. It suggests eligible
+Resources from task text and safe Resource metadata. It cannot inspect
+protected contents, change an Entitlement, or create a Run Delegation.
 
 ### Agent workspace
 

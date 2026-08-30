@@ -56,8 +56,10 @@ npm test -w @launchpad/server -- --run src/container-resource-capsule.integratio
 Use `CONTAINER_ENGINE=podman` for Podman. The test builds and removes a
 temporary uniquely tagged image from `alpine:3.20` and invokes the real
 `ContainerCodexRunner`. It proves the delegated `orders-incident` directory is
-readable, `payments-incident` is absent, writes through the mount fail, and
-the hash and modification time of both fixture directories are unchanged.
+readable; both the entitled-but-not-delegated `inventory-incident` and the
+unentitled `payments-incident` are absent; writes through the mount fail; and
+every file across all three fixtures keeps the same bytes, SHA-256 hash, and
+modification time.
 
 The ordinary test suite skips this engine-gated test. That skip is only for
 hosts without a container engine; release and demo evidence must include a

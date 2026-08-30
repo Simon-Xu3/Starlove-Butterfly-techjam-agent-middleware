@@ -77,7 +77,7 @@ complete supported MVP. The MVP supports readonly access only.
 7. As a demo user, I want an unauthorized selection to be denied before execution, so that the protected Resource never enters the Runtime.
 8. As a demo user, I want a denied Run to remain visible as a terminal Run, so that the rejection is understandable rather than disappearing as a generic request error.
 9. As a demo user, I want the UI to show a safe denial reason and Receipt, so that I can explain the decision during the demo.
-10. As a demo user, I want a revoked Grant to block later Capsule Runs, so that revocation has visible prospective effect.
+10. As a demo user, I want a revoked Entitlement to block later Capsule Runs, so that revocation has visible prospective effect.
 11. As a demo user, I want historical Runs and Receipts to remain after revocation, so that prior decisions remain auditable.
 12. As a demo user, I want the application to state that revocation does not erase prior model memory, so that the demo does not overclaim its protection.
 13. As `user-a`, I want newly created Agents to belong to me, so that another demo principal cannot operate them as its own.
@@ -94,14 +94,14 @@ complete supported MVP. The MVP supports readonly access only.
 24. As a reviewer, I want an unauthorized Resource absent from the mount manifest, so that denial is demonstrated at the namespace boundary.
 25. As a reviewer, I want the Runner call count to remain zero on denial, so that authorization is proven to precede execution.
 26. As a reviewer, I want host hashes and modification times unchanged after allow and deny tests, so that the readonly and non-exposure claims have objective evidence.
-27. As a reviewer, I want each Capsule decision correlated to Human Principal, Agent, Run, Resource, Grant generation, and Runner-start evidence, so that the result is traceable.
+27. As a reviewer, I want each Capsule decision correlated to Human Principal, Agent, Run, Resource, Entitlement generation, and Runner-start evidence, so that the result is traceable.
 28. As a reviewer, I want Receipts to exclude tokens, secrets, full prompts, and Resource bodies, so that evidence does not create a second data leak.
 29. As a maintainer, I want all admission failures to use stable safe reason codes, so that the UI and tests do not depend on sensitive internal errors.
 30. As a maintainer, I want malformed requests rejected before Run creation, so that syntax errors are distinct from auditable authorization decisions.
 31. As a maintainer, I want a Capsule Run rejected when the active profile is local-process, so that the service never claims namespace isolation it did not provide.
 32. As a maintainer, I want ordinary local-process Runs to remain supported, so that Resource Capsule does not remove a baseline profile.
 33. As a maintainer, I want one immutable validated plan passed to the container Runtime, so that validation and execution do not reinterpret paths differently.
-34. As a maintainer, I want Grant generations rechecked on every new Run, so that stale authorizations cannot be reused after revoke or re-grant.
+34. As a maintainer, I want Entitlement generations rechecked on every new Run, so that stale authorizations cannot be reused after revoke or re-grant.
 35. As a maintainer, I want the JSON database migrated compatibly, so that existing Agents, Messages, Runs, workspaces, and Codex threads survive the upgrade.
 36. As a maintainer, I want shared contracts frozen quickly, so that five people can implement independent workstreams in parallel.
 37. As a presenter, I want allow, deny, revoke, and unsupported-runtime scenarios reproducible in three minutes, so that the security boundary is clear under hackathon constraints.
@@ -193,14 +193,14 @@ complete supported MVP. The MVP supports readonly access only.
 - Authorization checks Agent ownership, exact Resource cardinality, current
   Principal Resource Entitlement status, `permission: "read"`, and current
   generation.
-- Unknown Resources, absent Grants, revoked Grants, stale decisions, and
+- Unknown Resources, absent Entitlements, revoked Entitlements, stale decisions, and
   ownership mismatches fail closed.
 - An Authorization Decision contains only the server-trusted information needed
   to compile a plan or record denial. Client-provided paths and mount flags are
   never carried forward.
 - Re-grant creates a monotonically newer generation. Each Receipt records the
   generation used by the Run. `grantGeneration` is nullable when denial occurs
-  before any matching Grant generation exists.
+  before any matching Entitlement generation exists.
 - Revoke prevents future plans and Runner starts but does not interrupt an
   already running container.
 - Recheck the same principal, Resource, permission, status, and generation at
@@ -270,7 +270,7 @@ complete supported MVP. The MVP supports readonly access only.
   containment within the canonical allowed Resource root. A string-prefix
   comparison without a path-boundary check is insufficient.
 - Reject root escape, symlink escape, missing paths, non-directories, Registry
-  overlap, stale Grant generation, invalid IDs, and target collisions.
+  overlap, stale Entitlement generation, invalid IDs, and target collisions.
 - Generate the target as `/resources/<resourceId>` and reject any collision
   with reserved Runtime mounts or another planned target.
 - The immutable plan contains `runId`, `agentId`, `resourceId`, validated

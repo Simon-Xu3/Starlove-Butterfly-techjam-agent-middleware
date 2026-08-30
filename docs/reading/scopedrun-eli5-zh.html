@@ -184,7 +184,7 @@
           让 Agent 每次开始工作时，只能看见这一次被人明确允许的文件夹。
         </p>
         <div class="status">
-          现在的真实状态：计划、规格、分工和 GitHub 看板已完成；产品代码还没有开始改。
+          现在的真实状态：ScopedRun 已完成实现、自动化测试、真实容器验证、架构图、三分钟演示脚本和当前提交审计；上台前仍需有效 Ark 凭据完成 live preflight。
         </div>
       </header>
 
@@ -192,11 +192,11 @@
         <strong>用 10 分钟读完：</strong>
         <ol>
           <li><a href="#one-line">一句话理解</a></li>
-          <li><a href="#before-after">旧项目 vs 新计划</a></li>
+          <li><a href="#before-after">起始项目 vs 当前实现</a></li>
           <li><a href="#why">为什么必须做这个</a></li>
           <li><a href="#product-flow">用户到底怎样使用它</a></li>
           <li><a href="#how">允许与拒绝怎样发生</a></li>
-          <li><a href="#build">团队接下来怎么做</a></li>
+          <li><a href="#build">团队是怎样完成实现的</a></li>
           <li><a href="#limits">我们没有承诺什么</a></li>
         </ol>
       </nav>
@@ -238,20 +238,19 @@
             <p class="small">但它是单用户 demo：没有“谁是谁”、没有资源授权、没有审计收据。</p>
           </div>
           <div class="card after">
-            <h3>最新计划：ScopedRun</h3>
-            <p>在原有平台上新增一条“资源入场检查线”：</p>
+            <h3>当前实现：ScopedRun</h3>
+            <p>原有平台已经新增一条“资源入场检查线”：</p>
             <ul class="plain-list">
               <li>识别 demo 用户是谁</li>
               <li>确认这个用户是否拥有该 Agent</li>
-              <li>确认该 Agent 是否被授权读这个资源</li>
+              <li>确认用户当前有资格把这个资源委托给本次 Run</li>
               <li>只把批准的目录只读挂载进容器</li>
               <li>留下不泄露敏感信息的决定收据</li>
             </ul>
           </div>
         </div>
         <p class="warning card">
-          <strong>最容易误会的一点：</strong>截至规划迁移提交 <code>1142b9a</code>，没有实现上面的产品功能；本阅读页所在提交 <code>827525f</code> 也只增加了文档。它们完成的是“准备好正确地实现”的工作：设计、规格、拆票、GitHub 看板和 AI coding 工作规则。<br />
-          <strong>所以：</strong>现在不是“功能已完成”，而是“我们终于知道要做什么、谁做什么、如何证明它真的有效”。
+          <strong>当前证据：</strong>确定性测试覆盖身份、owner、Entitlement、Run Delegation、路径、Receipt、Advisor 和 UI；真实容器 Kill Test 证明只挂载明确委托的只读目录，其他目录不存在，宿主文件保持不变。最终演示仍需要有效 Ark 凭据和额度来展示真实模型答案。
         </p>
       </section>
 
@@ -303,7 +302,7 @@
           <div class="step"><span class="number">1</span><div>用户在网页选择一个资源 ID，例如 <code>orders-incident</code>。用户永远不发送电脑上的真实路径。</div></div>
           <div class="step"><span class="number">2</span><div>服务器从 <code>X-Demo-Session</code> 请求头识别 demo 用户，例如 <code>user-a</code>。这只是 demo 身份，不是生产登录。</div></div>
           <div class="step"><span class="number">3</span><div>服务器确认：这个用户拥有这台 Agent。</div></div>
-          <div class="step"><span class="number">4</span><div>服务器确认：这台 Agent 有当前有效的“读取这个资源”的 Grant（授权）。</div></div>
+          <div class="step"><span class="number">4</span><div>服务器确认：当前用户拥有有效的 Principal Resource Entitlement，而且这次请求明确创建了一个 Run Delegation。Entitlement 是上限，不是 Agent 的长期可见范围。</div></div>
           <div class="step"><span class="number">5</span><div>服务器从自己的 Resource Registry 找到资源，检查真实路径没有 <code>..</code>、软链接逃逸或越界。</div></div>
           <div class="step"><span class="number">6</span><div>服务器生成一张不可修改的“挂载计划”：把该目录只读放到容器内 <code>/resources/orders-incident</code>。</div></div>
           <div class="step"><span class="number">7</span><div>容器启动。Agent 读取被允许的资料；服务器保存一张安全的 Decision Receipt（决定收据）。</div></div>
@@ -329,22 +328,23 @@
 
       <section>
         <span class="tag">第 5 步：几个名字不要混</span>
-        <h2>5 个最重要的积木</h2>
+        <h2>6 个最重要的积木</h2>
         <div class="grid">
           <div class="card"><strong>Human Principal</strong><br />这次 demo 里正在操作的人，例如 <code>user-a</code>。</div>
           <div class="card"><strong>Agent ownership</strong><br />“这台 Agent 属于谁”。别人不能拿走它操作。</div>
           <div class="card"><strong>Protected Resource</strong><br />可被严格控制的服务器目录，例如事故资料包。</div>
-          <div class="card"><strong>Resource Grant</strong><br />“这台 Agent 能否读这个目录”的可撤销许可。</div>
+          <div class="card"><strong>Principal Resource Entitlement</strong><br />“这个人最多可以委托哪些目录”的服务器端上限。</div>
+          <div class="card"><strong>Run Delegation</strong><br />这个人本次明确选择的零或一个目录；Run 结束即结束。</div>
           <div class="card"><strong>Decision Receipt</strong><br />一张安全的小收据：谁、哪个 Agent、选了什么、允许还是拒绝、Runner 是否启动。</div>
         </div>
         <p class="small">还有一个关键名词：<strong>ValidatedRunMountPlan</strong>。它是服务器签发给容器的只读挂载计划；浏览器和 Agent 都不能自己写这张计划。</p>
       </section>
 
       <section id="build">
-        <span class="tag">第 6 步：我们接下来不是乱写代码</span>
-        <h2>先证明门锁能锁，再造房间</h2>
+        <span class="tag">第 6 步：团队怎样完成它</span>
+        <h2>先证明门锁能锁，再完成产品</h2>
         <p>
-          这是两天 hackathon。最大的风险不是“代码不漂亮”，而是最后发现容器的只读挂载无法证明。因此项目故意把最危险的验证提前。
+          这是两天 hackathon。团队把最危险的验证提前：先证明容器只读挂载与 namespace 缺失，再并行完成控制层、持久化、UI、文档和演示。
         </p>
         <div class="card warning">
           <strong>第一个不可跳过的 Gate（前两小时）：真实容器 Kill Test</strong>
@@ -363,7 +363,7 @@
           <thead><tr><th>阶段</th><th>GitHub Issue</th><th>实际在做什么</th></tr></thead>
           <tbody>
             <tr><td>先冻结共同语言</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/2">#2</a></td><td>类型、测试夹具和五个团队接口先定死，避免五个人各写一套。</td></tr>
-            <tr><td>并行做核心</td><td>#3–#7</td><td>身份/入口、资源与 Grant、路径验证、容器挂载、收据与 UI，分别有 owner。</td></tr>
+            <tr><td>并行做核心</td><td>#3–#7</td><td>身份/入口、Principal Entitlement、路径验证、容器挂载、收据与 UI，分别有 owner。</td></tr>
             <tr><td>Day 1 集成</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/8">#8</a></td><td>把五条线真正接起来，跑 allow / deny / revoke / 不支持运行时。</td></tr>
             <tr><td>Day 2 冻结</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/9">#9</a></td><td>只修规格内的问题，准备真实证据和演示。</td></tr>
             <tr><td>最后交付</td><td><a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/10">#10</a></td><td>检查、README、架构图、三分钟 demo。</td></tr>
@@ -409,7 +409,7 @@
           <label><input type="checkbox" /> <span>核心保证是：没授权的服务器目录不会出现在这一次 Agent Run 的容器里。</span></label>
           <label><input type="checkbox" /> <span>普通聊天不选资源时，原来的功能必须照常工作。</span></label>
           <label><input type="checkbox" /> <span>拒绝必须在执行前发生，Runner 调用次数必须是 0。</span></label>
-          <label><input type="checkbox" /> <span>现在完成的是清晰计划和分工；下一阶段才是实现和证据。</span></label>
+          <label><input type="checkbox" /> <span>实现、自动化证据、真实容器证据、README、架构图和三分钟脚本已经完成；上台前还要用有效 Ark 凭据做一次 live preflight。</span></label>
         </div>
       </details>
 
@@ -426,20 +426,22 @@
               <tr><td><code>b0545fd</code></td><td>把工作拆成可并行的实施任务。</td><td><span class="pill now">完成</span></td></tr>
               <tr><td><code>b5f133b</code> / <code>d4285bd</code></td><td>合并两份相近规划，去掉重复文件，保留单一来源。</td><td><span class="pill now">完成</span></td></tr>
               <tr><td><code>1142b9a</code></td><td>把 tickets 迁移到 GitHub Issues 和 Project 看板。</td><td><span class="pill now">完成</span></td></tr>
-              <tr><td><code>827525f</code></td><td>增加这份中文 ELI5 阅读页；从 <code>main</code> 到这里仍没有产品代码变更。</td><td><span class="pill now">完成</span></td></tr>
-              <tr><td>下一批</td><td>按 #2–#10 真正修改产品代码、测试和 demo。</td><td><span class="pill plan">尚未开始</span></td></tr>
+              <tr><td><code>a8e1d63</code></td><td>Day 2 feature freeze：核心 Resource Capsule、Receipt、UI 和真实容器证据集成完成。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>9f97f3c</code> / <code>27206e2</code></td><td>加入并完善只使用 eligible safe metadata 的确定性 Resource Advisor。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td><code>cbda590</code></td><td>完成 Issue #10 的 README、可信架构图、三分钟脚本和交付证据。</td><td><span class="pill now">完成</span></td></tr>
+              <tr><td>最终审计</td><td>复核安全依赖、可复现命令、当前证据、文档一致性和真实容器 gate。</td><td><span class="pill now">完成</span></td></tr>
             </tbody>
           </table>
         </div>
       </details>
 
       <aside class="next">
-        <strong>现在只做这一件事：</strong><br />
-        打开 <a href="https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues/2">Issue #2：Contracts and Fixtures Freeze</a>，把它当作“所有人先说同一种语言”的第一张票。与此同时，安排一人优先执行真实容器 Kill Test；这两件事决定后面两天会不会顺利。
+        <strong>提交前只做这一件事：</strong><br />
+        按 <a href="../SCOPEDRUN_DEMO.md">三分钟演示脚本</a>做完整 preflight：确认评委可以访问仓库，用有效 Ark 凭据完成一次真实 Agent allow Run，并保留安全的 backup Receipt。代码与可复现命令见 <a href="../../README.md">README</a>，当前验收结果见 <a href="../evidence/final-submission-audit-2026-08-30.md">最终提交审计</a>。
       </aside>
 
       <p class="small" style="margin: 26px 4px 0">
-        依据：项目 <code>origin/main..827525f</code> 的提交历史、规划 brief、正式 Spec、ADR 和 GitHub Issues。阅读页不替代这些来源；它负责把它们翻成先能理解、再能行动的中文。
+        依据：当前 README、规划 brief、正式 Spec、ADR、Issue #10 交付要求和最终验收证据。阅读页不替代这些来源；它负责把它们翻成先能理解、再能行动的中文。
       </p>
     </main>
   </body>

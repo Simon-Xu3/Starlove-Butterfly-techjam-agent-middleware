@@ -7,6 +7,18 @@ Use one of two Volcengine ECS paths:
 
 Both profiles require a Volcengine Ark API key and a Responses-capable endpoint.
 
+These ECS and Docker Compose profiles run Codex inside the application
+container with `RUNTIME_PROVIDER=local-process`. Baseline Agent Runs work, but
+Resource Capsule Runs intentionally fail closed with
+`runtime_profile_unsupported`; the formal ScopedRun demo uses `npm run poc`
+and its disposable per-Run local container profile.
+
+The clone commands below assume the submission repository is public. If it
+remains private, configure non-interactive Git authentication separately and
+never put a personal access token in the repository URL, Terraform variables,
+cloud-init, screenshots, or shell history. The Terraform cloud-init path needs
+a public or otherwise non-interactively accessible clone URL.
+
 ## Existing Linux ECS
 
 Recommended host:
@@ -85,8 +97,8 @@ dedicated ECS instance for this POC.
 ### Deploy
 
 ```bash
-git clone https://github.com/your-org/volc-agent-launchpad.git
-cd volc-agent-launchpad
+git clone https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware.git
+cd Starlove-Butterfly-techjam-agent-middleware
 cp .env.example .env.production
 openssl rand -hex 32
 ```
@@ -143,7 +155,8 @@ Requirements:
 - Volcengine account AK/SK with resource-creation permissions
 - Existing ECS SSH key pair
 - Ubuntu image ID and instance type available in the selected region
-- Public Git URL for this repository
+- Public Git URL for this repository (or another non-interactive clone path
+  available to cloud-init)
 
 Create configuration files:
 

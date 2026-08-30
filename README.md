@@ -28,12 +28,13 @@ suggestions never authorize or submit a delegation.
 - [Approved planning brief](docs/planning/resource-capsule-brief.md)
 - [Product user flow and authorization model](docs/planning/scopedrun-user-flow.md)
 - [Formal working specification](.scratch/run-scoped-resource-capsule/spec.md)
-- [Implementation tickets](https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues?q=is%3Aissue%20state%3Aopen%20label%3Ascopedrun)
+- [Implementation history](https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware/issues?q=is%3Aissue%20label%3Ascopedrun)
 - [Collaboration board](https://github.com/users/MarcusMa06-code/projects/4)
 - [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
 - [Day 2 feature-freeze evidence](docs/evidence/day2-feature-freeze-2026-08-29.md)
 - [Three-minute demo runbook](docs/SCOPEDRUN_DEMO.md)
-- [Final delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
+- [Current final-submission audit](docs/evidence/final-submission-audit-2026-08-30.md)
+- [Issue #10 delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 
 The feature-freeze gate has passed deterministic HTTP, authorization, path,
 persistence, Receipt, Web, and regression suites plus a real-container
@@ -75,17 +76,17 @@ one eligible directory Resource. The server then re-resolves the mock
 principal, checks Agent ownership and the current Entitlement generation,
 validates the Registry-owned canonical path, and creates the mount plan.
 
-The feature-frozen MVP has a complete manual picker path. If an optional
-Resource Advisor is enabled, it may use only task text and entitled safe
-metadata. Its suggestion still requires an explicit user action and cannot
-grant access, submit a delegation, inspect protected contents, or mount
-anything.
+The submission includes a deterministic Resource Advisor, but using it is
+optional: the manual picker remains the complete path. The Advisor uses only
+task text and entitled safe metadata. Its suggestion still requires the user
+to press **Delegate for this Run** and cannot grant access, submit a Run,
+inspect protected contents, or mount anything.
 
 The demo fixtures make the distinction concrete:
 
-| UI identity | Header value | Server principal | Initially entitled Resource |
+| UI identity | Header value | Server principal | Initially entitled Resources |
 | --- | --- | --- | --- |
-| Demo User A | `demo-session-a` | `user-a` | `orders-incident` |
+| Demo User A | `demo-session-a` | `user-a` | `orders-incident`, `inventory-incident` |
 | Demo User B | `demo-session-b` | `user-b` | `payments-incident` |
 
 `X-Demo-Session` is a caller-selectable mock identity switch.
@@ -119,9 +120,10 @@ RUN_CONTAINER_TESTS=1 CONTAINER_ENGINE=docker \
 
 This opt-in test starts a real container. It proves that the explicitly
 delegated `orders-incident` directory is readable and read-only, the
-undelegated `payments-incident` directory is absent from the namespace, and
-all host fixture hashes and modification times remain unchanged. It does not
-call the model API.
+entitled-but-undelegated `inventory-incident` directory and unentitled
+`payments-incident` directory are both absent from the namespace, and every
+file across all three fixtures keeps the same bytes, SHA-256 hash, and
+modification time. It does not call the model API.
 
 For the live Agent path, export a valid Ark key and model without placing them
 in source or terminal output, then start the local container profile:
@@ -142,6 +144,10 @@ model wording and service quota.
 - React and TypeScript Web UI
 - Agent create, edit, start, stop, delete, and multi-turn chat
 - Fastify control plane with asynchronous Run state
+- Run-scoped, read-only Resource Capsules enforced at Run admission and the
+  local container mount boundary
+- Deterministic metadata-only Resource Advisor with explicit human approval
+- Principal-scoped Decision Receipts for allow and deny evidence
 - Persistent Agent workspaces and Codex sessions
 - Disposable Docker, Colima, or Podman container for each local turn
 - Docker and Terraform deployment paths for Volcengine ECS
@@ -204,17 +210,28 @@ In the Web UI:
 
 1. Confirm the sidebar says **Demo User A**. `X-Demo-Session` is reproducible
    mock identity, not authentication.
-2. Select **Create Agent**, enter a name and instructions, then confirm.
+2. Select **Create Agent**, enter a name, and use these instructions:
+
+   ```text
+   When a Run includes a Resource Capsule, inspect the single read-only
+   directory available under /resources. Never modify it; cite the filenames
+   used.
+   ```
+
+   Then confirm the Agent.
 3. Enter a task in the Playground, for example:
 
    ```text
-   Analyze the delegated incident bundle and summarize the cause.
+   Analyze the orders checkout incident and summarize the root cause in three
+   bullets.
    ```
 
 4. In **Resource Capsule**, review the eligible choices and explicitly select
-   **Orders Incident**. Demo User A does not see Payments Incident in this
-   eligible list.
-5. Submit the task. The UI sends only the Resource ID, never a host path. After
+   **Orders Incident**. Demo User A can also choose Inventory Incident but does
+   not see Payments Incident in this eligible list. The optional Advisor may
+   suggest a choice, but it is not required for this flow.
+5. Submit the task. The UI sends only the Resource ID, never a host source
+   path. After
    the Run reaches the Runtime seam, inspect the Decision Receipt for the
    principal, Agent, Run, Resource, Entitlement generation, decision, and
    `Runner started` evidence.
@@ -282,21 +299,31 @@ docker compose down
 ## Development
 
 ```bash
-npm install
-cp .env.example .env
+npm ci
 npm install --global @openai/codex@0.111.0
+ARK_API_KEY=your-ark-api-key \
+ARK_MODEL=ep-your-endpoint-id \
 npm run dev
 ```
+
+The server reads process environment variables and uses host-safe local path
+defaults. The root `.env.example` is intended for Docker Compose and is not
+loaded automatically by the development scripts.
 
 - Web UI: <http://localhost:5173>
 - API: <http://localhost:3000>
 
-Use local paths in `.env` when running outside Docker:
+To override the host-safe defaults, export local paths in the current shell or
+prefix the development command. Editing `.env` alone does not affect
+`npm run dev`:
 
-```dotenv
-APP_DATA_DIR=.data
-AGENT_WORKSPACE_ROOT=workspaces
-CODEX_HOME=codex-home
+```bash
+APP_DATA_DIR="$PWD/.data" \
+AGENT_WORKSPACE_ROOT="$PWD/workspaces" \
+CODEX_HOME="$PWD/codex-home" \
+ARK_API_KEY=your-ark-api-key \
+ARK_MODEL=ep-your-endpoint-id \
+npm run dev
 ```
 
 ## Deployment
@@ -375,7 +402,8 @@ host path.
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Three-minute ScopedRun demo](docs/SCOPEDRUN_DEMO.md)
-- [Final delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
+- [Current final-submission audit](docs/evidence/final-submission-audit-2026-08-30.md)
+- [Issue #10 delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 - [Local POC](docs/LOCAL_POC.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Hackathon extension guide](docs/HACKATHON_EXTENSION_GUIDE.md)

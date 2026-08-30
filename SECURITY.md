@@ -11,7 +11,9 @@ credentials, personal data, or exploit details in an issue.
 
 ## Known limitations
 
-- Shared demo token; no user identity, authorization, RBAC, or tenant isolation
+- Caller-selectable mock principals and one narrow server-side Resource
+  authorization policy, but no production authentication, general RBAC, or
+  tenant isolation
 - No CSRF protection
 - No per-Agent container boundary in ECS mode
 - Ordinary local containers, not hardened multi-tenant sandboxes

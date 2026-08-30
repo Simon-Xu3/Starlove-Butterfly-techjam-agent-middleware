@@ -6,10 +6,14 @@ hackathon.
 ## Setup
 
 ```bash
-npm install
-cp .env.example .env
+npm ci
+ARK_API_KEY=your-ark-api-key \
+ARK_MODEL=ep-your-endpoint-id \
 npm run dev
 ```
+
+The development server reads process environment variables directly. Use
+`.env.example` with Docker Compose; the npm development scripts do not load it.
 
 For container-based Agent execution, follow
 [docs/LOCAL_POC.md](docs/LOCAL_POC.md).
@@ -19,7 +23,7 @@ For container-based Agent execution, follow
 ```bash
 npm run check
 terraform fmt -check -recursive deploy/volcengine
-docker compose config
+LAUNCHPAD_ENV_FILE=.env.example docker compose config
 ```
 
 ## Pull requests
