@@ -9,7 +9,8 @@ import {
 } from "./api";
 import {
   buildSendMessageBody,
-  DecisionReceiptCard,
+  type CapsuleProofContext,
+  DecisionProofChain,
   ResourceAdvisor,
   type ResourceAdvisorState,
   ResourcePicker,
@@ -83,7 +84,8 @@ export default function App() {
   const [resources, setResources] = useState<ProtectedResource[]>([]);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [resourceUnavailable, setResourceUnavailable] = useState<string | null>(null);
-  const [submittedResourceId, setSubmittedResourceId] = useState<string | null>(null);
+  const [submittedCapsule, setSubmittedCapsule] =
+    useState<CapsuleProofContext | null>(null);
   const [runSetupOpen, setRunSetupOpen] = useState(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [demoSessionValue, setDemoSessionValue] =
@@ -119,11 +121,12 @@ export default function App() {
       null,
     [resources, selectedResourceId],
   );
-  const activeResourceId = activeReceipt?.resourceId ?? submittedResourceId;
+  const activeResourceId = activeReceipt?.resourceId ?? submittedCapsule?.resourceId;
   const activeResourceLabel = useMemo(
     () =>
       resources.find((resource) => resource.id === activeResourceId)?.displayName ??
-      activeResourceId,
+      activeResourceId ??
+      null,
     [activeResourceId, resources],
   );
 
@@ -204,7 +207,7 @@ export default function App() {
     }
   }, []);
 
-  const loadReceipt = useCallback(async (runId: string) => {
+  const loadReceipt = useCallback(async (runId: string, agentId: string) => {
     const sessionEpoch = sessionEpochRef.current;
     const requestId = ++receiptRequestRef.current;
     try {
@@ -212,17 +215,33 @@ export default function App() {
       if (
         mountedRef.current &&
         sessionEpoch === sessionEpochRef.current &&
-        requestId === receiptRequestRef.current
+        requestId === receiptRequestRef.current &&
+        selectedIdRef.current === agentId
       ) {
         const receipt = result.receipts[0] ?? null;
+        if (receipt && receipt.agentId !== agentId) {
+          setActiveReceipt(null);
+          return;
+        }
         setActiveReceipt(receipt);
-        setSubmittedResourceId(receipt?.resourceId ?? null);
+        if (receipt) {
+          // Keep the admitted request context immutable so a mismatched
+          // Receipt cannot redefine which Resource the user delegated.
+          setSubmittedCapsule((current) =>
+            current ?? {
+              runId: receipt.runId,
+              agentId: receipt.agentId,
+              resourceId: receipt.resourceId,
+            },
+          );
+        }
       }
     } catch (reason) {
       if (
         mountedRef.current &&
         sessionEpoch === sessionEpochRef.current &&
         requestId === receiptRequestRef.current &&
+        selectedIdRef.current === agentId &&
         !isStaleDemoSessionError(reason)
       ) {
         setActiveReceipt(null);
@@ -259,7 +278,7 @@ export default function App() {
     setActiveReceipt(null);
     setDeniedRun(null);
     setSelectedResourceId(null);
-    setSubmittedResourceId(null);
+    setSubmittedCapsule(null);
     setRunSetupOpen(true);
     followLatestMessagesRef.current = true;
     setShowJumpToLatest(false);
@@ -280,7 +299,7 @@ export default function App() {
         const latest = result.runs[0] ?? null;
         setActiveRun(latest);
         if (latest && !["queued", "running"].includes(latest.status)) {
-          void loadReceipt(latest.id);
+          void loadReceipt(latest.id, selectedId);
         }
         if (latest && ["queued", "running"].includes(latest.status)) {
           void pollRun(latest.id, selectedId).catch((reason) =>
@@ -409,17 +428,25 @@ export default function App() {
           mountedRef.current && sessionEpoch === sessionEpochRef.current,
         getRun: api.run,
         onRun: (run) => {
-          if (selectedIdRef.current === agentId) setActiveRun(run);
+          if (
+            selectedIdRef.current === agentId &&
+            run.id === runId &&
+            run.agentId === agentId
+          ) {
+            setActiveRun(run);
+          }
         },
         refreshReceipt: async () => {
-          if (selectedIdRef.current === agentId) await loadReceipt(runId);
+          if (selectedIdRef.current === agentId) {
+            await loadReceipt(runId, agentId);
+          }
         },
         onTerminal: async () => {
           await Promise.all([
             refreshMessages(agentId),
             refreshAgents(),
             selectedIdRef.current === agentId
-              ? loadReceipt(runId)
+              ? loadReceipt(runId, agentId)
               : Promise.resolve(),
           ]);
         },
@@ -433,16 +460,18 @@ export default function App() {
     event.preventDefault();
     if (!selected || !prompt.trim()) return;
     const content = prompt.trim();
-    const body = buildSendMessageBody(content, selectedResourceId);
+    const requestedResourceId = selectedResourceId;
+    const body = buildSendMessageBody(content, requestedResourceId);
     const sessionEpoch = sessionEpochRef.current;
     receiptRequestRef.current += 1;
-    setSubmittedResourceId(selectedResourceId);
+    setSubmittedCapsule(null);
     updatePrompt("");
     setSelectedResourceId(null);
     setRunSetupOpen(false);
     followLatestMessagesRef.current = true;
     setShowJumpToLatest(false);
     setError(null);
+    setActiveRun(null);
     setActiveReceipt(null);
     setDeniedRun(null);
     try {
@@ -451,13 +480,27 @@ export default function App() {
       if (selectedIdRef.current === selected.id) {
         setMessages((current) => [...current, result.message]);
         setActiveRun(result.run);
+        setSubmittedCapsule(
+          requestedResourceId
+            ? {
+                runId: result.run.id,
+                agentId: selected.id,
+                resourceId: requestedResourceId,
+              }
+            : null,
+        );
       }
       setAgents((current) =>
         current.map((agent) =>
           agent.id === selected.id ? { ...agent, status: "busy" } : agent,
         ),
       );
-      if (body.resourceIds?.length === 1) void loadReceipt(result.run.id);
+      if (
+        requestedResourceId &&
+        selectedIdRef.current === selected.id
+      ) {
+        void loadReceipt(result.run.id, selected.id);
+      }
       await pollRun(result.run.id, selected.id);
     } catch (reason) {
       if (
@@ -468,27 +511,53 @@ export default function App() {
       }
       if (reason instanceof DeniedRunApiError) {
         const denied = reason.denied;
-        setDeniedRun(denied);
-        setActiveRun({
-          id: denied.runId,
-          agentId: selected.id,
-          status: "denied",
-          prompt: content,
-          output: null,
-          error: denied.reason,
-          usage: null,
-          createdAt: new Date().toISOString(),
-        });
+        if (selectedIdRef.current === selected.id) {
+          setDeniedRun(denied);
+          setSubmittedCapsule(
+            requestedResourceId
+              ? {
+                  runId: denied.runId,
+                  agentId: selected.id,
+                  resourceId: requestedResourceId,
+                }
+              : null,
+          );
+          setActiveRun({
+            id: denied.runId,
+            agentId: selected.id,
+            status: "denied",
+            prompt: content,
+            output: null,
+            error: denied.reason,
+            usage: null,
+            createdAt: new Date().toISOString(),
+          });
+        }
         await Promise.allSettled([
-          api.run(denied.runId).then(({ run }) => setActiveRun(run)),
-          loadReceipt(denied.runId),
+          api.run(denied.runId).then(({ run }) => {
+            if (
+              mountedRef.current &&
+              sessionEpoch === sessionEpochRef.current &&
+              selectedIdRef.current === selected.id &&
+              run.id === denied.runId &&
+              run.agentId === selected.id
+            ) {
+              setActiveRun(run);
+            }
+          }),
+          selectedIdRef.current === selected.id
+            ? loadReceipt(denied.runId, selected.id)
+            : Promise.resolve(),
           refreshMessages(selected.id),
           refreshAgents(),
         ]);
         return;
       }
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setActiveRun(null);
+      if (selectedIdRef.current === selected.id) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setSubmittedCapsule(null);
+        setActiveRun(null);
+      }
       await refreshAgents();
     }
   };
@@ -521,7 +590,7 @@ export default function App() {
     setResources([]);
     setResourceUnavailable(null);
     setSelectedResourceId(null);
-    setSubmittedResourceId(null);
+    setSubmittedCapsule(null);
     setRunSetupOpen(true);
     followLatestMessagesRef.current = true;
     setShowJumpToLatest(false);
@@ -865,8 +934,13 @@ export default function App() {
                       <span>{activeRun.error}</span>
                     </article>
                   )}
-                  {(activeReceipt || deniedRun) && (
-                    <DecisionReceiptCard receipt={activeReceipt} denied={deniedRun} />
+                  {(activeReceipt || deniedRun || submittedCapsule) && (
+                    <DecisionProofChain
+                      run={activeRun}
+                      receipt={activeReceipt}
+                      denied={deniedRun}
+                      submittedContext={submittedCapsule}
+                    />
                   )}
                 </div>
                 {showJumpToLatest && (

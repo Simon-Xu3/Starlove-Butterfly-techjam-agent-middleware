@@ -973,7 +973,7 @@ textarea:focus {
   font-size: 11px;
 }
 
-.receipt-card {
+.proof-chain {
   margin: 0 0 24px;
   border: 1px solid #d9d6cb;
   border-left-width: 3px;
@@ -982,15 +982,19 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.82);
 }
 
-.receipt-allow {
+.proof-chain-allow {
   border-left-color: var(--green);
 }
 
-.receipt-deny {
+.proof-chain-deny {
   border-left-color: var(--red);
 }
 
-.receipt-heading,
+.proof-chain-pending {
+  border-left-color: #b5913e;
+}
+
+.proof-heading,
 .resource-picker-heading {
   display: flex;
   align-items: flex-start;
@@ -998,18 +1002,18 @@ textarea:focus {
   gap: 14px;
 }
 
-.receipt-heading strong,
+.proof-heading strong,
 .resource-picker-heading strong,
 .resource-picker-heading span {
   display: block;
 }
 
-.receipt-heading strong {
+.proof-heading strong {
   margin-top: 3px;
   font-size: 13px;
 }
 
-.receipt-decision,
+.proof-decision,
 .baseline-badge {
   border-radius: 999px;
   padding: 4px 8px;
@@ -1019,43 +1023,98 @@ textarea:focus {
   letter-spacing: 0.08em;
 }
 
-.receipt-allow .receipt-decision {
+.proof-chain-allow .proof-decision {
   color: #247353;
   background: #dcf2e9;
 }
 
-.receipt-deny .receipt-decision {
+.proof-chain-deny .proof-decision {
   color: #a33e3e;
   background: #f6dfdc;
 }
 
-.receipt-card > p {
-  margin: 10px 0;
-  color: #66675f;
-  font-size: 10px;
+.proof-chain-pending .proof-decision {
+  color: #806322;
+  background: #f7edcf;
 }
 
-.receipt-card dl {
+.proof-stages {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 9px;
+  margin: 13px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.receipt-card dl div {
+.proof-stage {
   min-width: 0;
-  padding: 7px 8px;
-  border-radius: 7px;
+  border: 1px solid #e2dfd5;
+  border-radius: 9px;
+  padding: 10px;
   background: #f5f4ef;
 }
 
-.receipt-card dt {
+.proof-stage-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proof-stage-heading > span {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: #6b58c8;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.proof-stage-heading strong,
+.proof-stage-heading small {
+  display: block;
+}
+
+.proof-stage-heading strong {
+  color: #3f403c;
+  font-size: 11px;
+}
+
+.proof-stage-heading small {
+  margin-top: 2px;
+  color: #777870;
+  font-size: 8px;
+}
+
+.proof-stage > p {
+  min-height: 2.5em;
+  margin: 9px 0;
+  color: #66675f;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.proof-stage dl {
+  display: grid;
+  gap: 5px;
+  margin: 9px 0 0;
+}
+
+.proof-stage dl div {
+  min-width: 0;
+}
+
+.proof-stage dt {
   color: #92928a;
   font-size: 8px;
   text-transform: uppercase;
 }
 
-.receipt-card dd {
+.proof-stage dd {
   margin: 3px 0 0;
   overflow: hidden;
   color: #4a4b46;
@@ -1065,11 +1124,11 @@ textarea:focus {
   white-space: nowrap;
 }
 
-.receipt-pending {
-  display: block;
-  margin-top: 9px;
-  color: #8d6c2a;
+.proof-boundary {
+  margin: 10px 0 0;
+  color: #707169;
   font-size: 9px;
+  line-height: 1.4;
 }
 
 .composer {

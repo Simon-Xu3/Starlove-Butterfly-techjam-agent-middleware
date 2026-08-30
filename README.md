@@ -147,7 +147,8 @@ model wording and service quota.
 - Run-scoped, read-only Resource Capsules enforced at Run admission and the
   local container mount boundary
 - Deterministic metadata-only Resource Advisor with explicit human approval
-- Principal-scoped Decision Receipts for allow and deny evidence
+- Three-stage Decision Proof Chain projected from principal-scoped Run and
+  Receipt evidence
 - Persistent Agent workspaces and Codex sessions
 - Disposable Docker, Colima, or Podman container for each local turn
 - Docker and Terraform deployment paths for Volcengine ECS
@@ -222,19 +223,20 @@ In the Web UI:
 3. Enter a task in the Playground, for example:
 
    ```text
-   Analyze the orders checkout incident and summarize the root cause in three
-   bullets.
+   Investigate the fulfillment backlog and warehouse stock mismatch, then
+   summarize the root cause in three bullets.
    ```
 
-4. In **Resource Capsule**, review the eligible choices and explicitly select
-   **Orders Incident**. Demo User A can also choose Inventory Incident but does
-   not see Payments Incident in this eligible list. The optional Advisor may
-   suggest a choice, but it is not required for this flow.
+4. In **Resource Advisor**, select **Suggest Resource**. Review the safe
+   metadata for **Inventory Incident**, then explicitly select **Delegate for
+   this Run**. The suggestion alone does not select or submit anything. Demo
+   User A can also manually choose Orders Incident but does not see Payments
+   Incident in the eligible picker or Advisor results.
 5. Submit the task. The UI sends only the Resource ID, never a host source
-   path. After
-   the Run reaches the Runtime seam, inspect the Decision Receipt for the
-   principal, Agent, Run, Resource, Entitlement generation, decision, and
-   `Runner started` evidence.
+   path. After the Run reaches the Runtime seam, inspect the **Decision Proof
+   Chain**: `Delegated` shows the explicit read-only, this-Run-only scope;
+   `Decided` shows the authorization result and Entitlement generation; and
+   `Executed` separates `Runner started` evidence from the final Run status.
 
 The Agent can still write its own workspace and continue its Codex session in
 later messages. The selected Protected Resource is separate and read-only for

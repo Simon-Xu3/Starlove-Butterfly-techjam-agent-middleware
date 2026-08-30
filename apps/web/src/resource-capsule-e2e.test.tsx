@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, DeniedRunApiError } from "./api";
 import {
   buildSendMessageBody,
-  DecisionReceiptCard,
+  DecisionProofChain,
 } from "./resource-capsule";
+import type { AgentRun } from "./types";
 
 const deniedRunId = "11111111-1111-4111-8111-111111111111";
 const deniedReceiptId = "22222222-2222-4222-8222-222222222222";
@@ -12,6 +13,23 @@ const deniedAgentId = "33333333-3333-4333-8333-333333333333";
 const allowedRunId = "44444444-4444-4444-8444-444444444444";
 const allowedReceiptId = "55555555-5555-4555-8555-555555555555";
 const allowedAgentId = "66666666-6666-4666-8666-666666666666";
+
+function makeRun(
+  id: string,
+  agentId: string,
+  status: AgentRun["status"],
+): AgentRun {
+  return {
+    id,
+    agentId,
+    status,
+    prompt: "not rendered",
+    output: null,
+    error: null,
+    usage: null,
+    createdAt: "2026-08-28T00:00:00.000Z",
+  };
+}
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -71,11 +89,22 @@ describe("mocked Capsule deny flow", () => {
 
     const result = await api.receipts(denied.runId);
     const markup = renderToStaticMarkup(
-      <DecisionReceiptCard receipt={result.receipts[0] ?? null} denied={terminal} />,
+      <DecisionProofChain
+        run={makeRun(denied.runId, deniedAgentId, "denied")}
+        receipt={result.receipts[0] ?? null}
+        denied={terminal}
+        submittedContext={{
+          runId: denied.runId,
+          agentId: deniedAgentId,
+          resourceId: "payments-incident",
+        }}
+      />,
     );
-    expect(markup).toContain("Run denied");
+    expect(markup).toContain("Decision Proof Chain");
+    expect(markup).toContain("Denied");
     expect(markup).toContain("payments-incident");
-    expect(markup).toContain("Runner started");
+    expect(markup).toContain("Runner not started");
+    expect(markup).toContain("Expected security result");
     for (const forbidden of [
       "sourcePath",
       "secret prompt",
@@ -153,15 +182,22 @@ describe("mocked Capsule allow flow", () => {
     const receipts = await api.receipts(result.run.id);
     expect(receipts.receipts[0]).toEqual(receipt);
     const markup = renderToStaticMarkup(
-      <DecisionReceiptCard
+      <DecisionProofChain
+        run={makeRun(allowedRunId, allowedAgentId, "completed")}
         receipt={receipts.receipts[0] ?? null}
         denied={null}
+        submittedContext={{
+          runId: allowedRunId,
+          agentId: allowedAgentId,
+          resourceId: "orders-incident",
+        }}
       />,
     );
-    expect(markup).toContain("Resource authorized");
+    expect(markup).toContain("Decision Proof Chain");
+    expect(markup).toContain("Allowed");
     expect(markup).toContain("orders-incident");
     expect(markup).toContain("Runner started");
-    expect(markup).toContain("yes");
+    expect(markup).toContain("completed");
     for (const forbidden of [
       "sourcePath",
       "secret prompt",

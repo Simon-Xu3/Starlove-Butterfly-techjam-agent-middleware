@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -28,6 +28,11 @@ async function makeAdvisor() {
       (resourceId) => mkdir(path.join(root, resourceId), { recursive: true }),
     ),
   );
+  await writeFile(
+    path.join(root, "inventory-incident", "protected-record.txt"),
+    "PROTECTED_INVENTORY_BODY",
+    "utf8",
+  );
   const store = new JsonStore(
     path.join(root, "db.json"),
     () => "2026-08-30T00:00:00.000Z",
@@ -50,12 +55,17 @@ describe("Resource Advisor", () => {
         kind: "directory",
         description:
           "Investigate stock availability and warehouse synchronization failures.",
-        tags: ["inventory", "stock", "warehouse", "incident"],
+        tags: ["inventory", "stock", "warehouse", "fulfillment", "incident"],
       },
       matchedTerms: ["inventory", "stock"],
       reason: "tag_match",
     });
     expect(advisor.suggest("user-a", "Investigate payments")).toBeNull();
+    expect(advisor.suggest("user-a", "Investigate the fulfillment backlog")).toMatchObject({
+      resource: { id: "inventory-incident" },
+      matchedTerms: ["fulfillment"],
+      reason: "tag_match",
+    });
     expect(store.snapshot()).toEqual(before);
   });
 
@@ -144,33 +154,145 @@ describe("Resource Advisor", () => {
     expect(advisor.suggest("user-b", "inventory stock mismatch")).toBeNull();
   });
 
-  it("serves principal-scoped advice over HTTP without accepting extra fields", async () => {
-    const { advisor, registry, entitlements } = await makeAdvisor();
+  it("serves principal-scoped advice over HTTP without persistence or mount side effects", async () => {
+    const { registry, entitlements, store } = await makeAdvisor();
+    const mountResourceLookups: string[] = [];
     const app = Fastify();
     app.setErrorHandler((_error, _request, reply) => {
       reply.code(400).send({ error: "Invalid request" });
     });
-    await app.register(createResourceRoutes({ registry, entitlements }));
-    const before = advisor.suggest("user-a", "inventory stock mismatch");
+    await app.register(
+      createResourceRoutes({
+        registry: {
+          getResource(resourceId) {
+            mountResourceLookups.push(resourceId);
+            return registry.getResource(resourceId);
+          },
+          listResources() {
+            mountResourceLookups.push("listResources");
+            return registry.listResources();
+          },
+          getAdvisorResource(resourceId) {
+            return registry.getAdvisorResource(resourceId);
+          },
+        },
+        entitlements,
+      }),
+    );
+    const before = store.snapshot();
+    const taskText =
+      "inventory stock mismatch PRIVATE_TASK_VALUE demo-session-a Bearer-secret";
 
     const userA = await app.inject({
       method: "POST",
       url: "/api/resources/suggest",
       headers: { "x-demo-session": "demo-session-a" },
-      payload: { content: "inventory stock mismatch" },
+      payload: { content: taskText },
     });
     expect(userA.statusCode).toBe(200);
-    expect(userA.body).not.toContain("canonicalSourcePath");
-    expect(userA.json().suggestion.resource.id).toBe("inventory-incident");
-    expect(advisor.suggest("user-a", "inventory stock mismatch")).toEqual(before);
+    expect(userA.json()).toEqual({
+      suggestion: {
+        resource: {
+          id: "inventory-incident",
+          displayName: "Inventory Incident",
+          kind: "directory",
+          description:
+            "Investigate stock availability and warehouse synchronization failures.",
+          tags: ["inventory", "stock", "warehouse", "fulfillment", "incident"],
+        },
+        matchedTerms: ["inventory", "stock"],
+        reason: "tag_match",
+      },
+    });
+    for (const forbidden of [
+      registry.getResource("inventory-incident")?.canonicalSourcePath ?? "",
+      "PROTECTED_INVENTORY_BODY",
+      taskText,
+      "PRIVATE_TASK_VALUE",
+      "demo-session-a",
+      "Bearer-secret",
+      "payments-incident",
+      "canonicalSourcePath",
+      "sourcePath",
+    ]) {
+      expect(userA.body).not.toContain(forbidden);
+    }
+    expect(store.snapshot()).toEqual(before);
+    expect(mountResourceLookups).toEqual([]);
 
-    const extraField = await app.inject({
+    for (const headers of [
+      {},
+      { "x-demo-session": "unknown-session" },
+    ]) {
+      const unknownPrincipal = await app.inject({
+        method: "POST",
+        url: "/api/resources/suggest",
+        headers,
+        payload: { content: "inventory stock mismatch" },
+      });
+      expect(unknownPrincipal.statusCode).toBe(400);
+      expect(unknownPrincipal.body).not.toContain("inventory-incident");
+    }
+
+    const unentitled = await app.inject({
       method: "POST",
       url: "/api/resources/suggest",
       headers: { "x-demo-session": "demo-session-a" },
-      payload: { content: "inventory stock mismatch", resourceIds: ["inventory-incident"] },
+      payload: { content: "payments gateway chargebacks" },
     });
-    expect(extraField.statusCode).toBe(400);
+    expect(unentitled.statusCode).toBe(200);
+    expect(unentitled.json()).toEqual({ suggestion: null });
+
+    const tied = await app.inject({
+      method: "POST",
+      url: "/api/resources/suggest",
+      headers: { "x-demo-session": "demo-session-a" },
+      payload: { content: "incident" },
+    });
+    expect(tied.statusCode).toBe(200);
+    expect(tied.json()).toEqual({ suggestion: null });
+
+    const userB = await app.inject({
+      method: "POST",
+      url: "/api/resources/suggest",
+      headers: { "x-demo-session": "demo-session-b" },
+      payload: { content: "payments gateway chargebacks" },
+    });
+    expect(userB.statusCode).toBe(200);
+    expect(userB.json().suggestion.resource.id).toBe("payments-incident");
+    expect(store.snapshot()).toEqual(before);
+    expect(mountResourceLookups).toEqual([]);
+
+    await entitlements.revoke("user-a", "inventory-incident");
+    const afterRevoke = store.snapshot();
+    const revoked = await app.inject({
+      method: "POST",
+      url: "/api/resources/suggest",
+      headers: { "x-demo-session": "demo-session-a" },
+      payload: { content: "inventory stock mismatch" },
+    });
+    expect(revoked.statusCode).toBe(200);
+    expect(revoked.json()).toEqual({ suggestion: null });
+    expect(store.snapshot()).toEqual(afterRevoke);
+
+    for (const payload of [
+      { content: "inventory", resourceIds: ["inventory-incident"] },
+      { content: "" },
+      { content: "   " },
+      { content: null },
+      { content: ["inventory"] },
+      { content: "x".repeat(50_001) },
+    ]) {
+      const malformed = await app.inject({
+        method: "POST",
+        url: "/api/resources/suggest",
+        headers: { "x-demo-session": "demo-session-a" },
+        payload,
+      });
+      expect(malformed.statusCode).toBe(400);
+    }
+    expect(store.snapshot()).toEqual(afterRevoke);
+    expect(mountResourceLookups).toEqual([]);
     await app.close();
   });
 });

@@ -103,6 +103,11 @@ cancellation. `runnerStarted` is execution evidence, not a second authorization
 decision: the Receipt is updated to true when the authorized Runner invocation
 is attempted.
 
+The Web UI projects these persisted facts as a three-stage Decision Proof
+Chain: `Delegated`, `Decided`, and `Executed`. The projection does not create a
+new event stream or claim per-Run namespace inspection. When a Receipt is not
+yet available, Receipt-derived fields remain neutral and pending.
+
 ## Data and lifecycle
 
 ```text
