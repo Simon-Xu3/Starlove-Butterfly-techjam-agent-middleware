@@ -31,9 +31,11 @@ Persistent state defaults to:
 
 Set `LOCAL_POC_DATA_ROOT` to use another directory.
 
-Each turn mounts only the selected Agent workspace and Codex session directory.
-Default limits are 2 CPUs, 2 GiB memory, 256 processes, dropped capabilities,
-and `no-new-privileges`.
+Every turn mounts the selected Agent workspace and Codex session directory. A
+Capsule Run adds exactly one server-validated Protected Resource at
+`/resources/<resourceId>`, read-only; a baseline Run adds none. Default limits
+are 2 CPUs, 2 GiB memory, 256 processes, dropped capabilities, and
+`no-new-privileges`.
 
 Codex requests `workspace-write`. If the Linux kernel lacks Landlock, startup
 warns and disables only the inner Codex sandbox. The outer container limits
@@ -41,8 +43,9 @@ remain active, but this fallback is not tenant isolation.
 
 ## Resource Capsule Kill Test
 
-The formal Resource Capsule demo requires a real-container check; it is not a
-mock. With Docker, Colima, or Podman available, run:
+The formal Resource Capsule demo requires a real-container check. It uses the
+production `ContainerCodexRunner` and a real container engine with a
+deterministic local Codex stub. With Docker, Colima, or Podman available, run:
 
 ```bash
 RUN_CONTAINER_TESTS=1 \
@@ -60,7 +63,8 @@ The ordinary test suite skips this engine-gated test. That skip is only for
 hosts without a container engine; release and demo evidence must include a
 successful explicit command above. If the engine or its base image is
 unavailable, the explicit command fails rather than treating the check as
-passed.
+passed. This gate proves mount mechanics and host integrity; it does not call
+Ark or prove a live model answer.
 
 ## Rootless Podman on Linux
 
