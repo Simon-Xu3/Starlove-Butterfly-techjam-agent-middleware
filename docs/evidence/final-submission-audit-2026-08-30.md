@@ -1,15 +1,18 @@
 # Final-submission audit
 
-Date: 2026-08-30  
-Branch: `codex/final-submission-audit`  
+Date: 2026-08-30
+
+Branch: `codex/final-submission-audit`
+
 Review fixed point: `a8e1d63` (feature-freeze base)
+
+Validated implementation candidate: `7279604`
 
 ## Verdict
 
 The repository content passes the deterministic build, test, dependency,
 deployment-configuration, real-container namespace, production HTTP, and
-redaction gates recorded below. The implementation is ready to package after
-the clean Git archive gate is completed.
+redaction gates recorded below. The implementation is ready to package.
 
 Two presentation-time checks remain external to the source tree:
 
@@ -78,7 +81,7 @@ The resulting submission slice includes:
 | Terraform 1.13.4 `init -backend=false` + `validate` | Pass in a temporary directory with `volcengine/volcenginecc` 0.0.58. |
 | Tracked credential/private-key pattern scan | Pass; no concrete key or private-key block found. |
 | Current diff absolute-host-path and local-audit-ID scan | Pass; no audit host path or temporary ID is included. |
-| Clean Git archive: `npm ci` + `npm run check` | **Pending candidate commit.** This row must be updated before handoff. |
+| Clean Git archive of `7279604`: `npm ci --no-audit --no-fund` + `npm run check` | Pass; 196 packages installed, then the same typecheck, 142/1 Server test, 25 Web test, and production-build results passed from an independent temporary directory. |
 
 The ordinary test suite intentionally skips the real-container test unless
 `RUN_CONTAINER_TESTS=1` is set. The explicit Docker result above is therefore
