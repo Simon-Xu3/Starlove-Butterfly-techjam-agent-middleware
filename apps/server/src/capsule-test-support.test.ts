@@ -71,6 +71,7 @@ describe("frozen Capsule contracts", () => {
     }
     expect(DEMO_ENTITLEMENT_MATRIX).toEqual([
       { principalId: "user-a", resourceId: "orders-incident" },
+      { principalId: "user-a", resourceId: "inventory-incident" },
       { principalId: "user-b", resourceId: "payments-incident" },
     ]);
   });
@@ -213,7 +214,11 @@ describe("fixture baselines", () => {
   it("matches the committed manifest hashes exactly", async () => {
     const manifest = await loadManifest();
     const resourceIds = Object.keys(manifest.resources).sort();
-    expect(resourceIds).toEqual(["orders-incident", "payments-incident"]);
+    expect(resourceIds).toEqual([
+      "inventory-incident",
+      "orders-incident",
+      "payments-incident",
+    ]);
 
     for (const resourceId of resourceIds) {
       const captured = await captureFixtureBaseline(

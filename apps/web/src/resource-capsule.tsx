@@ -3,8 +3,12 @@ import type {
   DecisionReceipt,
   DeniedRunResponse,
   ProtectedResource,
+  ResourceSuggestion,
   SendMessageBody,
 } from "./types";
+import type { ResourceAdvisorState } from "./resource-advisor-coordinator";
+
+export type { ResourceAdvisorState } from "./resource-advisor-coordinator";
 
 const denialLabels: Record<CapsuleDenialReason, string> = {
   ownership_denied:
@@ -85,6 +89,85 @@ export function ResourcePicker({
         Revocation blocks future Runner starts only; it does not hot-unmount an
         active Run or erase content already retained in model or thread memory.
       </p>
+    </section>
+  );
+}
+
+/**
+ * The Advisor is deliberately a separate panel from ResourcePicker. A
+ * suggestion can be explicitly copied into the picker, but never mutates the
+ * selected delegation or submits a Run on its own.
+ */
+export function ResourceAdvisor({
+  state,
+  onSuggest,
+  onUseSuggestion,
+  disabled = false,
+}: {
+  state: ResourceAdvisorState;
+  onSuggest: () => void;
+  onUseSuggestion: (resourceId: string) => void;
+  disabled?: boolean;
+}) {
+  const suggestion = state.status === "suggested" ? state.suggestion : null;
+  return (
+    <section className="resource-advisor" aria-label="Resource Advisor">
+      <div className="resource-advisor-heading">
+        <div>
+          <strong>Resource Advisor</strong>
+          <span>Suggest an eligible Resource from this task text.</span>
+        </div>
+        <button
+          type="button"
+          className="button button-ghost advisor-action"
+          onClick={onSuggest}
+          disabled={disabled || state.status === "loading"}
+        >
+          {state.status === "loading" ? (
+            <span className="spinner" aria-label="Loading" />
+          ) : (
+            "Suggest Resource"
+          )}
+        </button>
+      </div>
+      <div className="resource-advisor-result" aria-live="polite">
+        {state.status === "idle" ? (
+          <p>Suggestions use safe catalog metadata only. Manual selection remains unchanged.</p>
+        ) : null}
+        {state.status === "loading" ? <p>Checking eligible Resource metadata…</p> : null}
+        {state.status === "no-match" ? (
+          <p>No matching eligible Resource was found. You can still use the picker.</p>
+        ) : null}
+        {state.status === "error" ? (
+          <p role="alert">
+            {state.message} You can retry or use the picker without a suggestion.
+          </p>
+        ) : null}
+        {suggestion ? (
+          <div className="resource-advisor-suggestion">
+            <div>
+              <strong>{suggestion.resource.displayName}</strong>
+              <span>{suggestion.resource.description}</span>
+            </div>
+            <div className="resource-advisor-tags">
+              {suggestion.resource.tags.map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
+            </div>
+            <small>
+              Matched {suggestion.reason.replaceAll("_", " ")}: {suggestion.matchedTerms.join(", ")}
+            </small>
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => onUseSuggestion(suggestion.resource.id)}
+              disabled={disabled}
+            >
+              Choose in picker
+            </button>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

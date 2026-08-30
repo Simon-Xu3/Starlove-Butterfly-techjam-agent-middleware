@@ -1,5 +1,5 @@
 {
-  "note": "Frozen fixture baseline for Issue #2. sha256 values are stable across clones; git does not preserve mtimes, so evidence tests capture mtime baselines at runtime via captureFixtureBaseline().",
+  "note": "Frozen fixture baseline for the three-resource Advisor catalog. sha256 values are stable across clones; git does not preserve mtimes, so evidence tests capture mtime baselines at runtime via captureFixtureBaseline().",
   "resources": {
     "orders-incident": {
       "displayName": "Orders checkout incident (2026-08-26)",
@@ -19,6 +19,27 @@
           "path": "timeline.md",
           "bytes": 396,
           "sha256": "cbadc58aa24eb1bb49025bdbc144665602607f65b346df45275842c647614dbd"
+        }
+      ]
+    },
+    "inventory-incident": {
+      "displayName": "Inventory Incident",
+      "kind": "directory",
+      "files": [
+        {
+          "path": "incident-report.md",
+          "bytes": 228,
+          "sha256": "9031e1cc3fb355174611e560db80adef60e9608b12c708f406adafc7807eba69"
+        },
+        {
+          "path": "inventory-service.log",
+          "bytes": 186,
+          "sha256": "efe885b9d10d012de1d2bdd83be6ad8e1a752f79d90ba2a2ad82759a2b9826ab"
+        },
+        {
+          "path": "timeline.md",
+          "bytes": 212,
+          "sha256": "b84ed85ba03dd3e1f1ac1a5d66fa52404a5e5198d6203cdc328717e27bc447a9"
         }
       ]
     },

@@ -158,6 +158,34 @@ export interface ProtectedResource {
   canonicalSourcePath?: never;
 }
 
+// Safe metadata available to the metadata-only Resource Advisor. This is a
+// deliberately separate DTO from RegisteredResource: advisor callers never
+// receive a canonical source path, and Registry entries cannot be returned by
+// structural accident.
+export interface AdvisorResource {
+  id: string;
+  displayName: string;
+  kind: "directory";
+  description: string;
+  tags: string[];
+  canonicalSourcePath?: never;
+}
+
+export type ResourceSuggestionReason =
+  | "tag_match"
+  | "display_name_match"
+  | "description_match";
+
+export interface ResourceSuggestion {
+  resource: AdvisorResource;
+  matchedTerms: string[];
+  reason: ResourceSuggestionReason;
+}
+
+export interface SuggestResourceResponse {
+  suggestion: ResourceSuggestion | null;
+}
+
 // Server-internal Registry entry. canonicalSourcePath must never be
 // serialized into an HTTP response or a Receipt. Deliberately not a subtype
 // of ProtectedResource — convert with toProtectedResource.
@@ -199,6 +227,7 @@ export const DEMO_ENTITLEMENT_MATRIX: ReadonlyArray<
   Readonly<{ principalId: HumanPrincipalId; resourceId: string }>
 > = Object.freeze([
   Object.freeze({ principalId: "user-a", resourceId: "orders-incident" }),
+  Object.freeze({ principalId: "user-a", resourceId: "inventory-incident" }),
   Object.freeze({ principalId: "user-b", resourceId: "payments-incident" }),
 ]);
 
@@ -383,6 +412,18 @@ export interface EntitlementReader {
     principalId: HumanPrincipalId,
     resourceId: string,
   ): PrincipalResourceEntitlement | undefined;
+}
+
+// Shared principal-scoped catalog seam. The Entitlement service owns this
+// filtering so the picker and Advisor cannot accidentally diverge.
+export interface EligibleResourceReader {
+  listEligibleResourceIds(principalId: HumanPrincipalId): string[];
+}
+
+// Advisor metadata is safe by construction and intentionally separate from
+// ResourceRegistryReader, whose entries carry server-only source paths.
+export interface AdvisorResourceReader {
+  getAdvisorResource(resourceId: string): AdvisorResource | undefined;
 }
 
 // Seam: Receipt evidence lookup backing GET /api/runs/:runId/receipts.

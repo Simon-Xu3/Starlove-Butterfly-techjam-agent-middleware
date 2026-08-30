@@ -41,10 +41,11 @@ any Run, Message, or Receipt is created. Ordinary Runs that select no Resource
 retain their current behavior, including support for the local-process profile
 and multi-turn Codex sessions.
 
-The MVP includes two mock principals, two static fixture Resources, a static
-read Entitlement matrix, explicit per-Run Delegation, allow/deny/revoke/
-unsupported-runtime behavior, a minimal Resource Picker, a minimal Receipt
-view, automated tests, and real-container evidence.
+The MVP includes two mock principals, three static fixture Resources, a static
+read Entitlement matrix, a deterministic metadata-only Resource Advisor,
+explicit per-Run Delegation, allow/deny/revoke/unsupported-runtime behavior, a
+minimal Resource Picker, a minimal Receipt view, automated tests, and
+real-container evidence.
 
 ## Canonical product flow
 
@@ -174,6 +175,13 @@ complete supported MVP. The MVP supports readonly access only.
 - Historical version 2 Receipts with `ownership_denied` remain owner-scoped
   readable evidence for compatibility. New HTTP responses and Receipt writes
   must not create that reason.
+- `POST /api/resources/suggest` accepts only bounded transient task text in a
+  `content` field. It evaluates the current principal's active read
+  Entitlements and returns `{ "suggestion": null }` for no match or a top tie;
+  otherwise it returns one safe Advisor Resource projection, safe matched
+  terms, and a stable reason (`tag_match`, `display_name_match`, or
+  `description_match`). It never persists task text or advice and creates no
+  Run, Message, Receipt, mount plan, Codex task, or Runner call.
 
 ### Run admission and authorization
 
@@ -235,8 +243,8 @@ complete supported MVP. The MVP supports readonly access only.
 
 ### Protected Resource Registry and fixtures
 
-- Use a server-owned static Registry with two directory fixtures:
-  `orders-incident` and `payments-incident`.
+- Use a server-owned static Registry with three directory fixtures:
+  `orders-incident`, `inventory-incident`, and `payments-incident`.
 - Configure one server-owned allowed Resource root. Registry source paths are
   resolved relative to or underneath that root and are never supplied by the
   client.
@@ -248,9 +256,9 @@ complete supported MVP. The MVP supports readonly access only.
   paths.
 - Safe client metadata may include Resource ID, display name, and directory
   type, but not host path or file contents.
-- The initial reproducible fixture state has two principals, two Resources, and
-  a static Entitlement matrix: `user-a` may delegate `orders-incident`; `user-b`
-  may delegate `payments-incident`.
+- The initial reproducible fixture state has two principals, three Resources,
+  and a static Entitlement matrix: `user-a` may delegate `orders-incident` and
+  `inventory-incident`; `user-b` may delegate only `payments-incident`.
 
 ### Path validation and mount-plan contract
 
@@ -304,8 +312,10 @@ complete supported MVP. The MVP supports readonly access only.
 - The Resource Picker supports an explicit accept/remove/manual-choice step and
   submits only the approved `resourceIds` value. It supports one Resource and
   must preserve the ability to submit an ordinary Run without a Resource.
-- Any Resource Advisor is limited to safe metadata for Resources already
+- The Resource Advisor is limited to safe metadata for Resources already
   eligible to the principal; it cannot authorize or auto-submit a selection.
+  Its explicit Web action has idle, loading, suggested, no-match, and
+  recoverable-error states. Prompt or principal changes suppress stale advice.
 - A `403` denied response is rendered as a terminal denied Run and Receipt, not
   discarded as an unstructured UI error.
 - The UI retries Receipt lookup while an admitted Capsule Run is active so a

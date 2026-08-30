@@ -203,6 +203,36 @@ function migrateVersion1(database: DatabaseV1, migratedAt: string): DatabaseV2 {
   };
 }
 
+// Issue #22 adds one fixture Resource after the v2 schema already exists.
+// Backfill only a missing user-a/inventory-incident history; a revoked record
+// is history too and must remain revoked rather than being silently restored.
+function backfillInventoryEntitlement(
+  database: DatabaseV2,
+  backfilledAt: string,
+): DatabaseV2 {
+  const hasInventoryHistory = database.entitlements.some(
+    (entitlement) =>
+      entitlement.principalId === "user-a" &&
+      entitlement.resourceId === "inventory-incident",
+  );
+  if (hasInventoryHistory) return database;
+  return {
+    ...database,
+    entitlements: [
+      ...database.entitlements,
+      {
+        principalId: "user-a",
+        resourceId: "inventory-incident",
+        permission: "read",
+        status: "active",
+        generation: 1,
+        createdAt: backfilledAt,
+        revokedAt: null,
+      },
+    ],
+  };
+}
+
 function isDatabaseShape(value: unknown): value is DatabaseV1 | DatabaseV2 {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -243,7 +273,9 @@ export class JsonStore {
         await this.persist(migrated);
         this.data = migrated;
       } else {
-        this.data = parsed;
+        const backfilled = backfillInventoryEntitlement(parsed, this.clock());
+        if (backfilled !== parsed) await this.persist(backfilled);
+        this.data = backfilled;
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {

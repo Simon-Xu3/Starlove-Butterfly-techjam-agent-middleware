@@ -10,8 +10,11 @@ import {
 import {
   buildSendMessageBody,
   DecisionReceiptCard,
+  ResourceAdvisor,
+  type ResourceAdvisorState,
   ResourcePicker,
 } from "./resource-capsule";
+import { ResourceAdvisorCoordinator } from "./resource-advisor-coordinator";
 import { pollActiveRun } from "./run-polling";
 import type {
   Agent,
@@ -66,6 +69,9 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [prompt, setPrompt] = useState("");
+  const [advisorState, setAdvisorState] = useState<ResourceAdvisorState>({
+    status: "idle",
+  });
   const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
   const [activeReceipt, setActiveReceipt] = useState<DecisionReceipt | null>(null);
   const [deniedRun, setDeniedRun] = useState<DeniedRunResponse | null>(null);
@@ -84,12 +90,20 @@ export default function App() {
   const pollingRunIds = useRef(new Set<string>());
   const sessionEpochRef = useRef(0);
   const receiptRequestRef = useRef(0);
+  const suggestionCoordinatorRef = useRef(new ResourceAdvisorCoordinator());
+  const suggestionCoordinator = suggestionCoordinatorRef.current;
   selectedIdRef.current = selectedId;
 
   const selected = useMemo(
     () => agents.find((agent) => agent.id === selectedId) ?? null,
     [agents, selectedId],
   );
+
+  const updatePrompt = (value: string) => {
+    suggestionCoordinator.setPrompt(value);
+    setPrompt(value);
+    setAdvisorState({ status: "idle" });
+  };
 
   const refreshAgents = useCallback(async () => {
     const sessionEpoch = sessionEpochRef.current;
@@ -192,6 +206,8 @@ export default function App() {
   useEffect(() => {
     const sessionEpoch = sessionEpochRef.current;
     receiptRequestRef.current += 1;
+    suggestionCoordinator.invalidate();
+    setAdvisorState({ status: "idle" });
     setActiveRun(null);
     setActiveReceipt(null);
     setDeniedRun(null);
@@ -354,7 +370,7 @@ export default function App() {
     const body = buildSendMessageBody(content, selectedResourceId);
     const sessionEpoch = sessionEpochRef.current;
     receiptRequestRef.current += 1;
-    setPrompt("");
+    updatePrompt("");
     setSelectedResourceId(null);
     setError(null);
     setActiveReceipt(null);
@@ -407,6 +423,17 @@ export default function App() {
     }
   };
 
+  const suggestResource = async () => {
+    if (!selected || !prompt.trim()) return;
+    const content = prompt.trim();
+    setAdvisorState({ status: "loading" });
+    const state = await suggestionCoordinator.suggest(
+      content,
+      api.suggestResource,
+    );
+    if (mountedRef.current && state) setAdvisorState(state);
+  };
+
   const changeDemoSession = async (value: DemoSessionValue) => {
     sessionEpochRef.current += 1;
     const sessionEpoch = sessionEpochRef.current;
@@ -424,7 +451,8 @@ export default function App() {
     setResources([]);
     setResourceUnavailable(null);
     setSelectedResourceId(null);
-    setPrompt("");
+    suggestionCoordinator.changePrincipal();
+    updatePrompt("");
     setForm(emptyForm);
     setShowCreate(false);
     setShowSettings(false);
@@ -710,7 +738,7 @@ export default function App() {
                     </p>
                     <div className="prompt-grid">
                       {starterPrompts.map((item) => (
-                        <button key={item} onClick={() => setPrompt(item)}>
+                        <button key={item} onClick={() => updatePrompt(item)}>
                           <span>↗</span>
                           {item}
                         </button>
@@ -753,6 +781,17 @@ export default function App() {
               </div>
 
               <form className="composer" onSubmit={sendMessage}>
+                <ResourceAdvisor
+                  state={advisorState}
+                  onSuggest={() => void suggestResource()}
+                  onUseSuggestion={setSelectedResourceId}
+                  disabled={
+                    !prompt.trim() ||
+                    selected.status === "stopped" ||
+                    selected.status === "busy" ||
+                    (activeRun != null && ["queued", "running"].includes(activeRun.status))
+                  }
+                />
                 <ResourcePicker
                   resources={resources}
                   selectedResourceId={selectedResourceId}
@@ -767,7 +806,7 @@ export default function App() {
                 />
                 <textarea
                   value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
+                  onChange={(event) => updatePrompt(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();

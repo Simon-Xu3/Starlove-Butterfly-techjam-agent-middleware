@@ -62,8 +62,14 @@ and safe catalog metadata such as name, tags, and description. It is advisory:
 - it cannot create a Run Delegation or alter Entitlements; and
 - the manual picker remains the complete supported MVP path.
 
-The initial demo may use curated suggestions or no suggestion service at all.
-An LLM-based Advisor is an optional later layer, never the enforcement point.
+The demo uses a deterministic metadata-only Advisor. `POST
+/api/resources/suggest` receives transient task text only and evaluates the
+current principal's active Entitlements. Exact normalized tag matches outrank
+display-name matches, which outrank description matches. A zero match or equal
+top score returns no suggestion. The response carries one safe Advisor
+projection, bounded normalized tags, safe matched terms, and a stable reason;
+it never carries a path or protected content. An LLM-based Advisor remains out
+of scope and the manual picker remains the complete supported MVP path.
 
 ### 4. Explicitly delegate the scope for this Run
 
@@ -115,12 +121,12 @@ allow/deny reason, Entitlement generation, and whether the Runner started.
 
 ## Demo fixture matrix
 
-The initial demonstration uses two principals and two Resource directories:
+The initial demonstration uses two principals and three Resource directories:
 
-| Principal | Entitled Resource | Not entitled Resource |
+| Principal | Entitled Resource(s) | Not entitled Resource |
 | --- | --- | --- |
-| `user-a` | `orders-incident` | `payments-incident` |
-| `user-b` | `payments-incident` | `orders-incident` |
+| `user-a` | `orders-incident`, `inventory-incident` | `payments-incident` |
+| `user-b` | `payments-incident` | `orders-incident`, `inventory-incident` |
 
 The allow scenario is `user-a` explicitly delegating `orders-incident` to one
 Run. The deny scenario is `user-a` requesting `payments-incident`; it must be

@@ -48,6 +48,12 @@ describe("Entitlement routes", () => {
     expect(listed.json().entitlements).toEqual([
       expect.objectContaining({
         principalId: "user-a",
+        resourceId: "inventory-incident",
+        status: "active",
+        generation: 1,
+      }),
+      expect.objectContaining({
+        principalId: "user-a",
         resourceId: "orders-incident",
         status: "active",
         generation: 1,
@@ -88,6 +94,11 @@ describe("Entitlement routes", () => {
       headers: sessionA,
     });
     expect(current.json().entitlements).toEqual([
+      expect.objectContaining({
+        resourceId: "inventory-incident",
+        status: "active",
+        generation: 1,
+      }),
       expect.objectContaining({ status: "active", generation: 2 }),
     ]);
     const otherPrincipal = await app.inject({
@@ -103,7 +114,7 @@ describe("Entitlement routes", () => {
         generation: 1,
       }),
     ]);
-    expect(store.snapshot().entitlements).toHaveLength(3);
+    expect(store.snapshot().entitlements).toHaveLength(4);
     await app.close();
   });
 

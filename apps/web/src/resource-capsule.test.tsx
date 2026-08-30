@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildSendMessageBody,
   DecisionReceiptCard,
+  ResourceAdvisor,
   ResourcePicker,
 } from "./resource-capsule";
-import type { DecisionReceipt } from "./types";
+import type { DecisionReceipt, ResourceSuggestion } from "./types";
 
 describe("Resource Capsule UI", () => {
   it("builds baseline and exactly-one Resource requests", () => {
@@ -37,6 +38,40 @@ describe("Resource Capsule UI", () => {
     expect(markup).toContain("does not hot-unmount");
     expect(markup).toContain("model or thread memory");
     expect(markup).not.toContain("sourcePath");
+  });
+
+  it("renders every explicit Advisor state separately from the picker", () => {
+    const suggestion: ResourceSuggestion = {
+      resource: {
+        id: "inventory-incident",
+        displayName: "Inventory Incident",
+        kind: "directory",
+        description: "Investigate stock availability failures.",
+        tags: ["inventory", "stock"],
+      },
+      matchedTerms: ["inventory", "stock"],
+      reason: "tag_match",
+    };
+    const states = [
+      [{ status: "idle" as const }, "Manual selection remains unchanged."],
+      [{ status: "loading" as const }, "Checking eligible Resource metadata"],
+      [{ status: "suggested" as const, suggestion }, "Choose in picker"],
+      [{ status: "no-match" as const }, "No matching eligible Resource"],
+      [{ status: "error" as const, message: "Temporary advisor failure." }, "Temporary advisor failure."],
+    ] as const;
+
+    for (const [state, expected] of states) {
+      const markup = renderToStaticMarkup(
+        <ResourceAdvisor
+          state={state}
+          onSuggest={() => undefined}
+          onUseSuggestion={() => undefined}
+        />,
+      );
+      expect(markup).toContain('aria-label="Resource Advisor"');
+      if (state.status !== "loading") expect(markup).toContain("Suggest Resource");
+      expect(markup).toContain(expected);
+    }
   });
 
   it("renders safe allow and deny Receipt evidence", () => {

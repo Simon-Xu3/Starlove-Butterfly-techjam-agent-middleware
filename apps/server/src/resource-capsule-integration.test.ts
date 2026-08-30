@@ -29,6 +29,7 @@ describe("P2/P3/P4 Resource Capsule integration", () => {
       recursive: true,
     });
     await mkdir(path.join(resourceRoot, "payments-incident"));
+    await mkdir(path.join(resourceRoot, "inventory-incident"));
 
     store = new JsonStore(path.join(scratch, "launchpad.json"), () =>
       "2026-08-28T00:00:00.000Z"

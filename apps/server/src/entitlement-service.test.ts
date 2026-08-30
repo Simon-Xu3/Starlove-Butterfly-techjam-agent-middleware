@@ -37,6 +37,15 @@ describe("PrincipalEntitlementService", () => {
     expect(service.listEntitlements("user-a")).toEqual([
       {
         principalId: "user-a",
+        resourceId: "inventory-incident",
+        permission: "read",
+        status: "active",
+        generation: 1,
+        createdAt: "2026-08-28T00:00:00.000Z",
+        revokedAt: null,
+      },
+      {
+        principalId: "user-a",
         resourceId: "orders-incident",
         permission: "read",
         status: "active",
@@ -65,7 +74,9 @@ describe("PrincipalEntitlementService", () => {
     } as JsonStore;
     const service = new PrincipalEntitlementService(unsafeReader, registry);
 
-    const [entitlement] = service.listEntitlements("user-a");
+    const entitlement = service
+      .listEntitlements("user-a")
+      .find((item) => item.resourceId === "orders-incident");
 
     expect(entitlement).toEqual({
       principalId: "user-a",
