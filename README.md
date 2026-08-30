@@ -32,6 +32,8 @@ suggestions never authorize or submit a delegation.
 - [Collaboration board](https://github.com/users/MarcusMa06-code/projects/4)
 - [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
 - [Day 2 feature-freeze evidence](docs/evidence/day2-feature-freeze-2026-08-29.md)
+- [Three-minute demo runbook](docs/SCOPEDRUN_DEMO.md)
+- [Final delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 
 The feature-freeze gate has passed deterministic HTTP, authorization, path,
 persistence, Receipt, Web, and regression suites plus a real-container
@@ -57,15 +59,83 @@ content that a model legitimately read into an earlier Codex thread, Message,
 output, or Agent workspace. Stop the active Run when immediate containment is
 required, and do not treat revocation as a model-memory erasure guarantee.
 
-## Screenshots
+## ScopedRun flow
 
-### Agent Playground
+ScopedRun keeps standing rights separate from what an Agent actually sees:
 
-![Agent Playground showing lifecycle controls, starter prompts, and the Codex Runtime](docs/assets/playground.jpg)
+```text
+task -> eligible safe metadata -> optional advisory suggestion
+     -> explicit human choice -> server recheck -> one readonly mount -> Receipt
+```
 
-### Create an Agent
+An Entitlement only says which Resources a Human Principal may delegate. It
+does not mount those Resources and does not give an Agent standing visibility.
+For each new Run, the user explicitly chooses no Resource (a baseline Run) or
+one eligible directory Resource. The server then re-resolves the mock
+principal, checks Agent ownership and the current Entitlement generation,
+validates the Registry-owned canonical path, and creates the mount plan.
 
-![Create Agent form with name, description, and workspace instructions](docs/assets/create-agent.jpg)
+The feature-frozen MVP has a complete manual picker path. If an optional
+Resource Advisor is enabled, it may use only task text and entitled safe
+metadata. Its suggestion still requires an explicit user action and cannot
+grant access, submit a delegation, inspect protected contents, or mount
+anything.
+
+The demo fixtures make the distinction concrete:
+
+| UI identity | Header value | Server principal | Initially entitled Resource |
+| --- | --- | --- | --- |
+| Demo User A | `demo-session-a` | `user-a` | `orders-incident` |
+| Demo User B | `demo-session-b` | `user-b` | `payments-incident` |
+
+`X-Demo-Session` is a caller-selectable mock identity switch.
+`APP_AUTH_TOKEN` is a shared outer guard for remote demos. Neither is
+production authentication, principal authorization, or a design to reuse with
+production identities.
+
+| Start path | Effective Runtime | Baseline Run | Capsule Run |
+| --- | --- | --- | --- |
+| `npm run poc` | Per-Run local container | Supported | Supported |
+| `npm run dev` (default) | Host `local-process` | Supported | Denied: `runtime_profile_unsupported` |
+| Docker Compose / ECS default | Codex process in the application container | Supported | Denied: no per-Run Capsule namespace |
+
+## Reviewer quickstart
+
+From a clean checkout, first run the deterministic quality gate:
+
+```bash
+npm ci
+npm run check
+```
+
+Then prove the filesystem boundary with a running Docker, Colima, or Podman
+engine. Colima uses the Docker CLI:
+
+```bash
+RUN_CONTAINER_TESTS=1 CONTAINER_ENGINE=docker \
+  npx vitest run src/container-resource-capsule.integration.test.ts \
+  --root apps/server --reporter=verbose
+```
+
+This opt-in test starts a real container. It proves that the explicitly
+delegated `orders-incident` directory is readable and read-only, the
+undelegated `payments-incident` directory is absent from the namespace, and
+all host fixture hashes and modification times remain unchanged. It does not
+call the model API.
+
+For the live Agent path, export a valid Ark key and model without placing them
+in source or terminal output, then start the local container profile:
+
+```bash
+ARK_API_KEY=your-ark-api-key \
+ARK_MODEL=ep-your-endpoint-id \
+npm run poc
+```
+
+Open <http://localhost:3000> and follow the
+[three-minute demo runbook](docs/SCOPEDRUN_DEMO.md). A real model answer needs
+valid Ark credentials and quota; the namespace proof above is independent of
+model wording and service quota.
 
 ## Features
 
@@ -104,8 +174,8 @@ Runtime image.
 ### 2. Clone the repository
 
 ```bash
-git clone <repository-url> volc-agent-launchpad
-cd volc-agent-launchpad
+git clone https://github.com/Simon-Xu3/Starlove-Butterfly-techjam-agent-middleware.git
+cd Starlove-Butterfly-techjam-agent-middleware
 ```
 
 Skip this step when already working from the repository root.
@@ -132,17 +202,27 @@ xdg-open http://localhost:3000   # Linux desktop
 
 In the Web UI:
 
-1. Select **Create Agent**.
-2. Enter a name, description, and workspace instructions.
-3. Select **Create Agent** again.
-4. Enter a task in the Playground, for example:
+1. Confirm the sidebar says **Demo User A**. `X-Demo-Session` is reproducible
+   mock identity, not authentication.
+2. Select **Create Agent**, enter a name and instructions, then confirm.
+3. Enter a task in the Playground, for example:
 
    ```text
-   Create a TypeScript hello-world CLI, add a test, and run it.
+   Analyze the delegated incident bundle and summarize the cause.
    ```
 
-The Agent can write files, run commands, and continue the same Codex session in
-later messages.
+4. In **Resource Capsule**, review the eligible choices and explicitly select
+   **Orders Incident**. Demo User A does not see Payments Incident in this
+   eligible list.
+5. Submit the task. The UI sends only the Resource ID, never a host path. After
+   the Run reaches the Runtime seam, inspect the Decision Receipt for the
+   principal, Agent, Run, Resource, Entitlement generation, decision, and
+   `Runner started` evidence.
+
+The Agent can still write its own workspace and continue its Codex session in
+later messages. The selected Protected Resource is separate and read-only for
+this Run only. Use the [demo runbook](docs/SCOPEDRUN_DEMO.md) for the denied,
+revoke, and unsupported-runtime cases.
 
 ### 5. Stop and resume
 
@@ -283,7 +363,7 @@ RUN_CONTAINER_TESTS=1 CONTAINER_ENGINE=docker \
   npx vitest run src/container-resource-capsule.integration.test.ts \
   --root apps/server
 terraform fmt -check -recursive deploy/volcengine
-docker compose config
+LAUNCHPAD_ENV_FILE=.env.example docker compose config
 ```
 
 On macOS the real-container test creates bind-mount fixtures under the user
@@ -294,6 +374,8 @@ host path.
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Three-minute ScopedRun demo](docs/SCOPEDRUN_DEMO.md)
+- [Final delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 - [Local POC](docs/LOCAL_POC.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Hackathon extension guide](docs/HACKATHON_EXTENSION_GUIDE.md)
