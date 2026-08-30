@@ -95,21 +95,25 @@ export function ResourcePicker({
 
 /**
  * The Advisor is deliberately a separate panel from ResourcePicker. A
- * suggestion can be explicitly copied into the picker, but never mutates the
- * selected delegation or submits a Run on its own.
+ * suggestion remains advisory until the user confirms the read-only,
+ * this-Run-only delegation. Confirmation only copies the existing Resource ID
+ * into the picker; it never submits a Run or changes Entitlements.
  */
 export function ResourceAdvisor({
   state,
   onSuggest,
   onUseSuggestion,
+  selectedResourceId = null,
   disabled = false,
 }: {
   state: ResourceAdvisorState;
   onSuggest: () => void;
   onUseSuggestion: (resourceId: string) => void;
+  selectedResourceId?: string | null;
   disabled?: boolean;
 }) {
   const suggestion = state.status === "suggested" ? state.suggestion : null;
+  const selectedInPicker = suggestion?.resource.id === selectedResourceId;
   return (
     <section className="resource-advisor" aria-label="Resource Advisor">
       <div className="resource-advisor-heading">
@@ -122,15 +126,19 @@ export function ResourceAdvisor({
           className="button button-ghost advisor-action"
           onClick={onSuggest}
           disabled={disabled || state.status === "loading"}
+          aria-busy={state.status === "loading"}
         >
           {state.status === "loading" ? (
-            <span className="spinner" aria-label="Loading" />
+            <>
+              <span className="spinner" aria-hidden="true" />
+              <span>Checking…</span>
+            </>
           ) : (
             "Suggest Resource"
           )}
         </button>
       </div>
-      <div className="resource-advisor-result" aria-live="polite">
+      <div className="resource-advisor-result" role="status" aria-live="polite">
         {state.status === "idle" ? (
           <p>Suggestions use safe catalog metadata only. Manual selection remains unchanged.</p>
         ) : null}
@@ -139,7 +147,7 @@ export function ResourceAdvisor({
           <p>No matching eligible Resource was found. You can still use the picker.</p>
         ) : null}
         {state.status === "error" ? (
-          <p role="alert">
+          <p>
             {state.message} You can retry or use the picker without a suggestion.
           </p>
         ) : null}
@@ -157,14 +165,34 @@ export function ResourceAdvisor({
             <small>
               Matched {suggestion.reason.replaceAll("_", " ")}: {suggestion.matchedTerms.join(", ")}
             </small>
-            <button
-              type="button"
-              className="button button-ghost"
-              onClick={() => onUseSuggestion(suggestion.resource.id)}
-              disabled={disabled}
+            <p
+              className="resource-advisor-status"
+              id="resource-advisor-selection-status"
             >
-              Choose in picker
-            </button>
+              {selectedInPicker
+                ? "Selected in picker. Review or remove it in Resource Capsule before sending."
+                : selectedResourceId
+                  ? "A different Resource is selected. Confirmation will replace it."
+                : "Suggestion only — nothing is delegated yet."}
+            </p>
+            <div
+              className="resource-advisor-confirmation"
+              aria-label="Confirm Resource delegation"
+            >
+              <div className="resource-advisor-confirmation-copy">
+                <strong>Confirm delegation</strong>
+                <span>read-only · this Run only</span>
+              </div>
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={() => onUseSuggestion(suggestion.resource.id)}
+                disabled={disabled}
+                aria-describedby="resource-advisor-selection-status"
+              >
+                Delegate for this Run
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

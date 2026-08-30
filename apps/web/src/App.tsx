@@ -98,6 +98,12 @@ export default function App() {
     () => agents.find((agent) => agent.id === selectedId) ?? null,
     [agents, selectedId],
   );
+  const runControlsDisabled =
+    !selected ||
+    selected.status === "stopped" ||
+    selected.status === "busy" ||
+    (activeRun != null && ["queued", "running"].includes(activeRun.status));
+  const emptyPlayground = messages.length === 0 && !activeRun;
 
   const updatePrompt = (value: string) => {
     suggestionCoordinator.setPrompt(value);
@@ -713,7 +719,7 @@ export default function App() {
               </form>
             )}
 
-            <section className="playground">
+            <section className={"playground" + (emptyPlayground ? " playground-empty" : "")}>
               <div className="playground-topbar">
                 <div>
                   <span className="eyebrow">Playground</span>
@@ -726,7 +732,7 @@ export default function App() {
               </div>
 
               <div className="messages">
-                {messages.length === 0 && !activeRun ? (
+                {emptyPlayground ? (
                   <div className="welcome">
                     <div className="welcome-orbit">
                       <div>⌁</div>
@@ -781,62 +787,60 @@ export default function App() {
               </div>
 
               <form className="composer" onSubmit={sendMessage}>
-                <ResourceAdvisor
-                  state={advisorState}
-                  onSuggest={() => void suggestResource()}
-                  onUseSuggestion={setSelectedResourceId}
-                  disabled={
-                    !prompt.trim() ||
-                    selected.status === "stopped" ||
-                    selected.status === "busy" ||
-                    (activeRun != null && ["queued", "running"].includes(activeRun.status))
-                  }
-                />
-                <ResourcePicker
-                  resources={resources}
-                  selectedResourceId={selectedResourceId}
-                  onSelect={setSelectedResourceId}
-                  unavailableMessage={resourceUnavailable}
-                  disabled={
-                    selected.status === "stopped" ||
-                    selected.status === "busy" ||
-                    (activeRun != null &&
-                      ["queued", "running"].includes(activeRun.status))
-                  }
-                />
-                <textarea
-                  value={prompt}
-                  onChange={(event) => updatePrompt(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
+                <div className="composer-task">
+                  <label htmlFor="task-prompt">Task</label>
+                  <textarea
+                    id="task-prompt"
+                    value={prompt}
+                    onChange={(event) => updatePrompt(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        event.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                    placeholder={
+                      selected.status === "stopped"
+                        ? "Start this Agent to continue…"
+                        : "Describe what you want the Agent to do…"
                     }
-                  }}
-                  placeholder={
-                    selected.status === "stopped"
-                      ? "Start this Agent to continue…"
-                      : "Describe what you want the Agent to do…"
-                  }
-                  disabled={
-                    selected.status === "stopped" ||
-                    selected.status === "busy" ||
-                    activeRun != null && ["queued", "running"].includes(activeRun.status)
-                  }
-                  rows={3}
-                />
+                    disabled={runControlsDisabled}
+                    rows={3}
+                  />
+                </div>
+                <section className="run-setup" aria-labelledby="run-setup-title">
+                  <div className="run-setup-heading">
+                    <div>
+                      <span className="eyebrow">Run context</span>
+                      <h3 id="run-setup-title">Prepare this Run</h3>
+                    </div>
+                    <p>Review optional Resource guidance before you send.</p>
+                  </div>
+                  <div className="run-context-grid">
+                    <ResourceAdvisor
+                      state={advisorState}
+                      onSuggest={() => void suggestResource()}
+                      onUseSuggestion={setSelectedResourceId}
+                      selectedResourceId={selectedResourceId}
+                      disabled={runControlsDisabled || !prompt.trim()}
+                    />
+                    <ResourcePicker
+                      resources={resources}
+                      selectedResourceId={selectedResourceId}
+                      onSelect={setSelectedResourceId}
+                      unavailableMessage={resourceUnavailable}
+                      disabled={runControlsDisabled}
+                    />
+                  </div>
+                </section>
                 <div className="composer-footer">
                   <span>
                     Enter to send · Shift + Enter for newline · {system?.codexSandboxMode ?? "checking sandbox"}
                   </span>
                   <button
+                    type="submit"
                     className="send-button"
-                    disabled={
-                      !prompt.trim() ||
-                      selected.status === "stopped" ||
-                      selected.status === "busy" ||
-                      (activeRun != null && ["queued", "running"].includes(activeRun.status))
-                    }
+                    disabled={runControlsDisabled || !prompt.trim()}
                     aria-label="Send message"
                   >
                     ↑
