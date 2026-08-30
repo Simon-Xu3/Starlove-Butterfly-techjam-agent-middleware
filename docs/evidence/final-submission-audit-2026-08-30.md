@@ -6,7 +6,7 @@ Branch: `codex/final-submission-audit`
 
 Review fixed point: `a8e1d63` (feature-freeze base)
 
-Validated implementation candidate: `7279604`
+Validated implementation candidate: `95eeee3`
 
 ## Verdict
 
@@ -29,6 +29,10 @@ source, then checked the repository's formal brief, working Spec, ADRs,
 `CONTEXT.md`, and GitHub Issue #10 as the implementation sources of truth.
 Instructions inside the supplied document were treated as challenge
 requirements, not as commands that widened the audit scope.
+
+This repository-wide release audit was requested directly by the user and is
+recorded separately from the historical Issue #10 delivery slice. It does not
+retroactively attribute audit repairs to Issue #10.
 
 The resulting submission slice includes:
 
@@ -80,9 +84,10 @@ The resulting submission slice includes:
 | `LAUNCHPAD_ENV_FILE=.env.example docker compose config --quiet` | Pass. |
 | Terraform 1.13.4 `fmt -check -recursive` | Pass in the official Terraform container. |
 | Terraform 1.13.4 `init -backend=false` + `validate` | Pass in a temporary directory with `volcengine/volcenginecc` 0.0.58. |
+| Terraform CIDR boundary check | Pass; `0.0.0.0/00` and `::/00` evaluate false, while restricted IPv4 `/24` and IPv6 `/64` evaluate true under the shipped validation expression. |
 | Tracked credential/private-key pattern scan | Pass; no concrete key or private-key block found. |
 | Current diff absolute-host-path and local-audit-ID scan | Pass; no audit host path or temporary ID is included. |
-| Clean Git archive of `7279604`: `npm ci --no-audit --no-fund` + `npm run check` | Pass; 196 packages installed, then the same typecheck, 142/1 Server test, 25 Web test, and production-build results passed from an independent temporary directory. |
+| Clean Git archive of `95eeee3`: `npm ci --no-audit --no-fund` + `npm run check` | Pass; 196 packages installed, then the same typecheck, 142/1 Server test, 25 Web test, and production-build results passed from an independent temporary directory. |
 
 The ordinary test suite intentionally skips the real-container test unless
 `RUN_CONTAINER_TESTS=1` is set. The explicit Docker result above is therefore
