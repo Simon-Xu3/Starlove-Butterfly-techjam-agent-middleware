@@ -1,7 +1,9 @@
 import type {
+  AgentRun,
   CapsuleDenialReason,
   DecisionReceipt,
   DeniedRunResponse,
+  HumanPrincipalId,
   ProtectedResource,
   ResourceSuggestion,
   SendMessageBody,
@@ -200,56 +202,216 @@ export function ResourceAdvisor({
   );
 }
 
-export function DecisionReceiptCard({
+type ProofStageTone = "pending" | "success" | "danger" | "muted";
+
+interface ProofStage {
+  name: "Delegated" | "Decided" | "Executed";
+  label: string;
+  description: string;
+  tone: ProofStageTone;
+}
+
+export interface DecisionProofProjection {
+  outcome: "pending" | "allow" | "deny";
+  title: string;
+  stages: [ProofStage, ProofStage, ProofStage];
+  principalId: HumanPrincipalId | null;
+  agentId: string | null;
+  resourceId: string | null;
+  grantGeneration: number | null;
+  runnerStarted: boolean | null;
+  runStatus: AgentRun["status"] | "pending";
+  runId: string | null;
+  receiptId: string | null;
+}
+
+export function projectDecisionProof({
   receipt,
   denied,
+  run,
+  principalId = null,
+  agentId = null,
+  resourceId = null,
 }: {
   receipt: DecisionReceipt | null;
   denied?: DeniedRunResponse | null;
-}) {
-  const decision = receipt?.decision ?? denied?.status;
+  run?: AgentRun | null;
+  principalId?: HumanPrincipalId | null;
+  agentId?: string | null;
+  resourceId?: string | null;
+}): DecisionProofProjection {
+  const delegatedResourceId = receipt?.resourceId ?? resourceId;
+  const decision = receipt?.decision ?? (denied ? "deny" : null);
   const reason = receipt?.reason ?? denied?.reason;
-  if (!decision || !reason) return null;
+  const runStatus = run?.status ?? (denied ? "denied" : "pending");
+  const runnerStarted = receipt?.runnerStarted ?? (denied ? false : null);
 
-  const runId = receipt?.runId ?? denied?.runId ?? "";
-  const receiptId = receipt?.receiptId ?? denied?.receiptId ?? "";
+  const delegated: ProofStage = delegatedResourceId
+    ? {
+        name: "Delegated",
+        label: "Resource selected",
+        description: `${delegatedResourceId} · read-only · this Run only`,
+        tone: "success",
+      }
+    : {
+        name: "Delegated",
+        label: "Awaiting evidence",
+        description: "Waiting for the correlated Resource delegation.",
+        tone: "pending",
+      };
+
+  const decided: ProofStage = decision
+    ? decision === "allow"
+      ? {
+          name: "Decided",
+          label: "Allowed",
+          description: "The server recorded an allow decision.",
+          tone: "success",
+        }
+      : {
+          name: "Decided",
+          label: "Denied",
+          description:
+            reason && reason !== "allowed"
+              ? denialLabels[reason]
+              : "Run denied by server policy.",
+          tone: "danger",
+        }
+    : {
+        name: "Decided",
+        label: "Pending",
+        description: "Waiting for the Decision Receipt.",
+        tone: "pending",
+      };
+
+  let executed: ProofStage;
+  if (runnerStarted === true) {
+    executed = {
+      name: "Executed",
+      label: "Runner started",
+      description: "Runner invocation was attempted; the final Run status is shown below.",
+      tone: "success",
+    };
+  } else if (decision === "deny") {
+    executed = {
+      name: "Executed",
+      label: "Blocked before Runner",
+      description: "Runner was not started. This is the expected security outcome.",
+      tone: "danger",
+    };
+  } else if (decision === "allow") {
+    executed = runStatus === "cancelled"
+      ? {
+          name: "Executed",
+          label: "Cancelled before Runner",
+          description: "Execution did not start; the recorded allow decision is unchanged.",
+          tone: "muted",
+        }
+      : {
+          name: "Executed",
+          label: "Not started",
+          description: "Authorization is recorded; the Runner has not started.",
+          tone: "pending",
+        };
+  } else {
+    executed = {
+      name: "Executed",
+      label: "Pending",
+      description: "Waiting for Runner-start evidence.",
+      tone: "pending",
+    };
+  }
+
+  return {
+    outcome: decision ?? "pending",
+    title:
+      decision === "allow"
+        ? "Resource authorized"
+        : decision === "deny"
+          ? "Run denied"
+          : "Decision pending",
+    stages: [delegated, decided, executed],
+    principalId: receipt?.humanPrincipalId ?? principalId,
+    agentId: receipt?.agentId ?? agentId,
+    resourceId: delegatedResourceId,
+    grantGeneration: receipt?.grantGeneration ?? null,
+    runnerStarted,
+    runStatus,
+    runId: receipt?.runId ?? denied?.runId ?? run?.id ?? null,
+    receiptId: receipt?.receiptId ?? denied?.receiptId ?? null,
+  };
+}
+
+export function DecisionReceiptCard({
+  receipt,
+  denied,
+  run,
+  principalId,
+  agentId,
+  resourceId,
+}: {
+  receipt: DecisionReceipt | null;
+  denied?: DeniedRunResponse | null;
+  run?: AgentRun | null;
+  principalId?: HumanPrincipalId | null;
+  agentId?: string | null;
+  resourceId?: string | null;
+}) {
+  const proof = projectDecisionProof({
+    receipt,
+    denied,
+    run,
+    principalId,
+    agentId,
+    resourceId,
+  });
+  if (!proof.resourceId && !receipt && !denied) return null;
+
   return (
     <article
-      className={"receipt-card receipt-" + (decision === "allow" ? "allow" : "deny")}
-      aria-label="Decision Receipt"
+      className={`receipt-card receipt-outcome-${proof.outcome}`}
+      aria-label="Decision Proof Chain"
     >
       <div className="receipt-heading">
         <div>
-          <span className="eyebrow">Decision Receipt</span>
-          <strong>{decision === "allow" ? "Resource authorized" : "Run denied"}</strong>
+          <span className="eyebrow">Decision Proof Chain</span>
+          <strong>{proof.title}</strong>
         </div>
-        <span className="receipt-decision">{decision}</span>
+        <span className="receipt-decision">{proof.outcome}</span>
       </div>
-      <p>
-        {reason === "allowed"
-          ? receipt?.runnerStarted
-            ? "The approved read-only mount crossed the Runtime seam."
-            : "Authorization is recorded; the Runner has not started."
-          : (denialLabels[reason] ?? "Run denied by server policy.")}
-      </p>
-      <dl>
-        <div><dt>Run</dt><dd>{runId}</dd></div>
-        <div><dt>Receipt</dt><dd>{receiptId}</dd></div>
-        {receipt ? <div><dt>Principal</dt><dd>{receipt.humanPrincipalId}</dd></div> : null}
-        {receipt ? <div><dt>Agent</dt><dd>{receipt.agentId}</dd></div> : null}
-        {receipt ? <div><dt>Resource</dt><dd>{receipt.resourceId}</dd></div> : null}
-        {receipt ? (
-          <div>
-            <dt>Grant generation</dt>
-            <dd>{receipt.grantGeneration ?? "not available"}</dd>
-          </div>
-        ) : null}
-        {receipt ? (
-          <div><dt>Runner started</dt><dd>{receipt.runnerStarted ? "yes" : "no"}</dd></div>
-        ) : null}
-        {receipt ? <div><dt>Created</dt><dd>{receipt.createdAt}</dd></div> : null}
+
+      <ol className="proof-chain" aria-label="Delegated, decided, executed">
+        {proof.stages.map((stage, index) => (
+          <li className={`proof-stage proof-stage-${stage.tone}`} key={stage.name}>
+            <span className="proof-stage-number" aria-hidden="true">{index + 1}</span>
+            <div>
+              <span className="proof-stage-name">{stage.name}</span>
+              <strong>{stage.label}</strong>
+              <p>{stage.description}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <dl className="proof-facts">
+        <div><dt>Principal</dt><dd>{proof.principalId ?? "awaiting Receipt"}</dd></div>
+        <div><dt>Agent</dt><dd>{proof.agentId ?? "awaiting Receipt"}</dd></div>
+        <div><dt>Resource</dt><dd>{proof.resourceId ?? "awaiting Receipt"}</dd></div>
+        <div><dt>Access</dt><dd>read-only</dd></div>
+        <div><dt>Lifetime</dt><dd>this Run only</dd></div>
+        <div>
+          <dt>Grant generation</dt>
+          <dd>{proof.grantGeneration ?? "not available"}</dd>
+        </div>
+        <div>
+          <dt>Runner started</dt>
+          <dd>{proof.runnerStarted === null ? "pending" : proof.runnerStarted ? "yes" : "no"}</dd>
+        </div>
+        <div><dt>Run status</dt><dd>{proof.runStatus}</dd></div>
+        <div><dt>Run</dt><dd>{proof.runId ?? "pending"}</dd></div>
+        <div><dt>Receipt</dt><dd>{proof.receiptId ?? "pending"}</dd></div>
       </dl>
-      {!receipt ? (
+      {!receipt && proof.outcome === "pending" ? (
         <span className="receipt-pending">Receipt details are awaiting the query seam.</span>
       ) : null}
     </article>

@@ -881,12 +881,16 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.82);
 }
 
-.receipt-allow {
+.receipt-outcome-allow {
   border-left-color: var(--green);
 }
 
-.receipt-deny {
+.receipt-outcome-deny {
   border-left-color: var(--red);
+}
+
+.receipt-outcome-pending {
+  border-left-color: #a98235;
 }
 
 .receipt-heading,
@@ -918,14 +922,19 @@ textarea:focus {
   letter-spacing: 0.08em;
 }
 
-.receipt-allow .receipt-decision {
+.receipt-outcome-allow .receipt-decision {
   color: #247353;
   background: #dcf2e9;
 }
 
-.receipt-deny .receipt-decision {
+.receipt-outcome-deny .receipt-decision {
   color: #a33e3e;
   background: #f6dfdc;
+}
+
+.receipt-outcome-pending .receipt-decision {
+  color: #79591d;
+  background: #f5ead0;
 }
 
 .receipt-card > p {
@@ -934,14 +943,111 @@ textarea:focus {
   font-size: 10px;
 }
 
-.receipt-card dl {
+.proof-chain {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proof-stage {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #dedbd1;
+  border-radius: 9px;
+  padding: 9px;
+  background: #faf9f5;
+}
+
+.proof-stage-number {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #65665f;
+  background: #e9e7df;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.proof-stage > div {
+  min-width: 0;
+}
+
+.proof-stage-name {
+  display: block;
+  color: #85867e;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.proof-stage strong {
+  display: block;
+  margin-top: 2px;
+  color: #3f403b;
+  font-size: 10px;
+}
+
+.proof-stage p {
+  margin: 4px 0 0;
+  color: #686960;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.proof-stage-success {
+  border-color: #bcdccc;
+  background: #f2faf6;
+}
+
+.proof-stage-success .proof-stage-number {
+  color: #236c4e;
+  background: #d9eee4;
+}
+
+.proof-stage-danger {
+  border-color: #e8c3be;
+  background: #fcf3f1;
+}
+
+.proof-stage-danger .proof-stage-number {
+  color: #9a3e3e;
+  background: #f4dedb;
+}
+
+.proof-stage-pending {
+  border-color: #e0d4b6;
+  background: #fcf8ef;
+}
+
+.proof-stage-pending .proof-stage-number,
+.proof-stage-muted .proof-stage-number {
+  color: #76571c;
+  background: #f2e7cc;
+}
+
+.proof-stage-muted {
+  background: #f4f3ef;
+}
+
+.receipt-card dl,
+.proof-facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
   margin: 0;
 }
 
-.receipt-card dl div {
+.receipt-card dl div,
+.proof-facts div {
   min-width: 0;
   padding: 7px 8px;
   border-radius: 7px;
@@ -1549,6 +1655,11 @@ textarea:focus {
 
   .messages {
     padding: 22px 15px;
+  }
+
+  .proof-chain,
+  .proof-facts {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .playground-empty .messages {

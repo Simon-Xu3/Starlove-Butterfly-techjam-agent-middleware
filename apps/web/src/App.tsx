@@ -22,6 +22,7 @@ import type {
   DecisionReceipt,
   DemoSessionValue,
   DeniedRunResponse,
+  HumanPrincipalId,
   Message,
   ProtectedResource,
   SystemInfo,
@@ -77,6 +78,7 @@ export default function App() {
   const [deniedRun, setDeniedRun] = useState<DeniedRunResponse | null>(null);
   const [resources, setResources] = useState<ProtectedResource[]>([]);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
+  const [submittedResourceId, setSubmittedResourceId] = useState<string | null>(null);
   const [resourceUnavailable, setResourceUnavailable] = useState<string | null>(null);
   const [demoSessionValue, setDemoSessionValue] =
     useState<DemoSessionValue>("demo-session-a");
@@ -104,6 +106,8 @@ export default function App() {
     selected.status === "busy" ||
     (activeRun != null && ["queued", "running"].includes(activeRun.status));
   const emptyPlayground = messages.length === 0 && !activeRun;
+  const currentPrincipalId: HumanPrincipalId =
+    demoSessionValue === "demo-session-a" ? "user-a" : "user-b";
 
   const updatePrompt = (value: string) => {
     suggestionCoordinator.setPrompt(value);
@@ -175,7 +179,9 @@ export default function App() {
         sessionEpoch === sessionEpochRef.current &&
         requestId === receiptRequestRef.current
       ) {
-        setActiveReceipt(result.receipts[0] ?? null);
+        const receipt = result.receipts[0] ?? null;
+        setActiveReceipt(receipt);
+        if (receipt) setSubmittedResourceId(receipt.resourceId);
       }
     } catch (reason) {
       if (
@@ -218,6 +224,7 @@ export default function App() {
     setActiveReceipt(null);
     setDeniedRun(null);
     setSelectedResourceId(null);
+    setSubmittedResourceId(null);
     setShowSettings(false);
     if (!selectedId) {
       setMessages([]);
@@ -376,6 +383,7 @@ export default function App() {
     const body = buildSendMessageBody(content, selectedResourceId);
     const sessionEpoch = sessionEpochRef.current;
     receiptRequestRef.current += 1;
+    setSubmittedResourceId(null);
     updatePrompt("");
     setSelectedResourceId(null);
     setError(null);
@@ -387,6 +395,7 @@ export default function App() {
       if (selectedIdRef.current === selected.id) {
         setMessages((current) => [...current, result.message]);
         setActiveRun(result.run);
+        setSubmittedResourceId(body.resourceIds?.[0] ?? null);
       }
       setAgents((current) =>
         current.map((agent) =>
@@ -404,6 +413,7 @@ export default function App() {
       }
       if (reason instanceof DeniedRunApiError) {
         const denied = reason.denied;
+        setSubmittedResourceId(body.resourceIds?.[0] ?? null);
         setDeniedRun(denied);
         setActiveRun({
           id: denied.runId,
@@ -457,6 +467,7 @@ export default function App() {
     setResources([]);
     setResourceUnavailable(null);
     setSelectedResourceId(null);
+    setSubmittedResourceId(null);
     suggestionCoordinator.changePrincipal();
     updatePrompt("");
     setForm(emptyForm);
@@ -780,8 +791,15 @@ export default function App() {
                     <span>{activeRun.error}</span>
                   </article>
                 )}
-                {(activeReceipt || deniedRun) && (
-                  <DecisionReceiptCard receipt={activeReceipt} denied={deniedRun} />
+                {(activeReceipt || deniedRun || submittedResourceId) && (
+                  <DecisionReceiptCard
+                    receipt={activeReceipt}
+                    denied={deniedRun}
+                    run={activeRun}
+                    principalId={currentPrincipalId}
+                    agentId={selected.id}
+                    resourceId={submittedResourceId}
+                  />
                 )}
                 <div ref={messageEnd} />
               </div>
