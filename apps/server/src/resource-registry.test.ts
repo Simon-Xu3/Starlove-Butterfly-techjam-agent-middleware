@@ -18,6 +18,12 @@ describe("StaticResourceRegistry", () => {
         canonicalSourcePath: path.join(resourceRoot, "orders-incident"),
       },
       {
+        id: "inventory-incident",
+        displayName: "Inventory Incident",
+        kind: "directory",
+        canonicalSourcePath: path.join(resourceRoot, "inventory-incident"),
+      },
+      {
         id: "payments-incident",
         displayName: "Payments Incident",
         kind: "directory",

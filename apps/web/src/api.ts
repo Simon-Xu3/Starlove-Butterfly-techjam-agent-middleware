@@ -2,6 +2,7 @@ import type {
   AcceptedRunResponse,
   Agent,
   AgentRun,
+  AdvisorResource,
   CapsuleDenialReason,
   DemoSessionValue,
   DeniedRunResponse,
@@ -10,6 +11,8 @@ import type {
   Message,
   RunReceiptsResponse,
   SendMessageBody,
+  SuggestResourceResponse,
+  ResourceSuggestionReason,
   SystemInfo,
 } from "./types";
 
@@ -202,6 +205,82 @@ function parseResourcesResponse(value: unknown): ListResourcesResponse {
   return { resources };
 }
 
+const SUGGESTION_REASONS = new Set<ResourceSuggestionReason>([
+  "tag_match",
+  "display_name_match",
+  "description_match",
+]);
+
+function parseAdvisorResource(value: unknown): AdvisorResource | null {
+  const resource = asRecord(value);
+  if (!resource) return null;
+  const tags = resource.tags;
+  if (
+    typeof resource.id !== "string" ||
+    !RESOURCE_ID_PATTERN.test(resource.id) ||
+    typeof resource.displayName !== "string" ||
+    resource.displayName.length === 0 ||
+    resource.displayName.length > 200 ||
+    resource.kind !== "directory" ||
+    typeof resource.description !== "string" ||
+    resource.description.length === 0 ||
+    resource.description.length > 500 ||
+    !Array.isArray(tags) ||
+    tags.length === 0 ||
+    tags.length > 12 ||
+    tags.some(
+      (tag) =>
+        typeof tag !== "string" ||
+        !RESOURCE_ID_PATTERN.test(tag) ||
+        tag.length > 48,
+    )
+  ) {
+    return null;
+  }
+  return {
+    id: resource.id,
+    displayName: resource.displayName,
+    kind: "directory",
+    description: resource.description,
+    tags: tags as string[],
+  };
+}
+
+function parseSuggestResourceResponse(value: unknown): SuggestResourceResponse {
+  const candidate = asRecord(value);
+  if (!candidate || !(candidate.suggestion === null || candidate.suggestion)) {
+    throw new ApiError("Invalid Resource Advisor response", 502);
+  }
+  if (candidate.suggestion === null) return { suggestion: null };
+  const suggestion = asRecord(candidate.suggestion);
+  if (!suggestion) throw new ApiError("Invalid Resource Advisor response", 502);
+  const resource = parseAdvisorResource(suggestion.resource);
+  const matchedTerms = suggestion.matchedTerms;
+  if (
+    !resource ||
+    !Array.isArray(matchedTerms) ||
+    matchedTerms.length === 0 ||
+    matchedTerms.length > 8 ||
+    matchedTerms.some(
+      (term) =>
+        typeof term !== "string" ||
+        !RESOURCE_ID_PATTERN.test(term) ||
+        term.length > 48,
+    ) ||
+    typeof suggestion.reason !== "string" ||
+    !SUGGESTION_REASONS.has(suggestion.reason as ResourceSuggestionReason)
+  ) {
+    throw new ApiError("Invalid Resource Advisor response", 502);
+  }
+  return {
+    suggestion: {
+      resource,
+      matchedTerms: matchedTerms as string[],
+      reason: suggestion.reason as ResourceSuggestionReason,
+    },
+  };
+}
+
 export function isStaleDemoSessionError(
   value: unknown,
 ): value is StaleDemoSessionError {
@@ -283,6 +362,11 @@ export const api = {
     }),
   run: (id: string) => request<{ run: AgentRun }>("/api/runs/" + id),
   resources: () => request<unknown>("/api/resources").then(parseResourcesResponse),
+  suggestResource: (content: string) =>
+    request<unknown>("/api/resources/suggest", {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }).then(parseSuggestResourceResponse),
   entitlements: () => request<ListEntitlementsResponse>("/api/entitlements"),
   receipts: (runId: string) =>
     request<unknown>("/api/runs/" + runId + "/receipts").then((response) =>

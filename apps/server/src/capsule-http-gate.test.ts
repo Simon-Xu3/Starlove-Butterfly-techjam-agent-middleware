@@ -140,6 +140,7 @@ describe("Day 1 gate: four formal scenarios over HTTP, real composition", () => 
     expect(listed.statusCode).toBe(200);
     const resources = listed.json().resources;
     expect(resources.map((r: { id: string }) => r.id)).toEqual([
+      "inventory-incident",
       "orders-incident",
     ]);
     expect(listed.body).not.toContain("canonicalSourcePath");

@@ -43,6 +43,11 @@ describe("Resource routes", () => {
     expect(response.json()).toEqual({
       resources: [
         {
+          id: "inventory-incident",
+          displayName: "Inventory Incident",
+          kind: "directory",
+        },
+        {
           id: "orders-incident",
           displayName: "Orders Incident",
           kind: "directory",
@@ -68,6 +73,7 @@ describe("Resource routes", () => {
       ],
     });
     expect(otherPrincipal.body).not.toContain("orders-incident");
+    expect(otherPrincipal.body).not.toContain("inventory-incident");
     await app.close();
   });
 });

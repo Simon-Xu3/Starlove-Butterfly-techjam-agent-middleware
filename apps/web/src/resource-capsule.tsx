@@ -3,8 +3,12 @@ import type {
   DecisionReceipt,
   DeniedRunResponse,
   ProtectedResource,
+  ResourceSuggestion,
   SendMessageBody,
 } from "./types";
+import type { ResourceAdvisorState } from "./resource-advisor-coordinator";
+
+export type { ResourceAdvisorState } from "./resource-advisor-coordinator";
 
 const denialLabels: Record<CapsuleDenialReason, string> = {
   ownership_denied:
@@ -85,6 +89,113 @@ export function ResourcePicker({
         Revocation blocks future Runner starts only; it does not hot-unmount an
         active Run or erase content already retained in model or thread memory.
       </p>
+    </section>
+  );
+}
+
+/**
+ * The Advisor is deliberately a separate panel from ResourcePicker. A
+ * suggestion remains advisory until the user confirms the read-only,
+ * this-Run-only delegation. Confirmation only copies the existing Resource ID
+ * into the picker; it never submits a Run or changes Entitlements.
+ */
+export function ResourceAdvisor({
+  state,
+  onSuggest,
+  onUseSuggestion,
+  selectedResourceId = null,
+  disabled = false,
+}: {
+  state: ResourceAdvisorState;
+  onSuggest: () => void;
+  onUseSuggestion: (resourceId: string) => void;
+  selectedResourceId?: string | null;
+  disabled?: boolean;
+}) {
+  const suggestion = state.status === "suggested" ? state.suggestion : null;
+  const selectedInPicker = suggestion?.resource.id === selectedResourceId;
+  return (
+    <section className="resource-advisor" aria-label="Resource Advisor">
+      <div className="resource-advisor-heading">
+        <div>
+          <strong>Resource Advisor</strong>
+          <span>Suggest an eligible Resource from this task text.</span>
+        </div>
+        <button
+          type="button"
+          className="button button-ghost advisor-action"
+          onClick={onSuggest}
+          disabled={disabled || state.status === "loading"}
+          aria-busy={state.status === "loading"}
+        >
+          {state.status === "loading" ? (
+            <>
+              <span className="spinner" aria-hidden="true" />
+              <span>Checking…</span>
+            </>
+          ) : (
+            "Suggest Resource"
+          )}
+        </button>
+      </div>
+      <div className="resource-advisor-result" role="status" aria-live="polite">
+        {state.status === "idle" ? (
+          <p>Suggestions use safe catalog metadata only. Manual selection remains unchanged.</p>
+        ) : null}
+        {state.status === "loading" ? <p>Checking eligible Resource metadata…</p> : null}
+        {state.status === "no-match" ? (
+          <p>No matching eligible Resource was found. You can still use the picker.</p>
+        ) : null}
+        {state.status === "error" ? (
+          <p>
+            {state.message} You can retry or use the picker without a suggestion.
+          </p>
+        ) : null}
+        {suggestion ? (
+          <div className="resource-advisor-suggestion">
+            <div>
+              <strong>{suggestion.resource.displayName}</strong>
+              <span>{suggestion.resource.description}</span>
+            </div>
+            <div className="resource-advisor-tags">
+              {suggestion.resource.tags.map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
+            </div>
+            <small>
+              Matched {suggestion.reason.replaceAll("_", " ")}: {suggestion.matchedTerms.join(", ")}
+            </small>
+            <p
+              className="resource-advisor-status"
+              id="resource-advisor-selection-status"
+            >
+              {selectedInPicker
+                ? "Selected in picker. Review or remove it in Resource Capsule before sending."
+                : selectedResourceId
+                  ? "A different Resource is selected. Confirmation will replace it."
+                : "Suggestion only — nothing is delegated yet."}
+            </p>
+            <div
+              className="resource-advisor-confirmation"
+              aria-label="Confirm Resource delegation"
+            >
+              <div className="resource-advisor-confirmation-copy">
+                <strong>Confirm delegation</strong>
+                <span>read-only · this Run only</span>
+              </div>
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={() => onUseSuggestion(suggestion.resource.id)}
+                disabled={disabled}
+                aria-describedby="resource-advisor-selection-status"
+              >
+                Delegate for this Run
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

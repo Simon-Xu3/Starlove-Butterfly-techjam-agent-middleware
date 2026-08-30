@@ -1,0 +1,3 @@
+2026-08-26T08:14:00Z WARN stock snapshot lagging warehouse import
+2026-08-26T08:16:00Z INFO replenishment batch accepted
+2026-08-26T08:19:00Z WARN availability cache serving stale count

@@ -2,6 +2,7 @@ import { HttpError } from "./errors.js";
 import type { JsonStore } from "./store.js";
 import {
   DEMO_ENTITLEMENT_MATRIX,
+  type EligibleResourceReader,
   type EntitlementReader,
   type HumanPrincipalId,
   type PrincipalResourceEntitlement,
@@ -55,7 +56,9 @@ type Clock = () => string;
 
 const systemClock: Clock = () => new Date().toISOString();
 
-export class PrincipalEntitlementService implements EntitlementReader {
+export class PrincipalEntitlementService
+  implements EntitlementReader, EligibleResourceReader
+{
   constructor(
     private readonly store: JsonStore,
     private readonly registry: ResourceRegistryReader,
@@ -84,6 +87,20 @@ export class PrincipalEntitlementService implements EntitlementReader {
       resourceId,
     );
     return entitlement ? cloneEntitlement(entitlement) : undefined;
+  }
+
+  /**
+   * Return only Resource IDs that the current principal may delegate now.
+   * Keeping this filter in the Entitlement service gives the catalog and the
+   * metadata-only Advisor one principal-scoped eligibility seam.
+   */
+  listEligibleResourceIds(principalId: HumanPrincipalId): string[] {
+    return this.listEntitlements(principalId)
+      .filter(
+        (entitlement) =>
+          entitlement.status === "active" && entitlement.permission === "read",
+      )
+      .map((entitlement) => entitlement.resourceId);
   }
 
   async grant(

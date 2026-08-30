@@ -156,8 +156,8 @@ and per-Run Delegation are in
 
 ### Protected Resource Registry and Grants
 
-- Use a server-owned static Registry with two directory fixture resources for
-  the MVP.
+- Use a server-owned static Registry with three directory fixture resources for
+  the MVP: `orders-incident`, `inventory-incident`, and `payments-incident`.
 - Accept Resource IDs from clients, never source paths, target paths, mount
   modes, owners, or principals.
 - Provide minimal operations to list safe Resource metadata visible to the
@@ -170,6 +170,20 @@ and per-Run Delegation are in
   model.
 - Increment generation monotonically for each new grant or re-grant so a
   Receipt identifies the authorization generation used by a Run.
+
+### Resource Advisor contract
+
+- `POST /api/resources/suggest` accepts only bounded transient task text in a
+  `content` field and never persists the request or result.
+- The Advisor evaluates only the current principal's active read Entitlements.
+  It returns either no suggestion or one safe Advisor Resource projection with
+  bounded description, normalized tags, safe matched terms, and one stable
+  reason code (`tag_match`, `display_name_match`, or `description_match`).
+- Exact normalized tag matches outrank display-name matches, which outrank
+  description matches. A zero-match or equal top score returns
+  `{ "suggestion": null }`.
+- The Advisor cannot create a Run, Message, Receipt, mount plan, Codex task,
+  or Runner call; the Web action never auto-selects or submits a Resource.
 
 ### ValidatedRunMountPlan
 

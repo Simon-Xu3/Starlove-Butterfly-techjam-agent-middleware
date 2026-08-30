@@ -38,7 +38,7 @@ capsule-enabled local-process Run fails closed.
   the model to comply.
 - Both success and denial can be proved with resource, Runner, mount, and hash
   facts that do not depend on model wording.
-- The scope remains small with two demo principals, two resources, and one
+- The scope remains small with two demo principals, three resources, and one
   read-only action.
 
 ## Rejected alternatives

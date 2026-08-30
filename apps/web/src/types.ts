@@ -145,6 +145,28 @@ export interface ListResourcesResponse {
   resources: ProtectedResource[];
 }
 
+// Safe, metadata-only Resource Advisor projection. This is intentionally a
+// separate DTO from ProtectedResource and never carries a host path or body.
+export interface AdvisorResource extends ProtectedResource {
+  description: string;
+  tags: string[];
+}
+
+export type ResourceSuggestionReason =
+  | "tag_match"
+  | "display_name_match"
+  | "description_match";
+
+export interface ResourceSuggestion {
+  resource: AdvisorResource;
+  matchedTerms: string[];
+  reason: ResourceSuggestionReason;
+}
+
+export interface SuggestResourceResponse {
+  suggestion: ResourceSuggestion | null;
+}
+
 // Entitlement record mirrored from the server contract. Contains no host
 // path and is safe to render.
 export interface PrincipalResourceEntitlement {

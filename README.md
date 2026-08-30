@@ -16,13 +16,14 @@ The core guarantee is deliberately narrow and testable:
 
 ScopedRun enforces this in the Fastify control plane and container launch
 path, rather than relying on a resource picker, prompt instructions, or the
-Agent to police itself. The demo uses two mock users and two server-owned
+Agent to police itself. The demo uses two mock users and three server-owned
 incident bundles: an authorized bundle can be read by a real Agent Run, while
 an unauthorized bundle is rejected before the Runtime starts.
 
 An Entitlement is only the upper bound of what a principal may delegate. The
-user must explicitly choose the Resource for each Run; suggestions, when
-present, are advisory and never authorize or submit a delegation.
+user must explicitly choose the Resource for each Run. The deterministic
+Resource Advisor can suggest one eligible bundle from safe metadata, but its
+suggestions never authorize or submit a delegation.
 
 - [Approved planning brief](docs/planning/resource-capsule-brief.md)
 - [Product user flow and authorization model](docs/planning/scopedrun-user-flow.md)

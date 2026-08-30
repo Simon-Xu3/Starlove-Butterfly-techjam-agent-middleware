@@ -274,6 +274,15 @@ describe("JsonStore", () => {
           revokedAt: null,
         },
         {
+          principalId: "user-a",
+          resourceId: "inventory-incident",
+          permission: "read",
+          status: "active",
+          generation: 1,
+          createdAt: "2026-08-28T00:00:00.000Z",
+          revokedAt: null,
+        },
+        {
           principalId: "user-b",
           resourceId: "payments-incident",
           permission: "read",
@@ -288,6 +297,103 @@ describe("JsonStore", () => {
     expect(JSON.parse(await readFile(filePath, "utf8"))).toEqual(
       store.snapshot(),
     );
+  });
+
+  it("additively backfills inventory for an existing v2 store and remains idempotent", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "launchpad-store-test-"));
+    temporaryDirectories.push(root);
+    const filePath = path.join(root, "db.json");
+    const legacyV2 = {
+      version: 2,
+      agents: [],
+      messages: [],
+      runs: [],
+      entitlements: [
+        {
+          principalId: "user-a",
+          resourceId: "orders-incident",
+          permission: "read",
+          status: "active",
+          generation: 1,
+          createdAt: "2026-08-28T00:00:00.000Z",
+          revokedAt: null,
+        },
+        {
+          principalId: "user-b",
+          resourceId: "payments-incident",
+          permission: "read",
+          status: "active",
+          generation: 1,
+          createdAt: "2026-08-28T00:00:00.000Z",
+          revokedAt: null,
+        },
+      ],
+      receipts: [],
+    } as const;
+    await writeFile(filePath, JSON.stringify(legacyV2), "utf8");
+
+    const store = new JsonStore(filePath, () => "2026-08-30T00:00:00.000Z");
+    await store.initialize();
+    expect(store.snapshot().entitlements).toEqual([
+      ...legacyV2.entitlements,
+      {
+        principalId: "user-a",
+        resourceId: "inventory-incident",
+        permission: "read",
+        status: "active",
+        generation: 1,
+        createdAt: "2026-08-30T00:00:00.000Z",
+        revokedAt: null,
+      },
+    ]);
+
+    const restarted = new JsonStore(filePath, () => "2026-08-31T00:00:00.000Z");
+    await restarted.initialize();
+    expect(restarted.snapshot()).toEqual(store.snapshot());
+  });
+
+  it("does not reactivate a revoked inventory history during v2 backfill", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "launchpad-store-test-"));
+    temporaryDirectories.push(root);
+    const filePath = path.join(root, "db.json");
+    const revokedInventory = {
+      principalId: "user-a" as const,
+      resourceId: "inventory-incident",
+      permission: "read" as const,
+      status: "revoked" as const,
+      generation: 4,
+      createdAt: "2026-08-28T00:00:00.000Z",
+      revokedAt: "2026-08-29T00:00:00.000Z",
+    };
+    const unrelatedRevoked = {
+      principalId: "user-a" as const,
+      resourceId: "orders-incident",
+      permission: "read" as const,
+      status: "revoked" as const,
+      generation: 2,
+      createdAt: "2026-08-28T00:00:00.000Z",
+      revokedAt: "2026-08-29T00:00:00.000Z",
+    };
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: 2,
+        agents: [],
+        messages: [],
+        runs: [],
+        entitlements: [revokedInventory, unrelatedRevoked],
+        receipts: [],
+      }),
+      "utf8",
+    );
+
+    const store = new JsonStore(filePath, () => "2026-08-30T00:00:00.000Z");
+    await store.initialize();
+
+    expect(store.snapshot().entitlements).toEqual([
+      revokedInventory,
+      unrelatedRevoked,
+    ]);
   });
 
   it("does not publish a migration when the version 2 write fails", async () => {
