@@ -40,3 +40,8 @@ The opt-in container profile mounts only the current Agent's persistent Codex
 state directory. Demo identities, host-process Runs, outbound network access,
 and the ordinary container Runtime remain outside any production tenant
 isolation claim.
+
+At startup, the data, workspace, Codex-state, and Protected Resource roots are
+canonicalized and must be pairwise disjoint. Before every Runner handoff, the
+workspace is re-derived from the configured root and Agent ID; a stale,
+missing, external, or symlinked persisted path fails closed.

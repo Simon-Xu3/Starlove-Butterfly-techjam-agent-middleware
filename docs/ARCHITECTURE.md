@@ -123,6 +123,12 @@ codex-home/agents/<hash>/ per-Agent persistent Codex configuration and thread st
 fixtures/resources/       server-owned demo Resources; never exposed as host paths
 ```
 
+Startup canonicalizes these managed roots and rejects equal, nested, or
+symlink-overlapping configurations. The persisted `workspacePath` is metadata,
+not mount authority: the control plane re-derives and validates the exact
+workspace from the current root and Agent ID immediately before each Runner
+handoff.
+
 Revocation is prospective. It blocks a future admission or Runner start, but
 does not hot-unmount an active container and does not delete historical Runs,
 Receipts, workspaces, or Codex threads. Deleting an Agent uses the existing
