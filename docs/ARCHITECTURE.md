@@ -157,6 +157,30 @@ prompt-injection protection, hot revocation, or model-memory erasure. The MVP
 supports at most one directory Resource per Capsule Run, read-only, using the
 local container profile.
 
+## Extension points
+
+These contracts stay stable as the surface grows, so new Resources, Runtime
+providers, or Receipt evidence extend the system without renegotiating the
+trust boundary above:
+
+- **Resources.** The Registry only accepts typed `ResourceDefinition` entries
+  resolved from `RESOURCE_ROOT` at startup. A client selects a Resource ID but
+  never adds, renames, or relocates one, so onboarding a Resource is a
+  server-side Registry change, not an API or Runtime change.
+- **Runtime providers.** `CodexRunner` (`local-process`) and
+  `ContainerCodexRunner` (`container`) both implement the same `AgentRunner`
+  contract (`run`, `cancel`, `isAvailable`). A future provider joins through
+  that same interface and the existing profile gate, which already fails
+  closed with `runtime_profile_unsupported` for any provider that cannot honor
+  a Capsule mount plan.
+- **Receipts.** ADR-004 separates the authorization Decision from
+  `runnerStarted` execution evidence, so additional Receipt evidence can be
+  added later without breaking existing `Delegated`/`Decided`/`Executed`
+  consumers.
+- **Entitlements and Delegation.** ADR-002 keeps the standing Entitlement
+  separate from the explicit per-Run Delegation, so additional principals or
+  Resources can be entitled without changing what a Run Delegation means.
+
 See the [three-minute demo](SCOPEDRUN_DEMO.md), the
 [approved user flow](planning/scopedrun-user-flow.md), and
 [ADR-002](adr/002-separate-entitlement-from-run-delegation.md). Persistent
