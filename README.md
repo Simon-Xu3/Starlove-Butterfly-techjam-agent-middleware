@@ -126,13 +126,33 @@ file across all three fixtures keeps the same bytes, SHA-256 hash, and
 modification time. It does not call the model API.
 
 For the live Agent path, export a valid Ark key and model without placing them
-in source or terminal output, then start the local container profile:
+in source or terminal output, then start the local container profile. On
+macOS, Linux, or Git Bash:
 
 ```bash
 ARK_API_KEY=your-ark-api-key \
 ARK_MODEL=ep-your-endpoint-id \
 npm run poc
 ```
+
+On Windows PowerShell:
+
+```powershell
+$env:ARK_API_KEY = "your-ark-api-key"
+$env:ARK_MODEL = "ep-your-endpoint-id"
+npm run poc
+```
+
+On Windows Command Prompt:
+
+```bat
+set "ARK_API_KEY=your-ark-api-key"
+set "ARK_MODEL=ep-your-endpoint-id"
+npm run poc
+```
+
+`npm run poc` reads the current process environment. It does not load `.env`
+automatically.
 
 Open <http://localhost:3000> and follow the
 [three-minute demo runbook](docs/SCOPEDRUN_DEMO.md). A real model answer needs
@@ -190,11 +210,32 @@ Skip this step when already working from the repository root.
 
 ### 3. Start the POC
 
+On macOS, Linux, or Git Bash:
+
 ```bash
 ARK_API_KEY=your-ark-api-key \
 ARK_MODEL=ep-your-endpoint-id \
 npm run poc
 ```
+
+On Windows PowerShell:
+
+```powershell
+$env:ARK_API_KEY = "your-ark-api-key"
+$env:ARK_MODEL = "ep-your-endpoint-id"
+npm run poc
+```
+
+On Windows Command Prompt:
+
+```bat
+set "ARK_API_KEY=your-ark-api-key"
+set "ARK_MODEL=ep-your-endpoint-id"
+npm run poc
+```
+
+The launcher does not load `.env` automatically. Set the variables in the
+same terminal session before running `npm run poc`.
 
 The first run installs Node.js dependencies and builds the Runtime image. The
 script automatically selects Docker, Colima, or Podman.
