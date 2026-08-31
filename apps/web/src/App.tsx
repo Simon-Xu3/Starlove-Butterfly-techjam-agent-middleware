@@ -103,6 +103,10 @@ export default function App() {
     useState<DemoSessionValue>("demo-session-a");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pollRetry, setPollRetry] = useState<{
+    runId: string;
+    agentId: string;
+  } | null>(null);
   const [authRequired, setAuthRequired] = useState<boolean | null>(null);
   const [authInput, setAuthInput] = useState("");
   const messagesPane = useRef<HTMLDivElement>(null);
@@ -224,7 +228,11 @@ export default function App() {
     }
   }, []);
 
-  const loadReceipt = useCallback(async (runId: string, agentId: string) => {
+  const loadReceipt = useCallback(async (
+    runId: string,
+    agentId: string,
+    reportFailure = false,
+  ) => {
     const sessionEpoch = sessionEpochRef.current;
     const requestId = ++receiptRequestRef.current;
     try {
@@ -262,7 +270,9 @@ export default function App() {
         selectedIdRef.current === agentId &&
         !isStaleDemoSessionError(reason)
       ) {
-        setActiveReceipt(null);
+        // Keep the last trusted Receipt visible during a temporary network
+        // failure. The polling loop can retry without erasing proof context.
+        if (reportFailure) throw reason;
       }
     }
   }, []);
@@ -296,6 +306,7 @@ export default function App() {
     setActiveReceipt(null);
     setDeniedRun(null);
     setSubmittedCapsule(null);
+    setPollRetry(null);
     setRunSetupOpen(true);
     followLatestMessagesRef.current = true;
     setShowJumpToLatest(false);
@@ -319,14 +330,24 @@ export default function App() {
           void loadReceipt(latest.id, selectedId);
         }
         if (latest && ["queued", "running"].includes(latest.status)) {
-          void pollRun(latest.id, selectedId).catch((reason) =>
-            setError(reason instanceof Error ? reason.message : String(reason)),
-          );
+          void pollRun(latest.id, selectedId).catch(() => {
+            if (
+              sessionEpoch !== sessionEpochRef.current ||
+              selectedIdRef.current !== selectedId
+            ) {
+              return;
+            }
+            setPollRetry({ runId: latest.id, agentId: selectedId });
+            setError(
+              "Status refresh stopped after repeated network failures. The accepted Run and proof context were preserved.",
+            );
+          });
         }
       })
       .catch((reason) => {
         if (
           sessionEpoch !== sessionEpochRef.current ||
+          selectedIdRef.current !== selectedId ||
           isStaleDemoSessionError(reason)
         ) {
           return;
@@ -442,7 +463,9 @@ export default function App() {
         wait: () =>
           new Promise((resolve) => window.setTimeout(resolve, 900)),
         shouldContinue: () =>
-          mountedRef.current && sessionEpoch === sessionEpochRef.current,
+          mountedRef.current &&
+          sessionEpoch === sessionEpochRef.current &&
+          selectedIdRef.current === agentId,
         getRun: api.run,
         onRun: (run) => {
           if (
@@ -455,7 +478,7 @@ export default function App() {
         },
         refreshReceipt: async () => {
           if (selectedIdRef.current === agentId) {
-            await loadReceipt(runId, agentId);
+            await loadReceipt(runId, agentId, true);
           }
         },
         onTerminal: async () => {
@@ -463,13 +486,30 @@ export default function App() {
             refreshMessages(agentId),
             refreshAgents(),
             selectedIdRef.current === agentId
-              ? loadReceipt(runId, agentId)
+              ? loadReceipt(runId, agentId, true)
               : Promise.resolve(),
           ]);
         },
       });
     } finally {
       pollingRunIds.current.delete(runId);
+    }
+  };
+
+  const retryRunPolling = async () => {
+    const target = pollRetry;
+    if (!target || selectedIdRef.current !== target.agentId) return;
+    setPollRetry(null);
+    setError(null);
+    try {
+      await pollRun(target.runId, target.agentId);
+    } catch {
+      if (selectedIdRef.current === target.agentId) {
+        setPollRetry(target);
+        setError(
+          "Status refresh stopped after repeated network failures. The accepted Run and proof context were preserved.",
+        );
+      }
     }
   };
 
@@ -482,6 +522,7 @@ export default function App() {
     const sessionEpoch = sessionEpochRef.current;
     receiptRequestRef.current += 1;
     setSubmittedCapsule(null);
+    setPollRetry(null);
     updatePrompt("");
     dispatchGuidedDelegation({ type: "run_submitted" });
     setRunSetupOpen(false);
@@ -519,7 +560,21 @@ export default function App() {
       ) {
         void loadReceipt(result.run.id, selected.id);
       }
-      await pollRun(result.run.id, selected.id);
+      try {
+        await pollRun(result.run.id, selected.id);
+        setPollRetry(null);
+      } catch {
+        if (
+          sessionEpoch === sessionEpochRef.current &&
+          selectedIdRef.current === selected.id
+        ) {
+          setError(
+            "Status refresh stopped after repeated network failures. The accepted Run and proof context were preserved.",
+          );
+          setPollRetry({ runId: result.run.id, agentId: selected.id });
+        }
+        await refreshAgents().catch(() => undefined);
+      }
     } catch (reason) {
       if (
         sessionEpoch !== sessionEpochRef.current ||
@@ -612,6 +667,7 @@ export default function App() {
     setResourceUnavailable(null);
     dispatchGuidedDelegation({ type: "principal_changed" });
     setSubmittedCapsule(null);
+    setPollRetry(null);
     setRunSetupOpen(true);
     followLatestMessagesRef.current = true;
     setShowJumpToLatest(false);
@@ -702,7 +758,7 @@ export default function App() {
             <span>
               {system?.runtimeProvider === "container"
                 ? "Local container · Codex CLI"
-                : "ECS / Docker · Codex CLI"}
+                : "Local process · no per-Run isolation"}
             </span>
           </div>
         </div>
@@ -788,7 +844,19 @@ export default function App() {
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
-            <button onClick={() => setError(null)}>×</button>
+            <div className="error-actions">
+              {pollRetry && (
+                <button
+                  className="error-retry"
+                  onClick={() => void retryRunPolling()}
+                >
+                  Retry status
+                </button>
+              )}
+              <button aria-label="Dismiss error" onClick={() => setError(null)}>
+                ×
+              </button>
+            </div>
           </div>
         )}
 

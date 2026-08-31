@@ -283,8 +283,10 @@ complete supported MVP. The MVP supports readonly access only.
 
 - The Runtime seam is `ContainerCodexRunner.run(run, validatedMountPlan)` for a
   Capsule Run.
-- The Runner translates the plan into one readonly bind mount and keeps the
-  existing Agent workspace and Codex-home behavior required by the Starter Kit.
+- The Runner translates the plan into one readonly bind mount, keeps the
+  existing Agent workspace behavior, and mounts only the current Agent's
+  server-derived persistent Codex-home directory. It never mounts the shared
+  Codex-home parent containing another Agent's thread state.
 - The mounted Protected Resource appears only at its generated target.
 - A Capsule Run may not execute through the host-process Runner.
 - When `local-process` is active, create a denied Run and Receipt with reason

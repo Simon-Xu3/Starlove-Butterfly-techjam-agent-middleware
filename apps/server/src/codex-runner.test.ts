@@ -7,6 +7,7 @@ describe("Codex runner protocol", () => {
       {
         agentId: "agent",
         workspacePath: "/tmp/workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent",
         prompt: "build a calculator",
         threadId: null,
       },
@@ -29,6 +30,7 @@ describe("Codex runner protocol", () => {
       {
         agentId: "agent",
         workspacePath: "/tmp/workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent",
         prompt: "add tests",
         threadId: "thread-123",
       },

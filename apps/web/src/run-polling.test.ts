@@ -53,4 +53,97 @@ describe("active Run polling", () => {
       expect.objectContaining({ status: "completed" }),
     );
   });
+
+  it("retries a temporary read failure without losing the accepted Run", async () => {
+    const getRun = vi
+      .fn<() => Promise<{ run: AgentRun }>>()
+      .mockRejectedValueOnce(new Error("temporary network failure"))
+      .mockResolvedValueOnce({ run: makeRun("running") })
+      .mockResolvedValueOnce({ run: makeRun("completed") });
+    const onRun = vi.fn();
+    const refreshReceipt = vi.fn(async () => undefined);
+    const onTerminal = vi.fn(async () => undefined);
+
+    await pollActiveRun({
+      runId,
+      wait: async () => undefined,
+      shouldContinue: () => true,
+      getRun,
+      onRun,
+      refreshReceipt,
+      onTerminal,
+    });
+
+    expect(getRun).toHaveBeenCalledTimes(3);
+    expect(onRun.mock.calls.map(([run]) => run.status)).toEqual([
+      "running",
+      "completed",
+    ]);
+    expect(onTerminal).toHaveBeenCalledOnce();
+  });
+
+  it("stops after three consecutive polling failures", async () => {
+    const getRun = vi.fn(async () => {
+      throw new Error("offline");
+    });
+
+    await expect(
+      pollActiveRun({
+        runId,
+        wait: async () => undefined,
+        shouldContinue: () => true,
+        getRun,
+        onRun: vi.fn(),
+        refreshReceipt: vi.fn(async () => undefined),
+        onTerminal: vi.fn(async () => undefined),
+      }),
+    ).rejects.toThrow("offline");
+    expect(getRun).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries a temporary Receipt refresh failure", async () => {
+    const snapshots = [
+      makeRun("running"),
+      makeRun("running"),
+      makeRun("completed"),
+    ];
+    const refreshReceipt = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("temporary receipt failure"))
+      .mockResolvedValue(undefined);
+    const onTerminal = vi.fn(async () => undefined);
+
+    await pollActiveRun({
+      runId,
+      wait: async () => undefined,
+      shouldContinue: () => true,
+      getRun: vi.fn(async () => ({ run: snapshots.shift()! })),
+      onRun: vi.fn(),
+      refreshReceipt,
+      onTerminal,
+    });
+
+    expect(refreshReceipt).toHaveBeenCalledTimes(2);
+    expect(onTerminal).toHaveBeenCalledOnce();
+  });
+
+  it("stops quietly when the selected Agent changes during a failed request", async () => {
+    let selectedAgentMatches = true;
+    const getRun = vi.fn(async () => {
+      selectedAgentMatches = false;
+      throw new Error("old Agent request failed after selection changed");
+    });
+
+    await pollActiveRun({
+      runId,
+      wait: async () => undefined,
+      shouldContinue: () => selectedAgentMatches,
+      getRun,
+      onRun: vi.fn(),
+      refreshReceipt: vi.fn(async () => undefined),
+      onTerminal: vi.fn(async () => undefined),
+    });
+
+    expect(getRun).toHaveBeenCalledOnce();
+  });
 });

@@ -33,7 +33,7 @@ suggestions never authorize or submit a delegation.
 - [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
 - [Day 2 feature-freeze evidence](docs/evidence/day2-feature-freeze-2026-08-29.md)
 - [Three-minute demo runbook](docs/SCOPEDRUN_DEMO.md)
-- [Current final-submission audit](docs/evidence/final-submission-audit-2026-08-30.md)
+- [Current final-submission audit](docs/evidence/issue-33-final-audit-2026-08-31.md)
 - [Issue #10 delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 
 The feature-freeze gate has passed deterministic HTTP, authorization, path,
@@ -379,6 +379,10 @@ flowchart LR
 ```
 
 The first turn uses `codex exec`; later turns resume the stored Codex thread.
+Container Runs mount only the current Agent's server-derived directory under
+`codex-home/agents/`; another Agent's thread/session files are not included in
+that Runtime mount. The `local-process` profile has no equivalent filesystem
+isolation and is labeled accordingly in the API and UI.
 Deleting an Agent archives its workspace under `workspaces/.deleted/`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for component and extension
@@ -404,7 +408,7 @@ host path.
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Three-minute ScopedRun demo](docs/SCOPEDRUN_DEMO.md)
-- [Current final-submission audit](docs/evidence/final-submission-audit-2026-08-30.md)
+- [Current final-submission audit](docs/evidence/issue-33-final-audit-2026-08-31.md)
 - [Issue #10 delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 - [Local POC](docs/LOCAL_POC.md)
 - [Deployment](docs/DEPLOYMENT.md)

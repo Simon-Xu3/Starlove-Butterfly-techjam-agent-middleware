@@ -117,7 +117,7 @@ export function buildContainerRunArgs(
     "--mount",
     "type=bind,src=" + request.workspacePath + ",dst=/workspace",
     "--mount",
-    "type=bind,src=" + config.codexHome + ",dst=/codex-home",
+    "type=bind,src=" + request.codexHomePath + ",dst=/codex-home",
     ...(validatedMountPlan
       ? ["--mount", buildReadonlyResourceMount(validatedMountPlan)]
       : []),

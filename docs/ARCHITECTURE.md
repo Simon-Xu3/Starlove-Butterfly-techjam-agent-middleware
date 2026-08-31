@@ -35,7 +35,7 @@ flowchart LR
 
     subgraph Runtime["Disposable local container · hackathon-grade boundary"]
         Runner["ContainerCodexRunner"]
-        Namespace["/workspace · read/write<br/>/codex-home · read/write<br/>/resources/&lt;id&gt; · read-only"]
+        Namespace["/workspace · read/write<br/>/codex-home · current Agent only, read/write<br/>/resources/&lt;id&gt; · read-only"]
         Codex["Codex CLI"]
     end
 
@@ -119,7 +119,7 @@ yet available, Receipt-derived fields remain neutral and pending.
 ```text
 data/launchpad.json       owner-scoped Agents, Runs, Messages, Entitlements, Receipts
 workspaces/<agent-id>/    persistent Agent-created files
-codex-home/               persistent Codex configuration and thread state
+codex-home/agents/<hash>/ per-Agent persistent Codex configuration and thread state
 fixtures/resources/       server-owned demo Resources; never exposed as host paths
 ```
 
@@ -135,6 +135,16 @@ guard. Neither is production authentication. The disposable container and
 readonly bind mount are hackathon-grade controls, not hardened multi-tenant
 isolation.
 
+Container Runs receive only the current Agent's server-derived Codex state
+directory. They do not receive the shared `codex-home` parent. The
+`local-process` profile remains a host process with no per-Run container
+isolation and must not be presented as a tenant boundary.
+
+On upgrade from the earlier shared-state layout, a legacy Agent without an
+isolated state directory starts a new Codex thread. The stale shared-home
+thread ID is cleared rather than resumed from an empty or another Agent's
+directory.
+
 ScopedRun controls server-owned filesystem namespace exposure. It does not
 provide general RBAC, network policy, generic MCP/HTTP interception, DLP,
 prompt-injection protection, hot revocation, or model-memory erasure. The MVP
@@ -143,4 +153,6 @@ local container profile.
 
 See the [three-minute demo](SCOPEDRUN_DEMO.md), the
 [approved user flow](planning/scopedrun-user-flow.md), and
-[ADR-002](adr/002-separate-entitlement-from-run-delegation.md).
+[ADR-002](adr/002-separate-entitlement-from-run-delegation.md). Persistent
+Runtime state isolation is recorded in
+[ADR-005](adr/005-isolate-codex-state-per-agent.md).

@@ -96,6 +96,7 @@ export interface RunnerResult {
 export interface RunnerRequest {
   agentId: string;
   workspacePath: string;
+  codexHomePath: string;
   prompt: string;
   threadId: string | null;
 }

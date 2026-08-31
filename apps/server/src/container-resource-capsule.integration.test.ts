@@ -43,6 +43,7 @@ async function buildKillTestImage(engine: string, directory: string): Promise<st
       "test -r /resources/orders-incident/incident-report.md",
       "test ! -e /resources/inventory-incident",
       "test ! -e /resources/payments-incident",
+      "test ! -e /codex-home/agents/agent-b/private-session.txt",
       "if touch /resources/orders-incident/.capsule-write-probe; then exit 1; fi",
       "printf '%s\\n' '{\"type\":\"thread.started\",\"thread_id\":\"kill-test-thread\"}'",
       "printf '%s\\n' '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"resource-capsule-kill-test-passed\"}}'",
@@ -65,6 +66,8 @@ describe("Container Resource Capsule Kill Test", () => {
       );
       const workspacePath = path.join(directory, "workspace");
       const codexHome = path.join(directory, "codex-home");
+      const agentCodexHome = path.join(codexHome, "agents", "agent-a");
+      const otherAgentCodexHome = path.join(codexHome, "agents", "agent-b");
       const plan = makeMountPlan();
       const inventoryPlan = makeMountPlan({ resourceId: "inventory-incident" });
       const paymentsPlan = makeMountPlan({ resourceId: "payments-incident" });
@@ -75,7 +78,13 @@ describe("Container Resource Capsule Kill Test", () => {
 
       try {
         await mkdir(workspacePath);
-        await mkdir(codexHome);
+        await mkdir(agentCodexHome, { recursive: true });
+        await mkdir(otherAgentCodexHome, { recursive: true });
+        await writeFile(
+          path.join(otherAgentCodexHome, "private-session.txt"),
+          "must not be visible to agent-a",
+          "utf8",
+        );
         const runner = new ContainerCodexRunner(
           loadConfig({
             NODE_ENV: "test",
@@ -93,6 +102,7 @@ describe("Container Resource Capsule Kill Test", () => {
             {
               agentId: "agent-a",
               workspacePath,
+              codexHomePath: agentCodexHome,
               prompt: "run the resource capsule kill test",
               threadId: null,
             },

@@ -372,6 +372,19 @@ describe("demo session identity", () => {
     await app.close();
   });
 
+  it("labels local-process honestly as having no per-Run isolation", async () => {
+    const { app } = await makeTestApp({ runtimeProvider: "local-process" });
+    const response = await app.inject({ method: "GET", url: "/api/system" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      runtimeProvider: "local-process",
+      runtime: "Local process · no per-Run container isolation",
+      containerEngine: null,
+    });
+    await app.close();
+  });
+
   it("rejects identity fields smuggled into request bodies", async () => {
     const { app } = await makeTestApp();
     for (const extra of [
@@ -635,6 +648,42 @@ describe("Run admission", () => {
     await app.close();
   });
 
+  it("persists an authorization denial even when Ark is not configured", async () => {
+    const { app, service, receipts, runner } = await makeTestApp({
+      arkConfigured: false,
+      capsule: { authorizer: makeFakeAuthorizer(makeDenyDecision()) },
+    });
+    const agent = await createAgent(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "read payments",
+        resourceIds: ["payments-incident"],
+      }),
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      status: "denied",
+      reason: "entitlement_missing",
+    });
+    expect(service.getRun(response.json().runId, "user-a").status).toBe(
+      "denied",
+    );
+    expect(receipts.getReceiptsForRun(response.json().runId)).toEqual([
+      expect.objectContaining({
+        decision: "deny",
+        reason: "entitlement_missing",
+        runnerStarted: false,
+      }),
+    ]);
+    expect((runner as ReturnType<typeof makeFakeCapsuleRunner>).calls).toHaveLength(0);
+    await app.close();
+  });
+
   it("propagates every frozen denial reason to the response and Receipt", async () => {
     for (const denial of [
       { reason: "entitlement_revoked" as const, grantGeneration: 2 },
@@ -739,6 +788,37 @@ describe("Run admission", () => {
       runnerStarted: false,
       grantGeneration: 1,
     });
+    await app.close();
+  });
+
+  it("records the local-process denial before checking Ark configuration", async () => {
+    const { app, receipts, runner } = await makeTestApp({
+      arkConfigured: false,
+      runtimeProvider: "local-process",
+      capsule: { authorizer: makeFakeAuthorizer(makeAllowDecision()) },
+    });
+    const agent = await createAgent(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/agents/" + agent.id + "/messages",
+      headers: { ...json, ...sessionA },
+      payload: JSON.stringify({
+        content: "analyse orders",
+        resourceIds: ["orders-incident"],
+      }),
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().reason).toBe("runtime_profile_unsupported");
+    expect(receipts.getReceiptsForRun(response.json().runId)).toEqual([
+      expect.objectContaining({
+        decision: "deny",
+        reason: "runtime_profile_unsupported",
+        runnerStarted: false,
+      }),
+    ]);
+    expect((runner as ReturnType<typeof makeFakeCapsuleRunner>).calls).toHaveLength(0);
     await app.close();
   });
 
@@ -890,34 +970,6 @@ describe("Run admission", () => {
   });
 
   it("does not let a failed deny write reset a concurrently admitted Run", async () => {
-    let secondMutationQueued!: () => void;
-    const queuedBehindFailure = new Promise<void>((resolve) => {
-      secondMutationQueued = resolve;
-    });
-    class QueueAwareStore extends JsonStore {
-      private monitoring = false;
-      private firstMutationActive = false;
-
-      arm(): void {
-        this.monitoring = true;
-      }
-
-      override async mutate<T>(
-        mutation: (database: DatabaseV2) => T | Promise<T>,
-      ): Promise<T> {
-        if (this.monitoring && this.firstMutationActive) {
-          secondMutationQueued();
-        }
-        const tracksFirst = this.monitoring && !this.firstMutationActive;
-        if (tracksFirst) this.firstMutationActive = true;
-        try {
-          return await super.mutate(mutation);
-        } finally {
-          if (tracksFirst) this.firstMutationActive = false;
-        }
-      }
-    }
-
     let receiptWriteReached!: () => void;
     const reachedReceiptWrite = new Promise<void>((resolve) => {
       receiptWriteReached = resolve;
@@ -950,7 +1002,7 @@ describe("Run admission", () => {
       runner.calls.push({ request, validatedMountPlan });
       return pendingRunner;
     };
-    let store!: QueueAwareStore;
+    let store!: JsonStore;
     const { app, service } = await makeTestApp({
       runner,
       capsule: {
@@ -960,12 +1012,11 @@ describe("Run admission", () => {
         receipts: failingReceipts,
       },
       storeFactory: (filePath) => {
-        store = new QueueAwareStore(filePath);
+        store = new JsonStore(filePath);
         return store;
       },
     });
     const agent = await createAgent(app);
-    store.arm();
 
     const denying = app.inject({
       method: "POST",
@@ -983,7 +1034,8 @@ describe("Run admission", () => {
       headers: { ...json, ...sessionA },
       payload: JSON.stringify({ content: "baseline request" }),
     });
-    await queuedBehindFailure;
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(runner.calls).toHaveLength(0);
     releaseReceiptWrite();
 
     const [failed, admitted] = await Promise.all([denying, admitting]);

@@ -1,4 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
+import {
+  hasAgentCodexHome,
+  prepareAgentCodexHome,
+} from "./codex-home.js";
 import type { AppConfig } from "./config.js";
 import { isArkConfigured } from "./config.js";
 import { HttpError, RunCancelledError } from "./errors.js";
@@ -73,6 +77,7 @@ export class AgentService {
   private readonly activeExecutions = new Map<string, Promise<void>>();
   private readonly pendingAdmissions = new Map<string, Set<Promise<void>>>();
   private readonly cancellationRequests = new Set<string>();
+  private readonly agentFileOperations = new Map<string, Promise<void>>();
 
   constructor(
     private readonly config: AppConfig,
@@ -86,6 +91,12 @@ export class AgentService {
   async initialize(): Promise<void> {
     await this.store.initialize();
     await this.workspaces.initialize();
+    const agentsWithIsolatedState = new Set<string>();
+    for (const agent of this.store.snapshot().agents) {
+      if (await hasAgentCodexHome(this.config.codexHome, agent.id)) {
+        agentsWithIsolatedState.add(agent.id);
+      }
+    }
     await this.store.mutate((database) => {
       for (const run of database.runs) {
         if (run.status === "queued" || run.status === "running") {
@@ -97,6 +108,15 @@ export class AgentService {
       for (const agent of database.agents) {
         if (agent.status === "busy") {
           agent.status = "ready";
+          agent.updatedAt = now();
+        }
+        if (
+          agent.codexThreadId !== null &&
+          !agentsWithIsolatedState.has(agent.id)
+        ) {
+          // Legacy revisions kept all sessions in one shared CODEX_HOME. Do
+          // not resume an old ID inside a fresh per-Agent state directory.
+          agent.codexThreadId = null;
           agent.updatedAt = now();
         }
       }
@@ -145,7 +165,12 @@ export class AgentService {
       ownerPrincipalId: principalId,
     };
     await this.workspaces.create(agent);
-    await this.store.mutate((database) => database.agents.push(agent));
+    try {
+      await this.store.mutate((database) => database.agents.push(agent));
+    } catch (error) {
+      await this.workspaces.remove(agent);
+      throw error;
+    }
     return agent;
   }
 
@@ -154,54 +179,96 @@ export class AgentService {
     principalId: HumanPrincipalId,
     input: UpdateAgentInput,
   ): Promise<Agent> {
-    const current = this.getAgent(id, principalId);
-    if (current.status === "busy") {
-      throw new HttpError(409, "Stop the active run before editing this Agent");
-    }
-    const updated = await this.store.mutate((database) => {
-      const agent = database.agents.find((item) => item.id === id);
-      if (!agent) {
-        throw new HttpError(404, "Agent not found");
-      }
-      if (agent.status === "busy") {
+    return this.withAgentFileOperation(id, async () => {
+      const current = this.getAgent(id, principalId);
+      if (current.status === "busy") {
         throw new HttpError(409, "Stop the active run before editing this Agent");
       }
-      if (input.name !== undefined) agent.name = input.name.trim();
-      if (input.description !== undefined) agent.description = input.description.trim();
-      if (input.instructions !== undefined) agent.instructions = input.instructions.trim();
-      agent.lastError = null;
-      agent.updatedAt = now();
-      return structuredClone(agent);
+      const updated = await this.store.mutate((database) => {
+        const agent = database.agents.find((item) => item.id === id);
+        if (!agent || !this.ownedBy(agent, principalId)) {
+          throw new HttpError(404, "Agent not found");
+        }
+        if (agent.status === "busy") {
+          throw new HttpError(409, "Stop the active run before editing this Agent");
+        }
+        if (input.name !== undefined) agent.name = input.name.trim();
+        if (input.description !== undefined) {
+          agent.description = input.description.trim();
+        }
+        if (input.instructions !== undefined) {
+          agent.instructions = input.instructions.trim();
+        }
+        agent.lastError = null;
+        agent.updatedAt = now();
+        return structuredClone(agent);
+      });
+      try {
+        await this.workspaces.writeInstructions(updated);
+      } catch (error) {
+        await this.store.mutate((database) => {
+          const stored = database.agents.find((item) => item.id === id);
+          if (!stored || !this.ownedBy(stored, principalId)) return;
+          if (
+            stored.name === updated.name &&
+            stored.description === updated.description &&
+            stored.instructions === updated.instructions
+          ) {
+            stored.name = current.name;
+            stored.description = current.description;
+            stored.instructions = current.instructions;
+            if (stored.lastError === updated.lastError) {
+              stored.lastError = current.lastError;
+            }
+            if (stored.updatedAt === updated.updatedAt) {
+              stored.updatedAt = current.updatedAt;
+            }
+          }
+        });
+        throw error;
+      }
+      return updated;
     });
-    await this.workspaces.writeInstructions(updated);
-    return updated;
   }
 
   async deleteAgent(
     id: string,
     principalId: HumanPrincipalId,
   ): Promise<{ archivedWorkspace: string }> {
-    const agent = this.getAgent(id, principalId);
-    try {
-      await this.cancelExecution(id);
-      const archivedWorkspace = await this.workspaces.archive(agent);
-      await this.store.mutate((database) => {
-        const deletedRunIds = new Set(
-          database.runs
-            .filter((item) => item.agentId === id)
-            .map((item) => item.id),
-        );
-        database.agents = database.agents.filter((item) => item.id !== id);
-        database.messages = database.messages.filter((item) => item.agentId !== id);
-        database.runs = database.runs.filter((item) => item.agentId !== id);
-        database.receipts = database.receipts.filter(
-          (receipt) => !deletedRunIds.has(receipt.runId),
-        );
-      });
-      return { archivedWorkspace };
-    } finally {
-      this.cancellationRequests.delete(id);
-    }
+    return this.withAgentFileOperation(id, async () => {
+      const agent = this.getAgent(id, principalId);
+      try {
+        await this.cancelExecution(id);
+        const archivedWorkspace = await this.workspaces.archive(agent);
+        try {
+          await this.store.mutate((database) => {
+            const stored = database.agents.find((item) => item.id === id);
+            if (!stored || !this.ownedBy(stored, principalId)) {
+              throw new HttpError(404, "Agent not found");
+            }
+            const deletedRunIds = new Set(
+              database.runs
+                .filter((item) => item.agentId === id)
+                .map((item) => item.id),
+            );
+            database.agents = database.agents.filter((item) => item.id !== id);
+            database.messages = database.messages.filter(
+              (item) => item.agentId !== id,
+            );
+            database.runs = database.runs.filter((item) => item.agentId !== id);
+            database.receipts = database.receipts.filter(
+              (receipt) => !deletedRunIds.has(receipt.runId),
+            );
+          });
+        } catch (error) {
+          await this.workspaces.restore(agent, archivedWorkspace);
+          throw error;
+        }
+        return { archivedWorkspace };
+      } finally {
+        this.cancellationRequests.delete(id);
+      }
+    });
   }
 
   async startAgent(id: string, principalId: HumanPrincipalId): Promise<Agent> {
@@ -261,21 +328,24 @@ export class AgentService {
     // Resolve ownership before any environment/setup response. Missing and
     // non-owned IDs must remain one uniform 404 even when Ark is unavailable.
     const agent = this.getAgent(agentId, principal.id);
-    if (!isArkConfigured(this.config)) {
-      throw new HttpError(
-        503,
-        "Ark is not configured. Set ARK_API_KEY and ARK_MODEL, then restart.",
-      );
-    }
     const resourceIds = body.resourceIds ?? [];
     if (resourceIds.length === 0) {
       // Baseline Run — existing behavior, no Receipt.
-      const admitted = await this.admitRun(agentId, body.content);
-      this.beginExecution(admitted.agentAtStart, admitted.run);
-      return {
-        admitted: true,
-        response: { run: admitted.run, message: admitted.message },
-      };
+      this.requireArkConfiguration();
+      return this.withAgentFileOperation(agentId, async () => {
+        this.getAgent(agentId, principal.id);
+        const releasePendingAdmission = this.registerPendingAdmission(agentId);
+        try {
+          const admitted = await this.admitRun(agentId, body.content);
+          this.beginExecution(admitted.agentAtStart, admitted.run);
+          return {
+            admitted: true as const,
+            response: { run: admitted.run, message: admitted.message },
+          };
+        } finally {
+          releasePendingAdmission();
+        }
+      });
     }
     if (resourceIds.length !== 1) {
       // HTTP validation already rejects this; keep the seam precondition.
@@ -301,10 +371,14 @@ export class AgentService {
         // authorization, preserve the same 404 and create no artifacts.
         throw new HttpError(404, "Agent not found");
       }
-      return this.denyCapsuleRun(agentId, principal, body.content, runId, {
-        resourceId: decision.resourceId,
-        reason: decision.reason,
-        grantGeneration: decision.grantGeneration,
+      const denialReason: PublicCapsuleDenialReason = decision.reason;
+      return this.withAgentFileOperation(agentId, async () => {
+        this.getAgent(agentId, principal.id);
+        return this.denyCapsuleRun(agentId, principal, body.content, runId, {
+          resourceId: decision.resourceId,
+          reason: denialReason,
+          grantGeneration: decision.grantGeneration,
+        });
       });
     }
     return this.admitCapsuleRun(agentId, principal, body.content, runId, decision);
@@ -326,10 +400,13 @@ export class AgentService {
       this.config.runtimeProvider !== "container" ||
       !isCapsuleCapableRunner(runner)
     ) {
-      return this.denyCapsuleRun(agentId, principal, content, runId, {
-        resourceId: decision.resource.id,
-        reason: "runtime_profile_unsupported",
-        grantGeneration: decision.grantGeneration,
+      return this.withAgentFileOperation(agentId, async () => {
+        this.getAgent(agentId, principal.id);
+        return this.denyCapsuleRun(agentId, principal, content, runId, {
+          resourceId: decision.resource.id,
+          reason: "runtime_profile_unsupported",
+          grantGeneration: decision.grantGeneration,
+        });
       });
     }
     const planResult = await this.capsule.mountPlanCompiler.compileMountPlan(
@@ -337,12 +414,16 @@ export class AgentService {
       decision,
     );
     if (!planResult.ok) {
-      return this.denyCapsuleRun(agentId, principal, content, runId, {
-        resourceId: decision.resource.id,
-        reason: planResult.reason,
-        grantGeneration: decision.grantGeneration,
+      return this.withAgentFileOperation(agentId, async () => {
+        this.getAgent(agentId, principal.id);
+        return this.denyCapsuleRun(agentId, principal, content, runId, {
+          resourceId: decision.resource.id,
+          reason: planResult.reason,
+          grantGeneration: decision.grantGeneration,
+        });
       });
     }
+    this.requireArkConfiguration();
 
     const receipt: AllowDecisionReceipt = {
       receiptId: randomUUID(),
@@ -356,30 +437,33 @@ export class AgentService {
       runnerStarted: false,
       createdAt: now(),
     };
-    const releasePendingAdmission = this.registerPendingAdmission(agentId);
-    try {
-      // Run, Message, Agent busy state, and initial authorization evidence
-      // share one JsonStore commit. A failed persist leaves no partial Run.
-      const admitted = await this.admitRun(
-        agentId,
-        content,
-        runId,
-        (database) => this.capsule.receipts.add(receipt, database),
-      );
-      this.beginExecution(admitted.agentAtStart, admitted.run, {
-        plan: planResult.plan,
-        runner,
-        receipt,
-      });
-      return {
-        admitted: true,
-        response: { run: admitted.run, message: admitted.message },
-      };
-    } finally {
-      // stopAgent waits for this gate and keeps the cancellation request live
-      // until beginExecution is registered or admission fails.
-      releasePendingAdmission();
-    }
+    return this.withAgentFileOperation(agentId, async () => {
+      this.getAgent(agentId, principal.id);
+      const releasePendingAdmission = this.registerPendingAdmission(agentId);
+      try {
+        // Run, Message, Agent busy state, and initial authorization evidence
+        // share one JsonStore commit. A failed persist leaves no partial Run.
+        const admitted = await this.admitRun(
+          agentId,
+          content,
+          runId,
+          (database) => this.capsule.receipts.add(receipt, database),
+        );
+        this.beginExecution(admitted.agentAtStart, admitted.run, {
+          plan: planResult.plan,
+          runner,
+          receipt,
+        });
+        return {
+          admitted: true as const,
+          response: { run: admitted.run, message: admitted.message },
+        };
+      } finally {
+        // stopAgent waits for this gate and keeps the cancellation request live
+        // until beginExecution is registered or admission fails.
+        releasePendingAdmission();
+      }
+    });
   }
 
   // Persists the terminal denied Run, the user Message, and the deny
@@ -422,6 +506,9 @@ export class AgentService {
       const storedAgent = database.agents.find((item) => item.id === agentId);
       if (!storedAgent) {
         throw new HttpError(404, "Agent not found");
+      }
+      if (this.cancellationRequests.has(agentId)) {
+        throw new HttpError(409, "Agent lifecycle change is in progress");
       }
       // Re-check inside the serialized mutate: if the Agent turned stopped
       // or busy during the async authorization, a concurrency failure (409)
@@ -495,6 +582,9 @@ export class AgentService {
       if (!storedAgent) {
         throw new HttpError(404, "Agent not found");
       }
+      if (this.cancellationRequests.has(agentId)) {
+        throw new HttpError(409, "Agent lifecycle change is in progress");
+      }
       if (storedAgent.status === "stopped") {
         throw new HttpError(409, "Start the Agent before sending a message");
       }
@@ -567,7 +657,7 @@ export class AgentService {
       runtime:
         this.config.runtimeProvider === "container"
           ? "Codex CLI in " + this.config.containerEngine + " Runtime"
-          : "Codex CLI in application container",
+          : "Local process · no per-Run container isolation",
     };
   }
 
@@ -734,19 +824,31 @@ export class AgentService {
       // Keep the initial queued -> running persistence inside the same failure
       // boundary as every later pre-Runner step. A transient write failure must
       // converge the Run/Agent/Receipt instead of leaving queued + busy state.
-      await this.store.mutate((database) => {
+      const executionExists = await this.store.mutate((database) => {
         const storedRun = database.runs.find((item) => item.id === run.id);
-        if (storedRun) {
-          storedRun.status = "running";
-          storedRun.startedAt = now();
-        }
+        const storedAgent = database.agents.find(
+          (item) => item.id === agentAtStart.id,
+        );
+        if (!storedRun || !storedAgent) return false;
+        storedRun.status = "running";
+        storedRun.startedAt = now();
+        return true;
       });
+      if (!executionExists) throw new RunCancelledError();
+      if (this.cancellationRequests.has(agentAtStart.id)) {
+        throw new RunCancelledError();
+      }
+      const codexHomePath = await prepareAgentCodexHome(
+        this.config,
+        agentAtStart.id,
+      );
       if (this.cancellationRequests.has(agentAtStart.id)) {
         throw new RunCancelledError();
       }
       const request = {
         agentId: agentAtStart.id,
         workspacePath: agentAtStart.workspacePath,
+        codexHomePath,
         prompt: run.prompt,
         threadId: agentAtStart.codexThreadId,
       };
@@ -904,6 +1006,36 @@ export class AgentService {
         !this.activeExecutions.has(agentId)
       ) {
         return;
+      }
+    }
+  }
+
+  private requireArkConfiguration(): void {
+    if (!isArkConfigured(this.config)) {
+      throw new HttpError(
+        503,
+        "Ark is not configured. Set ARK_API_KEY and ARK_MODEL, then restart.",
+      );
+    }
+  }
+
+  private async withAgentFileOperation<T>(
+    agentId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.agentFileOperations.get(agentId) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.agentFileOperations.set(agentId, current);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.agentFileOperations.get(agentId) === current) {
+        this.agentFileOperations.delete(agentId);
       }
     }
   }

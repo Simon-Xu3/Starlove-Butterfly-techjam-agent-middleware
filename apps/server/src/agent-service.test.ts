@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -22,6 +22,7 @@ import { DecisionReceiptService } from "./receipt-service.js";
 import { JsonStore } from "./store.js";
 import type {
   AgentRunner,
+  DatabaseV2,
   HumanPrincipal,
   RunnerRequest,
   RunnerResult,
@@ -62,6 +63,11 @@ async function makeService(
   runner: AgentRunner = new FakeRunner(),
   capsule: Partial<CapsuleSeams> = {},
   logger?: AgentServiceLogger,
+  options: {
+    arkConfigured?: boolean;
+    storeFactory?: (filePath: string) => JsonStore;
+    workspaceFactory?: (root: string) => WorkspaceManager;
+  } = {},
 ): Promise<AgentService> {
   const root = await mkdtemp(path.join(tmpdir(), "launchpad-test-"));
   temporaryDirectories.push(root);
@@ -70,10 +76,15 @@ async function makeService(
     APP_DATA_DIR: path.join(root, "data"),
     AGENT_WORKSPACE_ROOT: path.join(root, "workspaces"),
     CODEX_HOME: path.join(root, "codex"),
-    ARK_API_KEY: "test-key",
-    ARK_MODEL: "ep-test",
+    ARK_API_KEY: options.arkConfigured === false ? "" : "test-key",
+    ARK_MODEL: options.arkConfigured === false ? "" : "ep-test",
   });
-  const store = new JsonStore(path.join(root, "data", "db.json"));
+  const storePath = path.join(root, "data", "db.json");
+  const store = options.storeFactory?.(storePath) ?? new JsonStore(storePath);
+  const workspaceRoot = path.join(root, "workspaces");
+  const workspaces =
+    options.workspaceFactory?.(workspaceRoot) ??
+    new WorkspaceManager(workspaceRoot);
   const receipts = new DecisionReceiptService(
     new StoreReceiptRepository(store),
     createStoreRunReader(store),
@@ -82,7 +93,7 @@ async function makeService(
   const service = new AgentService(
     config,
     store,
-    new WorkspaceManager(path.join(root, "workspaces")),
+    workspaces,
     runner,
     {
       authorizer: makeFakeAuthorizer(),
@@ -157,6 +168,386 @@ describe("Agent lifecycle", () => {
     expect((await service.startAgent(agent.id, "user-a")).status).toBe("ready");
     await service.deleteAgent(agent.id, "user-a");
     expect(service.listAgents("user-a")).toHaveLength(0);
+  });
+
+  it("does not start a baseline Runner when Stop races admission", async () => {
+    let persistReached!: () => void;
+    let releasePersist!: () => void;
+    const reachedPersist = new Promise<void>((resolve) => {
+      persistReached = resolve;
+    });
+    const persistReleased = new Promise<void>((resolve) => {
+      releasePersist = resolve;
+    });
+    class PausingStore extends JsonStore {
+      pauseNextPersist = false;
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        if (this.pauseNextPersist) {
+          this.pauseNextPersist = false;
+          persistReached();
+          await persistReleased;
+        }
+        await super.persist(data);
+      }
+    }
+
+    const calls: RunnerRequest[] = [];
+    const runner: AgentRunner = {
+      run: async (request) => {
+        calls.push(request);
+        return { output: "unexpected", threadId: null, usage: null };
+      },
+      cancel: async () => false,
+      isAvailable: async () => true,
+    };
+    let store!: PausingStore;
+    const service = await makeService(runner, {}, undefined, {
+      storeFactory(filePath) {
+        store = new PausingStore(filePath);
+        return store;
+      },
+    });
+    const agent = await service.createAgent({ name: "Stop race" }, "user-a");
+    store.pauseNextPersist = true;
+
+    const accepting = service.sendMessage(agent.id, userA, {
+      content: "must be cancelled",
+    });
+    await reachedPersist;
+    const stopping = service.stopAgent(agent.id, "user-a");
+    releasePersist();
+
+    const [admission, stopped] = await Promise.all([accepting, stopping]);
+    if (!admission.admitted) throw new Error("expected baseline admission");
+    expect(stopped.status).toBe("stopped");
+    await expect
+      .poll(() => service.getRun(admission.response.run.id, "user-a").status)
+      .toBe("cancelled");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("does not start a baseline Runner when Delete races admission", async () => {
+    let persistReached!: () => void;
+    let releasePersist!: () => void;
+    const reachedPersist = new Promise<void>((resolve) => {
+      persistReached = resolve;
+    });
+    const persistReleased = new Promise<void>((resolve) => {
+      releasePersist = resolve;
+    });
+    class PausingStore extends JsonStore {
+      pauseNextPersist = false;
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        if (this.pauseNextPersist) {
+          this.pauseNextPersist = false;
+          persistReached();
+          await persistReleased;
+        }
+        await super.persist(data);
+      }
+    }
+
+    const calls: RunnerRequest[] = [];
+    let store!: PausingStore;
+    const service = await makeService(
+      {
+        run: async (request) => {
+          calls.push(request);
+          return { output: "unexpected", threadId: null, usage: null };
+        },
+        cancel: async () => false,
+        isAvailable: async () => true,
+      },
+      {},
+      undefined,
+      {
+        storeFactory(filePath) {
+          store = new PausingStore(filePath);
+          return store;
+        },
+      },
+    );
+    const agent = await service.createAgent({ name: "Delete race" }, "user-a");
+    store.pauseNextPersist = true;
+
+    const accepting = service.sendMessage(agent.id, userA, {
+      content: "must be cancelled and deleted",
+    });
+    await reachedPersist;
+    const deleting = service.deleteAgent(agent.id, "user-a");
+    releasePersist();
+
+    await Promise.all([accepting, deleting]);
+    expect(service.listAgents("user-a")).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects a baseline admission that arrives after Delete starts", async () => {
+    let archiveReached!: () => void;
+    let releaseArchive!: () => void;
+    const reachedArchive = new Promise<void>((resolve) => {
+      archiveReached = resolve;
+    });
+    const archiveReleased = new Promise<void>((resolve) => {
+      releaseArchive = resolve;
+    });
+    class PausingArchiveWorkspace extends WorkspaceManager {
+      override async archive(agent: Parameters<WorkspaceManager["archive"]>[0]) {
+        const archivedWorkspace = await super.archive(agent);
+        archiveReached();
+        await archiveReleased;
+        return archivedWorkspace;
+      }
+    }
+
+    const calls: RunnerRequest[] = [];
+    const service = await makeService(
+      {
+        run: async (request) => {
+          calls.push(request);
+          return { output: "unexpected", threadId: null, usage: null };
+        },
+        cancel: async () => false,
+        isAvailable: async () => true,
+      },
+      {},
+      undefined,
+      {
+        workspaceFactory(root) {
+          return new PausingArchiveWorkspace(root);
+        },
+      },
+    );
+    const agent = await service.createAgent({ name: "Delete first" }, "user-a");
+
+    const deleting = service.deleteAgent(agent.id, "user-a");
+    await reachedArchive;
+    const accepting = service.sendMessage(agent.id, userA, {
+      content: "must never start",
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(calls).toHaveLength(0);
+    releaseArchive();
+
+    await deleting;
+    await expect(accepting).rejects.toMatchObject({ statusCode: 404 });
+    expect(service.listAgents("user-a")).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("waits for an instruction update before admitting a Run", async () => {
+    let writeReached!: () => void;
+    let releaseWrite!: () => void;
+    const reachedWrite = new Promise<void>((resolve) => {
+      writeReached = resolve;
+    });
+    const writeReleased = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    class PausingUpdateWorkspace extends WorkspaceManager {
+      pauseNextWrite = false;
+
+      override async writeInstructions(
+        agent: Parameters<WorkspaceManager["writeInstructions"]>[0],
+      ) {
+        if (this.pauseNextWrite) {
+          this.pauseNextWrite = false;
+          writeReached();
+          await writeReleased;
+        }
+        await super.writeInstructions(agent);
+      }
+    }
+
+    const instructionsSeen: string[] = [];
+    let workspaces!: PausingUpdateWorkspace;
+    const service = await makeService(
+      {
+        run: async (request) => {
+          instructionsSeen.push(
+            await readFile(path.join(request.workspacePath, "AGENTS.md"), "utf8"),
+          );
+          return { output: "done", threadId: "updated-thread", usage: null };
+        },
+        cancel: async () => false,
+        isAvailable: async () => true,
+      },
+      {},
+      undefined,
+      {
+        workspaceFactory(root) {
+          workspaces = new PausingUpdateWorkspace(root);
+          return workspaces;
+        },
+      },
+    );
+    const agent = await service.createAgent(
+      { name: "Before", instructions: "Old instructions" },
+      "user-a",
+    );
+    workspaces.pauseNextWrite = true;
+
+    const updating = service.updateAgent(agent.id, "user-a", {
+      instructions: "New instructions",
+    });
+    await reachedWrite;
+    const accepting = service.sendMessage(agent.id, userA, {
+      content: "use the latest instructions",
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(instructionsSeen).toHaveLength(0);
+    releaseWrite();
+
+    await updating;
+    const admission = await accepting;
+    if (!admission.admitted) throw new Error("expected baseline admission");
+    await expect
+      .poll(() => service.getRun(admission.response.run.id, "user-a").status)
+      .toBe("completed");
+    expect(instructionsSeen).toHaveLength(1);
+    expect(instructionsSeen[0]).toContain("New instructions");
+    expect(instructionsSeen[0]).not.toContain("Old instructions");
+  });
+
+  it("removes a new workspace when the create database write fails", async () => {
+    class OneShotFailingStore extends JsonStore {
+      failNextPersist = false;
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        if (this.failNextPersist) {
+          this.failNextPersist = false;
+          throw new Error("simulated database fault");
+        }
+        await super.persist(data);
+      }
+    }
+
+    let store!: OneShotFailingStore;
+    let workspaceRoot = "";
+    const service = await makeService(new FakeRunner(), {}, undefined, {
+      storeFactory(filePath) {
+        store = new OneShotFailingStore(filePath);
+        return store;
+      },
+      workspaceFactory(root) {
+        workspaceRoot = root;
+        return new WorkspaceManager(root);
+      },
+    });
+    store.failNextPersist = true;
+
+    await expect(
+      service.createAgent({ name: "Half created" }, "user-a"),
+    ).rejects.toThrow("simulated database fault");
+
+    expect(service.listAgents("user-a")).toHaveLength(0);
+    expect((await readdir(workspaceRoot)).filter((name) => !name.startsWith("."))).toEqual(
+      [],
+    );
+  });
+
+  it("rolls an update back when AGENTS.md cannot be replaced", async () => {
+    class FailOnceWorkspaceManager extends WorkspaceManager {
+      failNextWrite = false;
+
+      override async writeInstructions(agent: Parameters<WorkspaceManager["writeInstructions"]>[0]) {
+        if (this.failNextWrite) {
+          this.failNextWrite = false;
+          throw new Error("simulated instructions fault");
+        }
+        await super.writeInstructions(agent);
+      }
+    }
+
+    let workspaces!: FailOnceWorkspaceManager;
+    const service = await makeService(new FakeRunner(), {}, undefined, {
+      workspaceFactory(root) {
+        workspaces = new FailOnceWorkspaceManager(root);
+        return workspaces;
+      },
+    });
+    const agent = await service.createAgent(
+      { name: "Original", instructions: "Original instructions" },
+      "user-a",
+    );
+    const originalFile = await readFile(
+      path.join(agent.workspacePath, "AGENTS.md"),
+      "utf8",
+    );
+    workspaces.failNextWrite = true;
+
+    await expect(
+      service.updateAgent(agent.id, "user-a", {
+        name: "Changed",
+        instructions: "Changed instructions",
+      }),
+    ).rejects.toThrow("simulated instructions fault");
+
+    expect(service.getAgent(agent.id, "user-a")).toMatchObject({
+      name: "Original",
+      instructions: "Original instructions",
+    });
+    expect(await readFile(path.join(agent.workspacePath, "AGENTS.md"), "utf8")).toBe(
+      originalFile,
+    );
+  });
+
+  it("restores an archived workspace when the delete database write fails", async () => {
+    class OneShotFailingStore extends JsonStore {
+      failNextPersist = false;
+
+      protected override async persist(data?: DatabaseV2): Promise<void> {
+        if (this.failNextPersist) {
+          this.failNextPersist = false;
+          throw new Error("simulated delete fault");
+        }
+        await super.persist(data);
+      }
+    }
+
+    let store!: OneShotFailingStore;
+    const service = await makeService(new FakeRunner(), {}, undefined, {
+      storeFactory(filePath) {
+        store = new OneShotFailingStore(filePath);
+        return store;
+      },
+    });
+    const agent = await service.createAgent({ name: "Keep me" }, "user-a");
+    store.failNextPersist = true;
+
+    await expect(service.deleteAgent(agent.id, "user-a")).rejects.toThrow(
+      "simulated delete fault",
+    );
+
+    expect(service.getAgent(agent.id, "user-a").name).toBe("Keep me");
+    await expect(access(agent.workspacePath)).resolves.toBeUndefined();
+    await expect(service.deleteAgent(agent.id, "user-a")).resolves.toEqual({
+      archivedWorkspace: expect.stringContaining(".deleted"),
+    });
+  });
+
+  it("clears a legacy shared-home thread ID during startup migration", async () => {
+    let store!: JsonStore;
+    const service = await makeService(new FakeRunner(), {}, undefined, {
+      storeFactory(filePath) {
+        store = new JsonStore(filePath);
+        return store;
+      },
+    });
+    const agent = await service.createAgent({ name: "Legacy" }, "user-a");
+    await store.mutate((database) => {
+      const stored = database.agents.find((item) => item.id === agent.id);
+      if (stored) stored.codexThreadId = "legacy-shared-thread";
+    });
+    expect(service.getAgent(agent.id, "user-a").codexThreadId).toBe(
+      "legacy-shared-thread",
+    );
+
+    await service.initialize();
+
+    expect(service.getAgent(agent.id, "user-a").codexThreadId).toBeNull();
   });
 
   it("scopes every Agent operation to the owning principal", async () => {
