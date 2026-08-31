@@ -19,9 +19,11 @@ import { createResourceRoutes } from "./resource-routes.js";
 import { createRunner } from "./runner-factory.js";
 import { JsonStore } from "./store.js";
 import { WorkspaceManager } from "./workspace.js";
+import { validateManagedRoots } from "./managed-roots.js";
 
 const config = loadConfig();
 const logger = createAppLogger(config);
+await validateManagedRoots(config);
 await writeCodexConfig(config);
 
 const store = new JsonStore(path.join(config.dataDirectory, "launchpad.json"));
