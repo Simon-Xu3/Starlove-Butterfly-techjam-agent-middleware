@@ -102,9 +102,9 @@ describe("Container Codex runner", () => {
       "launchpad-test-instance-agent-unsafe",
     );
     expect(args).toContain("runtime:test");
-    expect(args).toContain("type=bind,src=/tmp/agent-workspace,dst=/workspace");
+    expect(args).toContain('type=bind,"src=/tmp/agent-workspace",dst=/workspace');
     expect(args).toContain(
-      "type=bind,src=/tmp/codex-home/agents/agent-unsafe,dst=/codex-home",
+      'type=bind,"src=/tmp/codex-home/agents/agent-unsafe",dst=/codex-home',
     );
     expect(args).toContain("501:20");
     expect(args).toContain("workspace-write");
@@ -117,8 +117,33 @@ describe("Container Codex runner", () => {
         args[index - 1] === "--mount" ? [argument] : [],
       ),
     ).toEqual([
-      "type=bind,src=/tmp/agent-workspace,dst=/workspace",
-      "type=bind,src=/tmp/codex-home/agents/agent-unsafe,dst=/codex-home",
+      'type=bind,"src=/tmp/agent-workspace",dst=/workspace',
+      'type=bind,"src=/tmp/codex-home/agents/agent-unsafe",dst=/codex-home',
+    ]);
+  });
+
+  it("quotes Docker mount source fields containing commas", () => {
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex,home",
+      RUNTIME_PROVIDER: "container",
+    });
+    const args = buildContainerRunArgs(
+      {
+        agentId: "agent",
+        workspacePath: "/tmp/workspace,copy",
+        codexHomePath: "/tmp/codex,home/agents/agent",
+        prompt: "continue",
+        threadId: null,
+      },
+      config,
+      makeMountPlan({ sourcePath: "/fixtures/orders,incident" }),
+    );
+
+    expect(args.filter((argument, index) => args[index - 1] === "--mount")).toEqual([
+      'type=bind,"src=/tmp/workspace,copy",dst=/workspace',
+      'type=bind,"src=/tmp/codex,home/agents/agent",dst=/codex-home',
+      'type=bind,"src=/fixtures/orders,incident",dst=/resources/orders-incident,readonly',
     ]);
   });
 
@@ -169,9 +194,9 @@ describe("Container Codex runner", () => {
     );
 
     expect(mounts).toEqual([
-      "type=bind,src=/tmp/workspace,dst=/workspace",
-      "type=bind,src=/tmp/codex-home/agents/agent-a,dst=/codex-home",
-      "type=bind,src=/fixtures/orders-incident,dst=/resources/orders-incident,readonly",
+      'type=bind,"src=/tmp/workspace",dst=/workspace',
+      'type=bind,"src=/tmp/codex-home/agents/agent-a",dst=/codex-home',
+      'type=bind,"src=/fixtures/orders-incident",dst=/resources/orders-incident,readonly',
     ]);
     expect(args).not.toContain("payments-incident");
   });
@@ -224,7 +249,7 @@ describe("Container Codex runner", () => {
       ),
     ).resolves.toMatchObject({ output: "Runner completed" });
     expect(calls[0]).toContain(
-      "type=bind,src=/fixtures/orders-incident,dst=/resources/orders-incident,readonly",
+      'type=bind,"src=/fixtures/orders-incident",dst=/resources/orders-incident,readonly',
     );
 
     if (false) {

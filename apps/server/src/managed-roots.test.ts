@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -63,6 +63,17 @@ describe("managed root validation", () => {
     await expect(
       validateManagedRoots({ ...config, codexHome: config.workspaceRoot }),
     ).rejects.toThrow("must not overlap");
+  });
+
+  it("does not create a writable root inside a rejected Resource root", async () => {
+    const config = await makeConfig();
+    const nestedDataRoot = path.join(config.resourceRoot, "app-data");
+
+    await expect(
+      validateManagedRoots({ ...config, dataDirectory: nestedDataRoot }),
+    ).rejects.toThrow("must not overlap");
+
+    expect(await readdir(config.resourceRoot)).toEqual([]);
   });
 
   it("rejects roots that overlap through a symlink", async () => {

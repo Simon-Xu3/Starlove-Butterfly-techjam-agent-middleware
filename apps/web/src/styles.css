@@ -1711,6 +1711,12 @@ textarea:focus {
     overflow-x: auto;
   }
 
+  /* The main empty state already has the complete create-Action. Keeping the
+     desktop-sized sidebar hint in this 65px mobile bar clips it vertically. */
+  .empty-sidebar {
+    display: none;
+  }
+
   .agent-card {
     width: auto;
   }

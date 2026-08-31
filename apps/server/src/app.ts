@@ -14,6 +14,7 @@ import {
   requireDemoPrincipal,
 } from "./demo-principal.js";
 import { HttpError } from "./errors.js";
+import { SAFE_ERROR_NAMES } from "./safe-error-types.js";
 import type { AgentService } from "./agent-service.js";
 import { RESOURCE_ID_PATTERN } from "./types.js";
 
@@ -46,16 +47,6 @@ const messageBody = z
       .optional(),
   })
   .strict();
-
-const SAFE_ERROR_NAMES = new Set([
-  "Error",
-  "TypeError",
-  "RangeError",
-  "ReferenceError",
-  "SyntaxError",
-  "URIError",
-  "AggregateError",
-]);
 
 function logUnexpectedError(
   logger: FastifyBaseLogger,
