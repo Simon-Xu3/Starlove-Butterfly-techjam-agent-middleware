@@ -121,6 +121,9 @@ describe("WorkspaceManager", () => {
     await expect(manager.archive(first)).rejects.toThrow(
       "server-created directory",
     );
+    await expect(manager.runtimeWorkspacePath(first)).rejects.toThrow(
+      "server-created directory",
+    );
     await expect(manager.remove(first)).rejects.toThrow(
       "server-created directory",
     );

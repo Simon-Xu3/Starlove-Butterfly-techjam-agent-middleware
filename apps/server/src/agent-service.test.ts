@@ -1,4 +1,12 @@
-import { access, mkdtemp, readFile, readdir } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+} from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -548,6 +556,88 @@ describe("Agent lifecycle", () => {
     await service.initialize();
 
     expect(service.getAgent(agent.id, "user-a").codexThreadId).toBeNull();
+  });
+
+  it("rejects a persisted workspace from an old configured root on startup", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "launchpad-stale-root-"));
+    temporaryDirectories.push(root);
+    const storePath = path.join(root, "data", "db.json");
+    const oldConfig = loadConfig({
+      NODE_ENV: "test",
+      APP_DATA_DIR: path.join(root, "data"),
+      AGENT_WORKSPACE_ROOT: path.join(root, "old-workspaces"),
+      CODEX_HOME: path.join(root, "codex"),
+      ARK_API_KEY: "test-key",
+      ARK_MODEL: "ep-test",
+    });
+    const oldStore = new JsonStore(storePath);
+    const oldReceipts = new DecisionReceiptService(
+      new StoreReceiptRepository(oldStore),
+      createStoreRunReader(oldStore),
+      createStoreOwnershipReader(oldStore),
+    );
+    const oldService = new AgentService(
+      oldConfig,
+      oldStore,
+      new WorkspaceManager(oldConfig.workspaceRoot),
+      new FakeRunner(),
+      {
+        authorizer: makeFakeAuthorizer(),
+        mountPlanCompiler: makeFakeMountPlanCompiler(),
+        entitlements: makeFakeEntitlementReader(),
+        receipts: oldReceipts,
+      },
+    );
+    await oldService.initialize();
+    await oldService.createAgent({ name: "Old root" }, "user-a");
+
+    const newConfig = {
+      ...oldConfig,
+      workspaceRoot: path.join(root, "new-workspaces"),
+    };
+    const newStore = new JsonStore(storePath);
+    const newReceipts = new DecisionReceiptService(
+      new StoreReceiptRepository(newStore),
+      createStoreRunReader(newStore),
+      createStoreOwnershipReader(newStore),
+    );
+    const restarted = new AgentService(
+      newConfig,
+      newStore,
+      new WorkspaceManager(newConfig.workspaceRoot),
+      new FakeRunner(),
+      {
+        authorizer: makeFakeAuthorizer(),
+        mountPlanCompiler: makeFakeMountPlanCompiler(),
+        entitlements: makeFakeEntitlementReader(),
+        receipts: newReceipts,
+      },
+    );
+
+    await expect(restarted.initialize()).rejects.toThrow(
+      "workspace path does not match",
+    );
+  });
+
+  it("revalidates the workspace immediately before Runner handoff", async () => {
+    const calls: RunnerRequest[] = [];
+    const service = await makeService({
+      run: async (request) => {
+        calls.push(request);
+        return { output: "unexpected", threadId: "unexpected", usage: null };
+      },
+      cancel: async () => false,
+      isAvailable: async () => true,
+    });
+    const agent = await service.createAgent({ name: "Runtime path" }, "user-a");
+    const outsideDirectory = path.join(path.dirname(agent.workspacePath), "outside");
+    await mkdir(outsideDirectory);
+    await rm(agent.workspacePath, { recursive: true });
+    await symlink(outsideDirectory, agent.workspacePath);
+
+    const { run } = await sendBaseline(service, agent.id, "must fail closed");
+    await expect.poll(() => service.getRun(run.id, "user-a").status).toBe("failed");
+    expect(calls).toHaveLength(0);
   });
 
   it("scopes every Agent operation to the owning principal", async () => {

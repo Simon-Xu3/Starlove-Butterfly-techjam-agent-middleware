@@ -93,6 +93,7 @@ export class AgentService {
     await this.workspaces.initialize();
     const agentsWithIsolatedState = new Set<string>();
     for (const agent of this.store.snapshot().agents) {
+      await this.workspaces.runtimeWorkspacePath(agent);
       if (await hasAgentCodexHome(this.config.codexHome, agent.id)) {
         agentsWithIsolatedState.add(agent.id);
       }
@@ -838,6 +839,9 @@ export class AgentService {
       if (this.cancellationRequests.has(agentAtStart.id)) {
         throw new RunCancelledError();
       }
+      const workspacePath = await this.workspaces.runtimeWorkspacePath(
+        agentAtStart,
+      );
       const codexHomePath = await prepareAgentCodexHome(
         this.config,
         agentAtStart.id,
@@ -847,7 +851,7 @@ export class AgentService {
       }
       const request = {
         agentId: agentAtStart.id,
-        workspacePath: agentAtStart.workspacePath,
+        workspacePath,
         codexHomePath,
         prompt: run.prompt,
         threadId: agentAtStart.codexThreadId,

@@ -101,6 +101,11 @@ export class WorkspaceManager {
     );
   }
 
+  async runtimeWorkspacePath(agent: Agent): Promise<string> {
+    const { canonicalWorkspace } = await this.canonicalWorkspace(agent);
+    return canonicalWorkspace;
+  }
+
   async archive(agent: Agent): Promise<string> {
     const { canonicalRoot, canonicalWorkspace } =
       await this.canonicalWorkspace(agent);

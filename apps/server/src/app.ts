@@ -4,7 +4,7 @@ import Fastify, {
   type FastifyBaseLogger,
   type FastifyInstance,
 } from "fastify";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import pino from "pino";
 import { z } from "zod";
@@ -46,6 +46,32 @@ const messageBody = z
       .optional(),
   })
   .strict();
+
+const SAFE_ERROR_NAMES = new Set([
+  "Error",
+  "TypeError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "URIError",
+  "AggregateError",
+]);
+
+function logUnexpectedError(
+  logger: FastifyBaseLogger,
+  error: Error,
+): void {
+  const source = [error.name, error.message, error.stack ?? ""].join("\n");
+  logger.error(
+    {
+      failure: {
+        type: SAFE_ERROR_NAMES.has(error.name) ? error.name : "Error",
+        fingerprint: createHash("sha256").update(source).digest("hex"),
+      },
+    },
+    "Unhandled request failure",
+  );
+}
 
 export async function createApp(
   config: AppConfig,
@@ -210,7 +236,7 @@ export async function createApp(
             ? frameworkStatus
             : 500;
     if (error instanceof HttpError) {
-      if (statusCode >= 500) request.log.error(appError);
+      if (statusCode >= 500) logUnexpectedError(request.log, appError);
       return reply.code(statusCode).send({ error: appError.message });
     }
     if (validationError) {
@@ -223,7 +249,7 @@ export async function createApp(
       });
     }
     if (statusCode >= 500) {
-      request.log.error(appError);
+      logUnexpectedError(request.log, appError);
       // Never echo an internal failure message: it can carry host paths
       // from the filesystem, store, or container engine.
       return reply.code(statusCode).send({ error: "Internal server error" });

@@ -1,8 +1,9 @@
 # Local POC
 
-The local profile runs the React/Fastify control plane on macOS or Linux and
-starts every Codex turn in a disposable Docker, Colima, or Podman container.
-Only the Volcengine Ark model API is remote.
+The local profile runs the React/Fastify control plane on macOS, Linux, or
+Windows through Git for Windows, and starts every Codex turn in a disposable
+Docker, Colima, or Podman container. Only the Volcengine Ark model API is
+remote.
 
 ## Start
 
@@ -10,11 +11,34 @@ Requirements:
 
 - Node.js 22+
 - Docker, Colima, or Podman
+- Git for Windows when using Windows
 - An Ark API key and Responses-capable endpoint
+
+On macOS, Linux, or Git Bash:
 
 ```bash
 ARK_API_KEY=your-ark-api-key ARK_MODEL=ep-your-endpoint-id npm run poc
 ```
+
+On Windows PowerShell:
+
+```powershell
+$env:ARK_API_KEY = "your-ark-api-key"
+$env:ARK_MODEL = "ep-your-endpoint-id"
+npm run poc
+```
+
+On Windows Command Prompt:
+
+```bat
+set "ARK_API_KEY=your-ark-api-key"
+set "ARK_MODEL=ep-your-endpoint-id"
+npm run poc
+```
+
+The launcher reads the current process environment and does not load `.env`
+automatically. Set both variables in the same terminal session before starting
+the POC.
 
 Open <http://localhost:3000>. Press `Ctrl+C` to stop the server and remove this
 instance's remaining Runtime containers.

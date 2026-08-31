@@ -1,6 +1,8 @@
 import { mkdtemp } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { PassThrough } from "node:stream";
+import pino from "pino";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgentService, type CapsuleSeams } from "./agent-service.js";
 import { createApp } from "./app.js";
@@ -182,6 +184,11 @@ describe("HTTP boundary", () => {
     } as unknown as AgentService;
     const root = await mkdtemp(path.join(tmpdir(), "launchpad-500-"));
     temporaryDirectories.push(root);
+    const logStream = new PassThrough();
+    let logs = "";
+    logStream.on("data", (chunk) => {
+      logs += chunk.toString();
+    });
     const app = await createApp(
       loadConfig({
         NODE_ENV: "test",
@@ -193,6 +200,7 @@ describe("HTTP boundary", () => {
         ARK_MODEL: "ep-test",
       }),
       exploding,
+      pino({ level: "error" }, logStream),
     );
 
     const response = await app.inject({
@@ -205,6 +213,12 @@ describe("HTTP boundary", () => {
     expect(response.body).not.toContain("/Users/demo");
     expect(response.body).not.toContain("ENOENT");
     await app.close();
+    expect(logs).toContain('"type":"Error"');
+    expect(logs).toMatch(/"fingerprint":"[a-f0-9]{64}"/u);
+    expect(logs).toContain('"msg":"Unhandled request failure"');
+    expect(logs).not.toContain("/Users/demo");
+    expect(logs).not.toContain("ENOENT");
+    expect(logs).not.toContain("db.json");
   });
 
   it("hides non-owned Agents before returning the curated Ark setup error", async () => {
