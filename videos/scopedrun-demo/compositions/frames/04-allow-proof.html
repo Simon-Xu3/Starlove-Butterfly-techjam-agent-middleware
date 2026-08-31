@@ -153,6 +153,16 @@
       overflow: hidden;
       position: relative;
     }
+    .f04-recording {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #07100e;
+      z-index: 6;
+      pointer-events: none;
+    }
     [id="frame-04-allow-proof-browser-bar"] {
       display: flex;
       align-items: center;
@@ -344,6 +354,7 @@
             <span data-hf-id="hf-jj7x" id="frame-04-allow-proof-live-chip">RUN COMPLETE</span>
           </div>
           <div data-hf-id="hf-aqyf" id="frame-04-allow-proof-browser">
+            <video data-hf-id="hf-r04v" id="allow-run-recording" class="clip f04-recording" data-start="0" data-duration="28" data-track-index="2" data-media-start="0" data-playback-rate="1.92" src="assets/recordings/02-allow-run.mp4" muted playsinline></video>
             <div data-hf-id="hf-m793" id="frame-04-allow-proof-browser-bar">
               <span data-hf-id="hf-pei9" id="frame-04-allow-proof-browser-dots"><i data-hf-id="hf-wt6k"></i><i data-hf-id="hf-zeb8"></i><i data-hf-id="hf-y7e5"></i></span>
               <span data-hf-id="hf-7hhn">AGENT / INVENTORY</span>

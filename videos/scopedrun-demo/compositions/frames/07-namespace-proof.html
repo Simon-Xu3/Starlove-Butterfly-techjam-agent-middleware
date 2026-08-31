@@ -84,6 +84,18 @@
       display: grid;
       grid-template-rows: auto 1fr;
       gap: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .f07-recording {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #070b0a;
+      z-index: 6;
+      pointer-events: none;
     }
     .f07-capture-label {
       font-size: 20px;
@@ -195,7 +207,8 @@
       <div data-hf-id="hf-qr59" class="f07-meta"><span data-hf-id="hf-nu41">DOCKER / COLIMA · REAL CONTAINER</span><span data-hf-id="hf-iz78">NAMESPACE PROOF / 07</span></div>
       <div data-hf-id="hf-i2zq" class="f07-terminal">
         <div data-hf-id="hf-l9fo" class="f07-terminal-copy">
-          <div data-hf-id="hf-irxj" class="f07-capture-label">SCREEN STUDIO INSERT · CLIP 05 · SAFE PASSING ASSERTIONS</div>
+          <video data-hf-id="hf-r07v" id="container-gate-recording" class="clip f07-recording" data-start="0" data-duration="25" data-track-index="2" data-media-start="0" data-playback-rate="1.16" src="assets/recordings/05-container-gate.mp4" muted playsinline></video>
+          <div data-hf-id="hf-irxj" class="f07-capture-label" data-layout-allow-occlusion="">SCREEN STUDIO INSERT · CLIP 05 · SAFE PASSING ASSERTIONS</div>
           <div data-hf-id="hf-4q60" class="f07-log">
             <div data-hf-id="hf-6zxj" class="f07-log-row"><span data-hf-id="hf-pa23" class="f07-log-time">00:02.8</span><span data-hf-id="hf-vi9a" class="f07-log-path">/capsule/delegated/spec.md</span><span data-hf-id="hf-77tc" class="f07-log-status">READ OK</span></div>
             <div data-hf-id="hf-3ksn" class="f07-log-row"><span data-hf-id="hf-po8y" class="f07-log-time">00:04.1</span><span data-hf-id="hf-29rz" class="f07-log-path">write /capsule/delegated/spec.md</span><span data-hf-id="hf-xif5" class="f07-log-status f07-deny">EROFS</span></div>

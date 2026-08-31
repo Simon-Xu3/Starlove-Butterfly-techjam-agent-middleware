@@ -109,6 +109,37 @@
       align-items: stretch;
       min-height: 0;
     }
+    [id="frame-06-revoke-evidence"] {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      overflow: hidden;
+      border: 3px solid #ff5c57;
+      background: #070b0a;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+    }
+    .f06-recording {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #070b0a;
+      pointer-events: none;
+    }
+    [id="frame-06-revoke-evidence-label"] {
+      position: absolute;
+      top: 18px;
+      right: 22px;
+      z-index: 2;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 92, 87, 0.72);
+      background: rgba(7, 11, 10, 0.82);
+      color: #ff8a86;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
     [id="frame-06-revoke-route-svg"] {
       position: absolute;
       inset: 0;
@@ -235,6 +266,10 @@
       <div data-hf-id="hf-ldo0" id="frame-06-revoke-meta"><span data-hf-id="hf-kvss">ENTITLEMENT CHANGE</span><span data-hf-id="hf-3xfk">REVOKE / 06</span></div>
       <h1 data-hf-id="hf-mx3v" id="frame-06-revoke-title">Future admission <em data-hf-id="hf-9g56">fails closed.</em> History stays.</h1>
       <div data-hf-id="hf-nlqr" id="frame-06-revoke-rail">
+        <div data-hf-id="hf-r06p" id="frame-06-revoke-evidence">
+          <video data-hf-id="hf-r06v" id="revoke-retry-recording" class="clip f06-recording" data-start="0" data-duration="16" data-track-index="2" data-media-start="0" data-playback-rate="2.01" src="assets/recordings/04-revoke-retry.mp4" muted playsinline></video>
+          <span data-hf-id="hf-r06l" id="frame-06-revoke-evidence-label">REAL REVOKE + RETRY · CLIP 04</span>
+        </div>
         <svg data-hf-id="hf-kx6f" id="frame-06-revoke-route-svg" viewBox="0 0 1744 500" preserveAspectRatio="none" aria-hidden="true">
           <path data-hf-id="hf-op9m" id="frame-06-revoke-route-earlier" d="M 260 250 C 430 250, 470 250, 608 250" />
           <path data-hf-id="hf-e03g" id="frame-06-revoke-route-next" d="M 1125 250 C 1260 250, 1320 250, 1482 250" />
@@ -346,6 +381,7 @@
       tl.fromTo("#frame-06-revoke-card-next [data-card-title]", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 10.2);
       tl.fromTo("#frame-06-revoke-blocked", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.72, ease: "power3.out" }, 11.6);
       tl.fromTo("#frame-06-revoke-foot", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 14.3);
+      tl.to("#frame-06-revoke-evidence", { opacity: 0, duration: 0.8, ease: "power2.out" }, 15.2);
       tl.fromTo("#frame-06-revoke-card-earlier", { boxShadow: "0 0 0 rgba(47, 200, 160, 0)" }, { boxShadow: "0 0 44px rgba(47, 200, 160, 0.18)", duration: 0.9, ease: "power2.out" }, 15.3);
       tl.to("#frame-06-revoke-card-entitlement", { scale: 1, duration: 0.8, ease: "power2.out" }, 16.2);
       window.__timelines["06-revoke"] = tl;

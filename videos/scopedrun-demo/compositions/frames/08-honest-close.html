@@ -83,7 +83,7 @@
     }
     .f08-right {
       display: grid;
-      grid-template-rows: 190px 1fr;
+      grid-template-rows: 300px 1fr;
       gap: 24px;
       min-width: 0;
     }
@@ -105,6 +105,16 @@
       inset: 0 auto 0 0;
       width: 5px;
       background: #2fc8a0;
+    }
+    .f08-recording {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #070b0a;
+      z-index: 6;
+      pointer-events: none;
     }
     .f08-proof-source {
       color: #9baea7;
@@ -138,6 +148,8 @@
       line-height: 1.35;
       text-align: right;
       font-variant-numeric: tabular-nums;
+      position: relative;
+      z-index: 7;
     }
     .f08-limits {
       border-left: 4px solid #294139;
@@ -206,6 +218,7 @@
         <div data-hf-id="hf-klhc" class="f08-anchor"><span data-hf-id="hf-emmb">No silent</span><span data-hf-id="hf-p5sj">fallback.</span></div>
         <div data-hf-id="hf-i7vj" class="f08-right">
           <div data-hf-id="hf-s1hn" class="f08-proof">
+            <video data-hf-id="hf-r08v" id="unsupported-runtime-recording" class="clip f08-recording" data-start="0" data-duration="16.2" data-track-index="2" data-media-start="0" data-playback-rate="1.12" src="assets/recordings/06-unsupported-runtime.mp4" muted playsinline></video>
             <div data-hf-id="hf-lryr" class="f08-proof-source">
               <div data-hf-id="hf-rdn3">SCREEN STUDIO INSERT · CLIP 06 · LOCAL-PROCESS CAPSULE REQUEST</div>
               <div data-hf-id="hf-5qyy" class="f08-trace"><span data-hf-id="hf-4ys0" id="f08-trace-text"></span></div>
