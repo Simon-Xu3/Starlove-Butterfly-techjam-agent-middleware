@@ -200,6 +200,7 @@ describe("fake seam factories", () => {
       {
         agentId: run.agentId,
         workspacePath: "/tmp/demo-workspace",
+        codexHomePath: "/tmp/codex-home/agents/demo-agent",
         prompt: run.prompt,
         threadId: null,
       },

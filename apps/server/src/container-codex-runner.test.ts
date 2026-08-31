@@ -91,6 +91,7 @@ describe("Container Codex runner", () => {
       {
         agentId: "agent/unsafe",
         workspacePath: "/tmp/agent-workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent-unsafe",
         prompt: "write a small program",
         threadId: null,
       },
@@ -103,7 +104,7 @@ describe("Container Codex runner", () => {
     expect(args).toContain("runtime:test");
     expect(args).toContain("type=bind,src=/tmp/agent-workspace,dst=/workspace");
     expect(args).toContain(
-      "type=bind,src=" + config.codexHome + ",dst=/codex-home",
+      "type=bind,src=/tmp/codex-home/agents/agent-unsafe,dst=/codex-home",
     );
     expect(args).toContain("501:20");
     expect(args).toContain("workspace-write");
@@ -117,7 +118,7 @@ describe("Container Codex runner", () => {
       ),
     ).toEqual([
       "type=bind,src=/tmp/agent-workspace,dst=/workspace",
-      "type=bind,src=" + config.codexHome + ",dst=/codex-home",
+      "type=bind,src=/tmp/codex-home/agents/agent-unsafe,dst=/codex-home",
     ]);
   });
 
@@ -131,6 +132,7 @@ describe("Container Codex runner", () => {
       {
         agentId: "agent",
         workspacePath: "/tmp/workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent",
         prompt: "continue",
         threadId: "thread-123",
       },
@@ -155,6 +157,7 @@ describe("Container Codex runner", () => {
       {
         agentId: "agent-a",
         workspacePath: "/tmp/workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent-a",
         prompt: "summarize the incident",
         threadId: null,
       },
@@ -167,7 +170,7 @@ describe("Container Codex runner", () => {
 
     expect(mounts).toEqual([
       "type=bind,src=/tmp/workspace,dst=/workspace",
-      "type=bind,src=" + config.codexHome + ",dst=/codex-home",
+      "type=bind,src=/tmp/codex-home/agents/agent-a,dst=/codex-home",
       "type=bind,src=/fixtures/orders-incident,dst=/resources/orders-incident,readonly",
     ]);
     expect(args).not.toContain("payments-incident");
@@ -186,6 +189,7 @@ describe("Container Codex runner", () => {
       runner.run({
         agentId: "agent-a",
         workspacePath: "/tmp/workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent-a",
         prompt: "complete the baseline task",
         threadId: null,
       }),
@@ -212,6 +216,7 @@ describe("Container Codex runner", () => {
         {
           agentId: "agent-a",
           workspacePath: "/tmp/workspace",
+          codexHomePath: "/tmp/codex-home/agents/agent-a",
           prompt: "analyze the delegated incident",
           threadId: null,
         },
@@ -226,6 +231,7 @@ describe("Container Codex runner", () => {
       const request = {
         agentId: "agent-a",
         workspacePath: "/tmp/workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent-a",
         prompt: "compile-time contract probe",
         threadId: null,
       };
@@ -251,6 +257,7 @@ describe("Container Codex runner", () => {
     const run = runner.run({
       agentId: "agent-a",
       workspacePath: "/tmp/workspace",
+      codexHomePath: "/tmp/codex-home/agents/agent-a",
       prompt: "wait for cancellation",
       threadId: null,
     });
@@ -274,6 +281,7 @@ describe("Container Codex runner", () => {
       runner.run({
         agentId: "agent-a",
         workspacePath: "/tmp/workspace",
+        codexHomePath: "/tmp/codex-home/agents/agent-a",
         prompt: "wait for timeout",
         threadId: null,
       }),
@@ -292,6 +300,7 @@ describe("Container Codex runner", () => {
     const run = runner.run({
       agentId: "agent-a",
       workspacePath: "/tmp/workspace",
+      codexHomePath: "/tmp/codex-home/agents/agent-a",
       prompt: "emit too much output",
       threadId: null,
     });

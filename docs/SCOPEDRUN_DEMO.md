@@ -232,7 +232,7 @@ private call counter.
 
 | Evidence | What it proves | What it does not prove |
 | --- | --- | --- |
-| [Current final-submission audit](evidence/final-submission-audit-2026-08-30.md) | Current dependency, deterministic, real-container, Web component/production-SPA, documentation, redaction, and clean-archive status. | Screenshot-level browser QA, production-grade isolation or authentication, or a live Ark answer without valid credentials. |
+| [Current final-submission audit](evidence/issue-33-final-audit-2026-08-31.md) | Current Issue #33 security/lifecycle fixes, deterministic suites, real-container Agent-state and Resource boundary, browser UI, dependency, Compose, and documentation status. | Production-grade isolation or authentication, Terraform deployment without local Terraform, or a successful live Ark answer when provider quota is unavailable. |
 | [Issue #10 delivery](evidence/issue-10-final-delivery-2026-08-30.md) | Historical Issue #10 checks, clean-checkout smoke, real-container result, timed script budget, and redaction review at that revision. | The current post-Issue #10 audit or production-grade isolation. |
 | [Day 2 feature freeze](evidence/day2-feature-freeze-2026-08-29.md) | Deterministic four-scenario gate and frozen integrated revisions. | A current live model answer. |
 | [Real-container Kill Test](evidence/kill-test-2026-08-29.md) | Delegated Resource readable, undelegated Resource absent, write rejected, host fixtures unchanged. | Ark availability or model semantics. |

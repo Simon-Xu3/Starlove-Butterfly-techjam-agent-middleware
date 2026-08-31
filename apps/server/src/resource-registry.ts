@@ -1,4 +1,5 @@
 import path from "node:path";
+import { ResourcePathValidator } from "./resource-path-validator.js";
 import {
   RESOURCE_ID_PATTERN,
   type AdvisorResource,
@@ -64,7 +65,7 @@ function normalizeAdvisorTag(value: string): string {
 export class StaticResourceRegistry
   implements ResourceRegistryReader, AdvisorResourceReader
 {
-  private readonly resources: RegisteredResource[];
+  private resources: RegisteredResource[];
   private readonly advisorResources = new Map<string, AdvisorResource>();
 
   constructor(
@@ -151,6 +152,23 @@ export class StaticResourceRegistry
 
   listResources(): RegisteredResource[] {
     return this.resources.map(cloneResource);
+  }
+
+  async initialize(pathValidator: ResourcePathValidator): Promise<void> {
+    const result = await pathValidator.validateRegistry(this.resources);
+    if (!result.ok) {
+      throw new Error("Protected Resource Registry validation failed");
+    }
+    this.resources = this.resources.map((resource) => {
+      const validated = result.entries.find((entry) => entry.id === resource.id);
+      if (!validated) {
+        throw new Error("Protected Resource Registry validation failed");
+      }
+      return {
+        ...resource,
+        canonicalSourcePath: validated.canonicalSourcePath,
+      };
+    });
   }
 
   getAdvisorResource(resourceId: string): AdvisorResource | undefined {

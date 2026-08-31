@@ -8,6 +8,7 @@ interface ActiveRunPollOptions {
   onRun: (run: AgentRun) => void;
   refreshReceipt: (runId: string) => Promise<void>;
   onTerminal: (run: AgentRun) => Promise<void>;
+  maxConsecutiveErrors?: number;
 }
 
 const ACTIVE_STATUSES = new Set<AgentRun["status"]>(["queued", "running"]);
@@ -23,21 +24,29 @@ export async function pollActiveRun({
   onRun,
   refreshReceipt,
   onTerminal,
+  maxConsecutiveErrors = 3,
 }: ActiveRunPollOptions): Promise<void> {
+  let consecutiveErrors = 0;
   while (shouldContinue()) {
     await wait();
     if (!shouldContinue()) return;
 
-    const { run } = await getRun(runId);
-    if (!shouldContinue()) return;
-    onRun(run);
+    try {
+      const { run } = await getRun(runId);
+      if (!shouldContinue()) return;
+      onRun(run);
 
-    if (ACTIVE_STATUSES.has(run.status)) {
-      await refreshReceipt(runId);
-      continue;
+      if (ACTIVE_STATUSES.has(run.status)) {
+        await refreshReceipt(runId);
+        consecutiveErrors = 0;
+        continue;
+      }
+
+      await onTerminal(run);
+      return;
+    } catch (error) {
+      consecutiveErrors += 1;
+      if (consecutiveErrors >= maxConsecutiveErrors) throw error;
     }
-
-    await onTerminal(run);
-    return;
   }
 }

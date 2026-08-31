@@ -439,6 +439,21 @@ button {
   cursor: pointer;
 }
 
+.error-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-banner .error-retry {
+  border: 1px solid #d99690;
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: #8d3232;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .agent-header {
   max-width: 1180px;
   margin: 0 auto 18px;

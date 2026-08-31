@@ -26,6 +26,8 @@ await writeCodexConfig(config);
 
 const store = new JsonStore(path.join(config.dataDirectory, "launchpad.json"));
 const registry = new StaticResourceRegistry(config.resourceRoot);
+const pathValidator = new ResourcePathValidator(config.resourceRoot);
+await registry.initialize(pathValidator);
 const entitlements = new PrincipalEntitlementService(store, registry);
 const authorizer = createResourceAuthorizer({
   ownership: createStoreOwnershipReader(store),
@@ -35,7 +37,7 @@ const authorizer = createResourceAuthorizer({
 const mountPlanCompiler = createMountPlanCompiler({
   registry,
   entitlements,
-  pathValidator: new ResourcePathValidator(config.resourceRoot),
+  pathValidator,
 });
 const workspaces = new WorkspaceManager(config.workspaceRoot);
 const runner = createRunner(config);

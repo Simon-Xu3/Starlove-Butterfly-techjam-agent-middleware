@@ -15,7 +15,8 @@ credentials, personal data, or exploit details in an issue.
   authorization policy, but no production authentication, general RBAC, or
   tenant isolation
 - No CSRF protection
-- No per-Agent container boundary in ECS mode
+- The Docker Compose/ECS `local-process` profile has no per-Run container
+  boundary; only the opt-in local `container` profile supplies one
 - Ordinary local containers, not hardened multi-tenant sandboxes
 - Broad outbound network access
 - Prompt-triggered command and file execution
@@ -34,3 +35,8 @@ credentials, personal data, or exploit details in an issue.
 Codex uses `workspace-write` when Landlock is available. On unsupported kernels,
 startup warns and relies on the outer Docker or rootless Podman boundary. This
 fallback is not tenant isolation.
+
+The opt-in container profile mounts only the current Agent's persistent Codex
+state directory. Demo identities, host-process Runs, outbound network access,
+and the ordinary container Runtime remain outside any production tenant
+isolation claim.
