@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Oswald"; src: url("assets/fonts/oswald-700.ttf") format("truetype"); font-style: normal; font-weight: 700; }
+      @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-400.ttf") format("truetype"); font-style: normal; font-weight: 400; }
+      @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-700.ttf") format("truetype"); font-style: normal; font-weight: 700; }
+      * { box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; background: #07110f; }
+      body { font-family: "IBM Plex Mono", monospace; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #07110f; }
+      .base-ground { position: absolute; inset: 0; background: #07110f; overflow: hidden; }
+      .base-ground::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(41,65,57,.26) 2px, transparent 2px), linear-gradient(90deg, rgba(41,65,57,.20) 2px, transparent 2px); background-size: 120px 120px; opacity: .20; }
+      .base-ground::after { content: ""; position: absolute; top: 0; bottom: 0; left: 49.9%; width: 5px; background: #294139; box-shadow: 0 0 90px rgba(47,200,160,.18); opacity: .28; }
+      .scene-slot { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 50% 50%; }
+      .caption-reserve { position: absolute; left: 88px; right: 88px; bottom: 46px; height: 92px; border-top: 2px solid #294139; background: linear-gradient(180deg, rgba(7,17,15,.08), rgba(7,17,15,.82)); }
+      .caption-line { position: absolute; left: 170px; right: 170px; bottom: 60px; min-height: 58px; display: flex; align-items: center; justify-content: center; text-align: center; color: #f4f7f5; font-family: "IBM Plex Mono", monospace; font-size: 27px; font-weight: 700; line-height: 1.32; text-shadow: 0 3px 16px rgba(0,0,0,.92); }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-jzya" id="root" data-composition-id="main" data-start="0" data-duration="163.744" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-5eul" id="base-ground" class="base-ground clip" data-start="0" data-duration="163.744" data-track-index="0"></div>
+      <div data-hf-id="hf-h5f8" id="scene-01" class="scene-slot clip" data-composition-id="01-boundary" data-composition-src="compositions/frames/01-boundary.html" data-start="0" data-duration="10.4" data-track-index="10"></div>
+      <div data-hf-id="hf-mjab" id="scene-02" class="scene-slot clip" data-composition-id="02-control-plane" data-composition-src="compositions/frames/02-control-plane.html" data-start="10.4" data-duration="19.93" data-track-index="10"></div>
+      <div data-hf-id="hf-ix1i" id="scene-03" class="scene-slot clip" data-composition-id="03-delegate" data-composition-src="compositions/frames/03-delegate.html" data-start="30.33" data-duration="21.88" data-track-index="10"></div>
+      <div data-hf-id="hf-exeh" id="scene-04" class="scene-slot clip" data-composition-id="04-allow-proof" data-composition-src="compositions/frames/04-allow-proof.html" data-start="52.21" data-duration="22.648" data-track-index="10"></div>
+      <div data-hf-id="hf-l8a9" id="scene-05" class="scene-slot clip" data-composition-id="05-deny-proof" data-composition-src="compositions/frames/05-deny-proof.html" data-start="74.858" data-duration="22.136" data-track-index="10"></div>
+      <div data-hf-id="hf-mcs7" id="scene-06" class="scene-slot clip" data-composition-id="06-revoke" data-composition-src="compositions/frames/06-revoke.html" data-start="96.994" data-duration="20.003" data-track-index="10"></div>
+      <div data-hf-id="hf-0muu" id="scene-07" class="scene-slot clip" data-composition-id="07-namespace-proof" data-composition-src="compositions/frames/07-namespace-proof.html" data-start="116.997" data-duration="24.099" data-track-index="10"></div>
+      <div data-hf-id="hf-ik13" id="scene-08" class="scene-slot clip" data-composition-id="08-honest-close" data-composition-src="compositions/frames/08-honest-close.html" data-start="141.096" data-duration="22.648" data-track-index="10"></div>
+      <audio data-hf-id="hf-dt3m" id="voice-01-boundary" class="clip" src="assets/voice/01-boundary.wav" data-start="0.4" data-duration="10" data-track-index="40" data-volume="1"></audio>
+      <audio data-hf-id="hf-h2pm" id="voice-02-control-plane" class="clip" src="assets/voice/02-control-plane.wav" data-start="10.5" data-duration="19.83" data-track-index="40" data-volume="1"></audio>
+      <audio data-hf-id="hf-cfbx" id="voice-03-delegation" class="clip" src="assets/voice/03-delegation.wav" data-start="30.43" data-duration="21.78" data-track-index="40" data-volume="1"></audio>
+      <audio data-hf-id="hf-9sfy" id="voice-04-allow-proof" class="clip" src="assets/voice/04-allow-proof.wav" data-start="52.31" data-duration="22.548" data-track-index="40" data-volume="1"></audio>
+      <audio data-hf-id="hf-hu6b" id="voice-05-deny-proof" class="clip" src="assets/voice/05-deny-proof-clean.wav" data-start="74.958" data-duration="22.036" data-track-index="40" data-volume="1"></audio>
+      <audio data-hf-id="hf-h9nc" id="voice-06-revoke" class="clip" src="assets/voice/06-revoke-clean.wav" data-start="97.094" data-duration="19.903" data-track-index="40" data-volume="1"></audio>
+      <audio data-hf-id="hf-7psi" id="voice-07-namespace-proof" class="clip" src="assets/voice/07-namespace-proof.wav" data-start="117.097" data-duration="23.999" data-track-index="40" data-volume="1"></audio>
+      <audio data-hf-id="hf-q4pd" id="voice-08-honest-close" class="clip" src="assets/voice/08-honest-close.wav" data-start="141.196" data-duration="22.548" data-track-index="40" data-volume="1"></audio>
+      <div data-hf-id="hf-oapu" id="caption-reserve" class="caption-reserve clip" data-start="0" data-duration="163.744" data-track-index="30" data-layout-allow-caption-zone=""></div>
+      <div data-hf-id="hf-oyy8" id="caption-01-a" class="caption-line clip" data-start="0.4" data-duration="3.1" data-track-index="31" data-layout-allow-caption-zone="">Give an Agent one sensitive directory, and it must not see the others.</div>
+      <div data-hf-id="hf-tbhz" id="caption-01-b" class="caption-line clip" data-start="3.5" data-duration="4.1" data-track-index="31" data-layout-allow-caption-zone="">A hidden picker or a prompt cannot enforce that against shell access.</div>
+      <div data-hf-id="hf-txby" id="caption-01-c" class="caption-line clip" data-start="7.6" data-duration="2.8" data-track-index="31" data-layout-allow-caption-zone="">Prompts ask. Mounts enforce.</div>
+      <div data-hf-id="hf-zpsb" id="caption-02-a" class="caption-line clip" data-start="10.5" data-duration="4.0" data-track-index="31" data-layout-allow-caption-zone="">SLB-ScopedRun separates standing permission from this Run's scope.</div>
+      <div data-hf-id="hf-8yju" id="caption-02-b" class="caption-line clip" data-start="14.5" data-duration="4.2" data-track-index="31" data-layout-allow-caption-zone="">An Entitlement defines the ceiling; a Delegation records the one Resource chosen.</div>
+      <div data-hf-id="hf-tds0" id="caption-02-c" class="caption-line clip" data-start="18.7" data-duration="4.3" data-track-index="31" data-layout-allow-caption-zone="">Before execution, the server revalidates the principal, Agent ownership,</div>
+      <div data-hf-id="hf-ptre" id="caption-02-d" class="caption-line clip" data-start="23" data-duration="4.0" data-track-index="31" data-layout-allow-caption-zone="">permission generation, canonical path, and Runtime.</div>
+      <div data-hf-id="hf-a9m1" id="caption-02-e" class="caption-line clip" data-start="27" data-duration="3.33" data-track-index="31" data-layout-allow-caption-zone="">Only then does it create one read-only mount.</div>
+      <div data-hf-id="hf-kb0q" id="caption-03-a" class="caption-line clip" data-start="30.43" data-duration="4.2" data-track-index="31" data-layout-allow-caption-zone="">User A owns this Agent and may delegate Inventory or Orders.</div>
+      <div data-hf-id="hf-d6tl" id="caption-03-b" class="caption-line clip" data-start="34.63" data-duration="6.5" data-track-index="31" data-layout-allow-caption-zone="">The Advisor uses safe metadata to suggest Inventory, but it cannot authorize anything.</div>
+      <div data-hf-id="hf-vbk5" id="caption-03-c" class="caption-line clip" data-start="41.13" data-duration="5.2" data-track-index="31" data-layout-allow-caption-zone="">I make the choice explicitly, for this Run only.</div>
+      <div data-hf-id="hf-lkh7" id="caption-03-d" class="caption-line clip" data-start="46.33" data-duration="5.88" data-track-index="31" data-layout-allow-caption-zone="">The Resource is never copied into the Agent workspace.</div>
+      <div data-hf-id="hf-fmft" id="caption-04-a" class="caption-line clip" data-start="52.31" data-duration="4.4" data-track-index="31" data-layout-allow-caption-zone="">Now the Agent investigates Inventory.</div>
+      <div data-hf-id="hf-v16k" id="caption-04-b" class="caption-line clip" data-start="56.71" data-duration="8" data-track-index="31" data-layout-allow-caption-zone="">Admission succeeds: a container starts and the delegated files appear read-only under a generated Resource path.</div>
+      <div data-hf-id="hf-0qdu" id="caption-04-c" class="caption-line clip" data-start="64.71" data-duration="3.5" data-track-index="31" data-layout-allow-caption-zone="">The Agent summarizes those files.</div>
+      <div data-hf-id="hf-keku" id="caption-04-d" class="caption-line clip" data-start="68.21" data-duration="6.648" data-track-index="31" data-layout-allow-caption-zone="">The Proof Chain shows what I delegated, what the server decided, and whether the Runner started.</div>
+      <div data-hf-id="hf-8xak" id="caption-05-a" class="caption-line clip" data-start="74.958" data-duration="6" data-track-index="31" data-layout-allow-caption-zone="">Payments is outside User A's Entitlement, so the Advisor neither suggests nor describes it.</div>
+      <div data-hf-id="hf-eryd" id="caption-05-b" class="caption-line clip" data-start="80.958" data-duration="3" data-track-index="31" data-layout-allow-caption-zone="">But UI filtering is not enforcement.</div>
+      <div data-hf-id="hf-xgsm" id="caption-05-c" class="caption-line clip" data-start="83.958" data-duration="5.5" data-track-index="31" data-layout-allow-caption-zone="">Sending its valid ID directly still returns HTTP 403: entitlement missing.</div>
+      <div data-hf-id="hf-gfag" id="caption-05-d" class="caption-line clip" data-start="89.458" data-duration="7.536" data-track-index="31" data-layout-allow-caption-zone="">Admission stops before the Runner; the HTTP gate verifies zero Runner calls.</div>
+      <div data-hf-id="hf-kzp4" id="caption-06-a" class="caption-line clip" data-start="97.094" data-duration="4.2" data-track-index="31" data-layout-allow-caption-zone="">Permissions may change after selection. I revoke Inventory, then retry.</div>
+      <div data-hf-id="hf-eodr" id="caption-06-b" class="caption-line clip" data-start="101.294" data-duration="6.6" data-track-index="31" data-layout-allow-caption-zone="">The final admission check returns entitlement revoked before the Runner starts.</div>
+      <div data-hf-id="hf-2kym" id="caption-06-c" class="caption-line clip" data-start="107.894" data-duration="3.8" data-track-index="31" data-layout-allow-caption-zone="">The earlier allow Receipt remains auditable.</div>
+      <div data-hf-id="hf-ub49" id="caption-06-d" class="caption-line clip" data-start="111.694" data-duration="5.303" data-track-index="31" data-layout-allow-caption-zone="">Revocation blocks the next Run; it does not terminate one already running.</div>
+      <div data-hf-id="hf-t7up" id="caption-07-a" class="caption-line clip" data-start="117.097" data-duration="5.4" data-track-index="31" data-layout-allow-caption-zone="">Our strongest evidence is a real Docker and Colima namespace test.</div>
+      <div data-hf-id="hf-37er" id="caption-07-b" class="caption-line clip" data-start="122.497" data-duration="6" data-track-index="31" data-layout-allow-caption-zone="">The delegated directory is readable, and writes are rejected.</div>
+      <div data-hf-id="hf-iwo9" id="caption-07-c" class="caption-line clip" data-start="128.497" data-duration="6.1" data-track-index="31" data-layout-allow-caption-zone="">Every unrelated fixture and sibling Agent state is absent; before-and-after hashes match.</div>
+      <div data-hf-id="hf-x5ks" id="caption-07-d" class="caption-line clip" data-start="134.597" data-duration="6.499" data-track-index="31" data-layout-allow-caption-zone="">It proves the mount boundary — not model semantics.</div>
+      <div data-hf-id="hf-qlje" id="caption-08-a" class="caption-line clip" data-start="141.196" data-duration="5" data-track-index="31" data-layout-allow-caption-zone="">A Capsule never falls back to local-process.</div>
+      <div data-hf-id="hf-26gb" id="caption-08-b" class="caption-line clip" data-start="146.196" data-duration="6.2" data-track-index="31" data-layout-allow-caption-zone="">That profile cannot provide a namespace boundary, so the server rejects it before the Runner.</div>
+      <div data-hf-id="hf-3cha" id="caption-08-c" class="caption-line clip" data-start="152.396" data-duration="5.2" data-track-index="31" data-layout-allow-caption-zone="">This POC uses mock identity, and revocation does not kill an active Run.</div>
+      <div data-hf-id="hf-9vqc" id="caption-08-d" class="caption-line clip" data-start="157.596" data-duration="6.148" data-track-index="31" data-layout-allow-caption-zone="">Its boundary is concrete and testable. One Resource. One Run. Nothing else.</div>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#scene-01", { opacity: 0 }, { opacity: 1, duration: .35, ease: "power3.out" }, 0);
+      tl.fromTo("#scene-02", { opacity: 0, filter: "blur(18px)" }, { opacity: 1, filter: "blur(0px)", duration: .4, ease: "power3.out", immediateRender: false }, 10.4);
+      tl.fromTo("#scene-03", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: .45, ease: "power3.out", immediateRender: false }, 30.33);
+      tl.fromTo("#scene-04", { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: .35, ease: "power3.out", immediateRender: false }, 52.21);
+      tl.fromTo("#scene-05", { opacity: 0, scaleX: .92 }, { opacity: 1, scaleX: 1, duration: .35, ease: "power3.out", immediateRender: false }, 74.858);
+      tl.fromTo("#scene-06", { opacity: 0, filter: "blur(16px)" }, { opacity: 1, filter: "blur(0px)", duration: .4, ease: "power3.out", immediateRender: false }, 96.994);
+      tl.fromTo("#scene-07", { opacity: 0, y: 110 }, { opacity: 1, y: 0, duration: .35, ease: "power3.out", immediateRender: false }, 116.997);
+      tl.fromTo("#scene-08", { opacity: 0, filter: "blur(18px)" }, { opacity: 1, filter: "blur(0px)", duration: .45, ease: "power3.out", immediateRender: false }, 141.096);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

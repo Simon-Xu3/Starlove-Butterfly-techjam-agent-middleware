@@ -1,0 +1,97 @@
+<template>
+  <style>
+    @font-face { font-family: "Oswald"; src: url("assets/fonts/oswald-700.ttf") format("truetype"); font-weight: 700; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-400.ttf") format("truetype"); font-weight: 400; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-700.ttf") format("truetype"); font-weight: 700; }
+    #frame-03-root { width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden; color: #F4F7F5; font-family: "IBM Plex Mono", monospace; padding: 72px 88px 184px; display: grid; grid-template-rows: auto 1fr; gap: 42px; position: relative; isolation: isolate; }
+    [class~="03-delegate-bg"] { position: absolute; inset: 0; z-index: -2; background-color: #07110F; background-image: radial-gradient(circle at 36% 49%, rgba(47,200,160,.08), transparent 34%), linear-gradient(rgba(41,65,57,.17) 1px, transparent 1px), linear-gradient(90deg, rgba(41,65,57,.17) 1px, transparent 1px); background-size: auto, 90px 90px, 90px 90px; }
+    [class~="03-delegate-bg"]::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 34%, rgba(0,0,0,.52)); }
+    [class~="03-delegate-meta"] { display: flex; justify-content: space-between; color: #9BAEA7; font-size: 22px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; position: relative; z-index: 4; }
+    [class~="03-delegate-zoom-outer"], [class~="03-delegate-zoom-inner"] { width: 100%; height: 100%; min-height: 0; will-change: transform; }
+    [class~="03-delegate-zoom-outer"] { transform-origin: 50% 50%; }
+    [class~="03-delegate-layout"] { width: 100%; height: 100%; display: grid; grid-template-columns: 64% 36%; gap: 34px; }
+    [class~="03-delegate-capture"] { border: 3px solid #294139; padding: 34px; display: grid; grid-template-rows: auto 1fr auto; gap: 26px; background: rgba(16,28,25,.94); box-shadow: 0 28px 80px rgba(0,0,0,.48); min-height: 0; position: relative; }
+    [class~="03-delegate-capture"]::before, [class~="03-delegate-capture"]::after { content: ""; position: absolute; width: 18px; height: 18px; border-color: #2FC8A0; border-style: solid; }
+    [class~="03-delegate-capture"]::before { left: -3px; top: -3px; border-width: 3px 0 0 3px; }
+    [class~="03-delegate-capture"]::after { right: -3px; bottom: -3px; border-width: 0 3px 3px 0; }
+    [class~="03-delegate-capture-label"] { color: #9BAEA7; font-size: 20px; letter-spacing: .1em; display: flex; justify-content: space-between; }
+    [class~="03-delegate-capture-label"]::after { content: "SAFE METADATA ONLY"; color: #F2B84B; font-weight: 700; }
+    [class~="03-delegate-browser"] { border: 2px solid #294139; color: #9BAEA7; font-size: 26px; text-align: center; min-height: 0; overflow: hidden; position: relative; background: #07110F; }
+    [class~="03-delegate-video"] { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; z-index: 0; }
+    [class~="03-delegate-browser-shade"] { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to bottom, rgba(7,17,15,.08) 52%, rgba(7,17,15,.92) 100%); pointer-events: none; }
+    [class~="03-delegate-advisor-chip"] { position: absolute; left: 24px; top: 22px; z-index: 2; color: #F2B84B; border: 2px solid #F2B84B; background: rgba(7,17,15,.91); padding: 12px 16px; font-size: 17px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    [class~="03-delegate-browser-note"] { position: absolute; left: 26px; right: 26px; bottom: 22px; z-index: 2; color: #F4F7F5; font-size: 23px; line-height: 1.35; text-align: left; }
+    [class~="03-delegate-select"] { border: 3px solid #2FC8A0; color: #2FC8A0; padding: 22px 26px; font-size: 28px; font-weight: 700; display: flex; justify-content: space-between; background: rgba(47,200,160,.035); box-shadow: inset 0 0 34px rgba(47,200,160,.05); transform-origin: 50% 50%; }
+    [class~="03-delegate-select"] span:last-child { border-left: 2px solid #294139; padding-left: 24px; }
+    [class~="03-delegate-side"] { display: flex; flex-direction: column; justify-content: center; gap: 28px; padding-left: 24px; }
+    [class~="03-delegate-eyebrow"] { color: #2FC8A0; font-size: 22px; font-weight: 700; letter-spacing: .12em; }
+    [class~="03-delegate-title"] { margin: 0; font-family: "Oswald", sans-serif; font-size: 86px; line-height: 1.02; letter-spacing: .01em; text-transform: uppercase; }
+    [class~="03-delegate-copy"] { color: #9BAEA7; font-size: 29px; line-height: 1.5; perspective: 800px; }
+    [class~="03-delegate-word"] { display: inline-block; transform-origin: 50% 50%; margin-right: .08em; }
+    [class~="03-delegate-one-run"] { border-top: 2px solid #294139; padding-top: 24px; color: #2FC8A0; font-size: 30px; font-weight: 700; }
+  </style>
+  <div data-hf-id="hf-00a6" id="frame-03-root" data-composition-id="03-delegate" data-width="1920" data-height="1080" data-duration="22">
+    <div data-hf-id="hf-k7hs" id="frame-03-delegate-bg" class="clip 03-delegate-bg" data-start="0" data-duration="22" data-track-index="0" aria-hidden="true"></div>
+    <div data-hf-id="hf-puvz" class="03-delegate-meta"><span data-hf-id="hf-ch6m">DEMO USER A · LIVE AGENT</span><span data-hf-id="hf-5zhn">DELEGATION / 03</span></div>
+    <div data-hf-id="hf-gbid" class="03-delegate-zoom-outer">
+      <div data-hf-id="hf-srcs" class="03-delegate-zoom-inner">
+        <div data-hf-id="hf-s2yi" class="03-delegate-layout">
+          <div data-hf-id="hf-dzfq" class="03-delegate-capture">
+            <div data-hf-id="hf-032f" class="03-delegate-capture-label"><span data-hf-id="hf-y2m5">SCREEN STUDIO INSERT · CLIP 01</span></div>
+            <div data-hf-id="hf-7yxb" class="03-delegate-browser">
+              <video data-hf-id="hf-nvso" id="delegate-inventory-recording" class="clip 03-delegate-video" data-start="0" data-duration="22" data-track-index="2" data-media-start="0" data-playback-rate="1" src="assets/recordings/01-delegate-inventory.mp4" muted playsinline data-layout-allow-overflow=""></video>
+              <div data-hf-id="hf-8vk2" class="03-delegate-browser-shade"></div>
+              <div data-hf-id="hf-o0u8" class="03-delegate-advisor-chip">Advisor suggestion · not authority</div>
+              <div data-hf-id="hf-mjbc" class="03-delegate-browser-note">Resource Advisor suggests Inventory Incident from safe metadata.</div>
+            </div>
+            <div data-hf-id="hf-iqu0" class="03-delegate-select"><span data-hf-id="hf-8rxf">Inventory Incident</span><span data-hf-id="hf-knza">Delegate for this Run</span></div>
+          </div>
+          <div data-hf-id="hf-cww1" class="03-delegate-side">
+            <div data-hf-id="hf-tn4w" class="03-delegate-eyebrow">HUMAN DECISION</div>
+            <h1 data-hf-id="hf-vfjn" class="03-delegate-title">Suggestion ≠ authorization</h1>
+            <div data-hf-id="hf-q7c3" class="03-delegate-copy"><span data-hf-id="hf-tqcn" class="03-delegate-word" data-word="advisor">The Advisor proposes.</span> <span data-hf-id="hf-7n58" class="03-delegate-word" data-word="person">The person</span> <span data-hf-id="hf-h3wt" class="03-delegate-word" data-word="explicitly">explicitly</span> <span data-hf-id="hf-dkon" class="03-delegate-word" data-word="delegates">delegates</span> <span data-hf-id="hf-azls" class="03-delegate-word" data-word="resource">the Resource.</span></div>
+            <div data-hf-id="hf-csgw" class="03-delegate-one-run">ONE RESOURCE · ONE RUN · READ-ONLY</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="assets/vendor/gsap.min.js"></script>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const outer = document.querySelector('[class~="03-delegate-zoom-outer"]');
+      const inner = document.querySelector('[class~="03-delegate-zoom-inner"]');
+      const target = document.querySelector('[class~="03-delegate-select"]');
+      const outerRect = outer.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const offsetX = targetRect.left + targetRect.width / 2 - (outerRect.left + outerRect.width / 2);
+      const offsetY = 0;
+      const maxScale = Math.min((.88 * 1920) / targetRect.width, (.88 * 1080) / targetRect.height);
+      const zoomScale = Math.min(1.04, maxScale);
+
+      tl.fromTo('[class~="03-delegate-meta"]', { opacity: 0 }, { opacity: 1, duration: .4, ease: 'power1.out' }, 0);
+      tl.fromTo('[class~="03-delegate-capture"]', { x: -170, opacity: 0 }, { x: 0, opacity: 1, duration: .65, ease: 'power3.out' }, .18);
+      tl.fromTo('[class~="03-delegate-eyebrow"]', { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: .45, ease: 'power3.out' }, 3.6);
+      tl.fromTo('[class~="03-delegate-title"]', { y: 54, opacity: 0 }, { y: 0, opacity: 1, duration: .6, ease: 'power3.out' }, 4.2);
+      tl.fromTo('[class~="03-delegate-copy"]', { y: 34, opacity: 0 }, { y: 0, opacity: 1, duration: .55, ease: 'power3.out' }, 6.0);
+      tl.fromTo('[class~="03-delegate-advisor-chip"]', { x: -70, opacity: 0 }, { x: 0, opacity: 1, duration: .55, ease: 'power3.out' }, 6.2);
+
+      tl.to(outer, { scale: zoomScale, duration: 1.5, ease: 'power3.inOut' }, 9.4);
+      tl.to(inner, { x: -offsetX, y: -offsetY, duration: 1.5, ease: 'power3.inOut' }, 9.4);
+      tl.fromTo('[class~="03-delegate-select"]', { boxShadow: 'inset 0 0 0 rgba(47,200,160,0)' }, { boxShadow: 'inset 0 0 54px rgba(47,200,160,.20), 0 0 36px rgba(47,200,160,.18)', duration: .7, ease: 'power1.out' }, 11.2);
+      tl.to(outer, { scale: 1, duration: 1.5, ease: 'power3.inOut' }, 14.1);
+      tl.to(inner, { x: 0, y: 0, duration: 1.5, ease: 'power3.inOut' }, 14.1);
+      tl.fromTo('[class~="03-delegate-one-run"]', { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: .55, ease: 'power3.out' }, 16.4);
+
+      const timings = { advisor: { start: 6.2, end: 7.5 }, person: { start: 9.0, end: 10.2 }, explicitly: { start: 11.0, end: 12.1 }, delegates: { start: 12.7, end: 14.0 }, resource: { start: 14.7, end: 16.8 } };
+      const words = gsap.utils.toArray('[class~="03-delegate-word"]');
+      const driver = { t: 0 };
+      const envelope = (t, start, end) => t < start ? 0 : t < end ? Math.min((t - start) / .18, 1) : t < end + .4 ? 1 - ((t - end) / .4) * .88 : .12;
+      const mix = (a, b, t) => Math.round(a + (b - a) * t);
+      tl.to(driver, { t: 20, duration: 20, ease: 'none', onUpdate: () => { words.forEach((el) => { const e = envelope(driver.t, timings[el.dataset.word].start, timings[el.dataset.word].end); el.style.color = `rgb(${mix(82,244,e)},${mix(105,247,e)},${mix(97,245,e)})`; el.style.textShadow = `0 0 ${32 * e}px rgba(47,200,160,${.56 * e})`; el.style.transform = `scale(${1 + .06 * e})`; }); } }, 0);
+      window.__timelines = window.__timelines || {};
+      window.__timelines['03-delegate'] = tl;
+    })();
+  </script>
+</template>

@@ -1,0 +1,354 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "ScopedRun Oswald";
+      src: url("assets/fonts/oswald-700.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "ScopedRun Plex Mono";
+      src: url("assets/fonts/ibm-plex-mono-400.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "ScopedRun Plex Mono";
+      src: url("assets/fonts/ibm-plex-mono-700.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    #frame-06-root {
+      width: 1920px;
+      height: 1080px;
+      box-sizing: border-box;
+      overflow: hidden;
+      position: relative;
+      color: #f4f7f5;
+      font-family: "ScopedRun Plex Mono";
+    }
+    #frame-06-root > .clip {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    [id="frame-06-revoke-ground"] {
+      background-color: #07110f;
+      overflow: hidden;
+    }
+    [id="frame-06-revoke-ground"]::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.45;
+      background-image:
+        linear-gradient(rgba(41, 65, 57, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(41, 65, 57, 0.24) 1px, transparent 1px);
+      background-size: 88px 88px;
+      mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.48) 62%, transparent 89%);
+    }
+    [id="frame-06-revoke-ground"]::after {
+      content: "";
+      position: absolute;
+      width: 860px;
+      height: 540px;
+      left: 530px;
+      top: 240px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 92, 87, 0.12), rgba(255, 92, 87, 0) 68%);
+      filter: blur(68px);
+    }
+    [id="frame-06-revoke-content"] {
+      padding: 72px 88px 190px;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 28px;
+    }
+    [id="frame-06-revoke-meta"] {
+      display: flex;
+      justify-content: space-between;
+      color: #9baea7;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      position: relative;
+    }
+    [id="frame-06-revoke-meta"]::before,
+    [id="frame-06-revoke-meta"]::after {
+      content: "";
+      position: absolute;
+      top: -17px;
+      width: 28px;
+      height: 2px;
+      background: #294139;
+    }
+    [id="frame-06-revoke-meta"]::before { left: 0; }
+    [id="frame-06-revoke-meta"]::after { right: 0; }
+    [id="frame-06-revoke-title"] {
+      margin: 0;
+      font-family: "ScopedRun Oswald";
+      font-size: 78px;
+      line-height: 1.04;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      max-width: 1500px;
+    }
+    [id="frame-06-revoke-title"] em {
+      color: #ff5c57;
+      font-style: normal;
+    }
+    [id="frame-06-revoke-rail"] {
+      position: relative;
+      display: grid;
+      grid-template-columns: 30% 34% 36%;
+      gap: 26px;
+      align-items: stretch;
+      min-height: 0;
+    }
+    [id="frame-06-revoke-route-svg"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    [id="frame-06-revoke-route-svg"] path {
+      fill: none;
+      stroke: #294139;
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    [id="frame-06-revoke-route-svg"] [id="frame-06-revoke-gate-path"] {
+      stroke: #ff5c57;
+      stroke-width: 10;
+    }
+    [id="frame-06-revoke-rail"] [data-card] {
+      border: 2px solid #294139;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: rgba(16, 28, 25, 0.97);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
+      position: relative;
+      overflow: hidden;
+      min-width: 0;
+      transform-origin: 50% 50%;
+    }
+    [id="frame-06-revoke-card-earlier"] {
+      color: #2fc8a0;
+    }
+    [id="frame-06-revoke-card-entitlement"] {
+      border: 3px solid #f2b84b;
+      color: #f2b84b;
+    }
+    [id="frame-06-revoke-card-next"] {
+      border-color: #ff5c57;
+    }
+    [data-card-label] {
+      color: #9baea7;
+      font-size: 20px;
+      letter-spacing: 0.1em;
+    }
+    [data-card-title] {
+      font-family: "ScopedRun Oswald";
+      font-size: 50px;
+      line-height: 1.03;
+      text-transform: uppercase;
+    }
+    [data-card-detail] {
+      color: #9baea7;
+      font-size: 23px;
+      line-height: 1.4;
+    }
+    [id="frame-06-revoke-entitlement-body"] {
+      position: absolute;
+      inset: 82px 30px 30px;
+      display: grid;
+      place-items: center start;
+      overflow: hidden;
+    }
+    [id="frame-06-revoke-entitlement-old"],
+    [id="frame-06-revoke-entitlement-new"] {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    [id="frame-06-revoke-entitlement-old"] [data-card-title] {
+      color: #2fc8a0;
+    }
+    [id="frame-06-revoke-entitlement-new"] {
+      opacity: 0;
+    }
+    [id="frame-06-revoke-entitlement-new"] [data-card-title],
+    [id="frame-06-revoke-blocked"] {
+      color: #ff5c57;
+    }
+    [id="frame-06-revoke-generation-wrap"] {
+      display: inline-flex;
+      align-items: baseline;
+      min-width: 320px;
+      white-space: nowrap;
+    }
+    [id="frame-06-revoke-generation"] {
+      color: #9baea7;
+      font-size: 23px;
+      line-height: 1.4;
+    }
+    [id="frame-06-revoke-cursor"] {
+      display: inline-block;
+      width: 14px;
+      margin-left: 6px;
+      color: #ff5c57;
+    }
+    [id="frame-06-revoke-blocked"] {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+    [id="frame-06-revoke-foot"] {
+      border-top: 2px solid #294139;
+      padding-top: 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 40px;
+      font-size: 23px;
+      line-height: 1.3;
+      color: #9baea7;
+    }
+    [id="frame-06-revoke-foot"] span:last-child {
+      text-align: right;
+    }
+  </style>
+
+  <div data-hf-id="hf-ino2" id="frame-06-root" data-composition-id="06-revoke" data-width="1920" data-height="1080" data-duration="20">
+    <div data-hf-id="hf-xm9p" id="frame-06-revoke-ground" class="clip" data-start="0" data-duration="20" data-track-index="0"></div>
+    <div data-hf-id="hf-tfts" id="frame-06-revoke-content" class="clip" data-start="0" data-duration="20" data-track-index="1">
+      <div data-hf-id="hf-ldo0" id="frame-06-revoke-meta"><span data-hf-id="hf-kvss">ENTITLEMENT CHANGE</span><span data-hf-id="hf-3xfk">REVOKE / 06</span></div>
+      <h1 data-hf-id="hf-mx3v" id="frame-06-revoke-title">Future admission <em data-hf-id="hf-9g56">fails closed.</em> History stays.</h1>
+      <div data-hf-id="hf-nlqr" id="frame-06-revoke-rail">
+        <svg data-hf-id="hf-kx6f" id="frame-06-revoke-route-svg" viewBox="0 0 1744 500" preserveAspectRatio="none" aria-hidden="true">
+          <path data-hf-id="hf-op9m" id="frame-06-revoke-route-earlier" d="M 260 250 C 430 250, 470 250, 608 250" />
+          <path data-hf-id="hf-e03g" id="frame-06-revoke-route-next" d="M 1125 250 C 1260 250, 1320 250, 1482 250" />
+          <path data-hf-id="hf-raaj" id="frame-06-revoke-gate-path" d="M 1170 164 L 1170 336" />
+        </svg>
+        <div data-hf-id="hf-egou" id="frame-06-revoke-card-earlier" data-card="earlier">
+          <span data-hf-id="hf-nlss" data-card-label="">EARLIER RUN</span>
+          <span data-hf-id="hf-gsec" data-card-title="">Allow Receipt</span>
+          <span data-hf-id="hf-xgm5" data-card-detail="">Persisted and auditable</span>
+        </div>
+        <div data-hf-id="hf-vq2e" id="frame-06-revoke-card-entitlement" data-card="entitlement">
+          <span data-hf-id="hf-6usm" data-card-label="">ENTITLEMENT</span>
+          <div data-hf-id="hf-69z1" id="frame-06-revoke-entitlement-body">
+            <div data-hf-id="hf-j2mo" id="frame-06-revoke-entitlement-old">
+              <span data-hf-id="hf-p485" data-card-title="">Inventory active</span>
+              <span data-hf-id="hf-hiyl" data-card-detail="">Generation 07</span>
+            </div>
+            <div data-hf-id="hf-zz2d" id="frame-06-revoke-entitlement-new">
+              <span data-hf-id="hf-xq9b" data-card-title="">Inventory revoked</span>
+              <span data-hf-id="hf-xncj" id="frame-06-revoke-generation-wrap"><span data-hf-id="hf-5vu5" id="frame-06-revoke-generation">Generation changes</span><span data-hf-id="hf-z0lv" id="frame-06-revoke-cursor">_</span></span>
+            </div>
+          </div>
+        </div>
+        <div data-hf-id="hf-m3bq" id="frame-06-revoke-card-next" data-card="next">
+          <span data-hf-id="hf-ofvv" data-card-label="">NEXT RUN</span>
+          <span data-hf-id="hf-sdfr" data-card-title="">Admission denied</span>
+          <span data-hf-id="hf-1zwe" id="frame-06-revoke-blocked">HTTP 403 · entitlement_revoked</span>
+        </div>
+      </div>
+      <div data-hf-id="hf-jz2j" id="frame-06-revoke-foot"><span data-hf-id="hf-lhh7">Prospective revocation</span><span data-hf-id="hf-uezd">Does not hot-unmount an active Run</span></div>
+    </div>
+  </div>
+
+  <script src="assets/vendor/gsap.min.js"></script>
+  <script>
+    (() => {
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const routeEarlier = document.getElementById("frame-06-revoke-route-earlier");
+      const routeNext = document.getElementById("frame-06-revoke-route-next");
+      const gatePath = document.getElementById("frame-06-revoke-gate-path");
+      [routeEarlier, routeNext, gatePath].forEach((path) => {
+        const length = path.getTotalLength();
+        path.dataset.length = `${length}`;
+        path.style.strokeDasharray = `${length}`;
+        path.style.strokeDashoffset = `${length}`;
+      });
+
+      const generationSequence = [
+        { t: 0.0, text: "Generation 07" },
+        { t: 0.55, text: "Generation 08…" },
+        { t: 1.15, text: "Generation 0" },
+        { t: 1.55, text: "Generation changes" }
+      ];
+      const generationAt = (time) => {
+        for (let i = generationSequence.length - 1; i >= 0; i -= 1) {
+          if (time >= generationSequence[i].t) return generationSequence[i].text;
+        }
+        return generationSequence[0].text;
+      };
+      const generationEl = document.getElementById("frame-06-revoke-generation");
+      const cursorEl = document.getElementById("frame-06-revoke-cursor");
+      const generationDriver = { t: 0 };
+      const cursorDriver = { phase: 0 };
+      let lastGeneration = "";
+
+      tl.fromTo("#frame-06-revoke-meta", { opacity: 0, y: -22 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 0);
+      tl.fromTo("#frame-06-revoke-title", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" }, 0.1);
+      tl.fromTo("#frame-06-revoke-card-earlier", { opacity: 0, x: -110 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, 1.25);
+      tl.to(routeEarlier, { strokeDashoffset: 0, duration: 0.72, ease: "power2.out" }, 2.5);
+      tl.fromTo("#frame-06-revoke-card-entitlement", { opacity: 0, y: 54 }, { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" }, 3.0);
+      tl.to(routeNext, { strokeDashoffset: 0, duration: 0.78, ease: "power2.out" }, 4.8);
+
+      tl.to("#frame-06-revoke-card-entitlement", {
+        scale: 1.035,
+        borderRadius: 0,
+        backgroundColor: "#172622",
+        boxShadow: "0 0 52px rgba(255, 92, 87, 0.22)",
+        duration: 1.0,
+        ease: "power2.inOut"
+      }, 6.3);
+      tl.to("#frame-06-revoke-entitlement-old", { opacity: 0, duration: 0.4, ease: "power1.in" }, 6.3);
+      tl.to("#frame-06-revoke-entitlement-new", { opacity: 1, duration: 0.4, ease: "power1.out" }, 6.9);
+      tl.to("#frame-06-revoke-card-entitlement", { borderColor: "#ff5c57", color: "#ff5c57", duration: 0.45, ease: "power1.out" }, 6.85);
+
+      tl.to(generationDriver, {
+        t: 2.2,
+        duration: 2.2,
+        ease: "none",
+        onUpdate: () => {
+          const value = generationAt(generationDriver.t);
+          if (value !== lastGeneration) {
+            generationEl.textContent = value;
+            lastGeneration = value;
+          }
+        }
+      }, 6.75);
+      tl.to(cursorDriver, {
+        phase: Math.PI * 8,
+        duration: 2.2,
+        ease: "none",
+        onUpdate: () => {
+          cursorEl.style.opacity = Math.sin(cursorDriver.phase) > 0 ? "1" : "0";
+        }
+      }, 6.75);
+      tl.to(gatePath, { strokeDashoffset: 0, duration: 0.62, ease: "power2.out" }, 8.15);
+      tl.to(routeNext, { opacity: 0.24, stroke: "#ff5c57", duration: 0.4, ease: "power1.out" }, 8.35);
+      tl.fromTo("#frame-06-revoke-card-next", { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, 9.1);
+      tl.fromTo("#frame-06-revoke-card-next [data-card-title]", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 10.2);
+      tl.fromTo("#frame-06-revoke-blocked", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.72, ease: "power3.out" }, 11.6);
+      tl.fromTo("#frame-06-revoke-foot", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 14.3);
+      tl.fromTo("#frame-06-revoke-card-earlier", { boxShadow: "0 0 0 rgba(47, 200, 160, 0)" }, { boxShadow: "0 0 44px rgba(47, 200, 160, 0.18)", duration: 0.9, ease: "power2.out" }, 15.3);
+      tl.to("#frame-06-revoke-card-entitlement", { scale: 1, duration: 0.8, ease: "power2.out" }, 16.2);
+      window.__timelines["06-revoke"] = tl;
+    })();
+  </script>
+</template>

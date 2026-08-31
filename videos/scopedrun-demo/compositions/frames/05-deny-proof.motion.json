@@ -1,0 +1,1 @@
+{"duration":23,"assertions":[{"kind":"appearsBy","selector":"#frame-05-deny-proof-panel-left","bySec":3.5},{"kind":"appearsBy","selector":"#frame-05-deny-proof-never","bySec":17},{"kind":"staysInFrame","selector":"#frame-05-deny-proof-split"}]}

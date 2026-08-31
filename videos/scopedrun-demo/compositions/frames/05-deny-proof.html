@@ -1,0 +1,396 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "ScopedRun Oswald";
+      src: url("assets/fonts/oswald-700.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "ScopedRun Plex Mono";
+      src: url("assets/fonts/ibm-plex-mono-400.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "ScopedRun Plex Mono";
+      src: url("assets/fonts/ibm-plex-mono-700.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    #frame-05-root {
+      width: 1920px;
+      height: 1080px;
+      box-sizing: border-box;
+      overflow: hidden;
+      position: relative;
+      color: #f4f7f5;
+      font-family: "ScopedRun Plex Mono";
+    }
+    #frame-05-root > .clip {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    [id="frame-05-deny-proof-ground"] {
+      background-color: #07110f;
+      overflow: hidden;
+    }
+    [id="frame-05-deny-proof-ground"]::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(41, 65, 57, 0.28) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(41, 65, 57, 0.22) 1px, transparent 1px);
+      background-size: 96px 96px;
+      opacity: 0.42;
+      mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.52) 60%, transparent 88%);
+    }
+    [id="frame-05-deny-proof-glow-left"],
+    [id="frame-05-deny-proof-glow-right"] {
+      position: absolute;
+      top: 238px;
+      width: 720px;
+      height: 520px;
+      border-radius: 50%;
+      filter: blur(70px);
+      opacity: 0.12;
+    }
+    [id="frame-05-deny-proof-glow-left"] {
+      left: 85px;
+      background: #f2b84b;
+    }
+    [id="frame-05-deny-proof-glow-right"] {
+      right: 85px;
+      background: #ff5c57;
+    }
+    [id="frame-05-deny-proof-content"] {
+      padding: 72px 88px 190px;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 26px;
+      perspective: 1700px;
+    }
+    [id="frame-05-deny-proof-meta"] {
+      display: flex;
+      justify-content: space-between;
+      color: #9baea7;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      position: relative;
+    }
+    [id="frame-05-deny-proof-meta"]::before,
+    [id="frame-05-deny-proof-meta"]::after {
+      content: "";
+      position: absolute;
+      top: -17px;
+      width: 28px;
+      height: 2px;
+      background: #294139;
+    }
+    [id="frame-05-deny-proof-meta"]::before { left: 0; }
+    [id="frame-05-deny-proof-meta"]::after { right: 0; }
+    [id="frame-05-deny-proof-title"] {
+      margin: 0;
+      font-family: "ScopedRun Oswald";
+      font-size: 78px;
+      line-height: 1.03;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      max-width: 1420px;
+    }
+    [id="frame-05-deny-proof-title"] em {
+      font-style: normal;
+      color: #ff5c57;
+    }
+    [id="frame-05-deny-proof-split"] {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      min-height: 0;
+      transform-style: preserve-3d;
+    }
+    [id="frame-05-deny-proof-split"] [data-panel] {
+      border: 3px solid #294139;
+      padding: 28px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 20px;
+      background: rgba(16, 28, 25, 0.96);
+      transform-style: preserve-3d;
+      will-change: transform;
+      min-width: 0;
+      position: relative;
+      overflow: visible;
+    }
+    [id="frame-05-deny-proof-panel-left"] {
+      box-shadow: -24px 28px 72px rgba(0, 0, 0, 0.42);
+    }
+    [id="frame-05-deny-proof-panel-right"] {
+      border-color: #ff5c57;
+      box-shadow: 24px 28px 72px rgba(0, 0, 0, 0.42);
+    }
+    [data-panel-title] {
+      color: #9baea7;
+      font-size: 20px;
+      letter-spacing: 0.1em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    [data-panel-number] {
+      color: #294139;
+      font-weight: 700;
+    }
+    [data-capture] {
+      border: 2px solid #294139;
+      background: #0b1513;
+      display: grid;
+      place-items: center;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+      text-align: center;
+      padding: 32px;
+    }
+    [id="frame-05-deny-proof-panel-right"] [data-capture] {
+      border-color: rgba(255, 92, 87, 0.48);
+    }
+    [id="frame-05-deny-proof-advisor"] {
+      width: 100%;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 18px;
+      text-align: left;
+    }
+    [id="frame-05-deny-proof-advisor-bar"] {
+      color: #9baea7;
+      font-size: 17px;
+      display: flex;
+      justify-content: space-between;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #294139;
+    }
+    [id="frame-05-deny-proof-advisor-query"] {
+      color: #f4f7f5;
+      font-size: 24px;
+      padding: 16px 18px;
+      background: #101c19;
+      border-left: 3px solid #f2b84b;
+    }
+    [id="frame-05-deny-proof-advisor-result"] {
+      display: grid;
+      place-items: center;
+      min-height: 120px;
+      border: 1px dashed #294139;
+      color: #9baea7;
+      font-size: 24px;
+      line-height: 1.4;
+      padding: 24px;
+    }
+    [id="frame-05-deny-proof-terminal"] {
+      width: 100%;
+      min-height: 210px;
+      display: grid;
+      place-items: center;
+      perspective: 1500px;
+    }
+    [id="frame-05-deny-proof-terminal-inner"] {
+      display: grid;
+      gap: 20px;
+      justify-items: center;
+    }
+    [id="frame-05-deny-proof-http"] {
+      font-family: "ScopedRun Oswald";
+      color: #ff5c57;
+      font-size: 62px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+    }
+    [id="frame-05-deny-proof-hacker-wrap"] {
+      position: relative;
+      color: #f4f7f5;
+      font-family: "ScopedRun Plex Mono";
+      font-size: 43px;
+      font-weight: 700;
+      line-height: 1.1;
+      white-space: nowrap;
+      transform-style: preserve-3d;
+    }
+    [id="frame-05-deny-proof-hacker-wrap"] [data-hacker-char] {
+      display: inline-block;
+      transform-origin: bottom;
+      transform-style: preserve-3d;
+    }
+    [id="frame-05-deny-proof-hacker-ghost"] {
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      inset: 0 auto auto 0;
+    }
+    [data-panel-result] {
+      padding: 19px 24px;
+      border-top: 2px solid #294139;
+      font-size: 25px;
+      line-height: 1.2;
+    }
+    [id="frame-05-deny-proof-panel-right"] [data-panel-result] {
+      color: #ff5c57;
+      font-weight: 700;
+      border-color: rgba(255, 92, 87, 0.55);
+    }
+    [id="frame-05-deny-proof-never"] {
+      min-height: 54px;
+      border-top: 2px solid #294139;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 34px;
+      padding-top: 18px;
+      color: #ff5c57;
+      font-size: 25px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    [id="frame-05-deny-proof-never"] [data-glow-word] {
+      display: inline-block;
+      transform-origin: 50% 50%;
+      text-shadow: 0 0 0 rgba(255, 92, 87, 0);
+    }
+  </style>
+
+  <div data-hf-id="hf-8rf8" id="frame-05-root" data-composition-id="05-deny-proof" data-width="1920" data-height="1080" data-duration="23">
+    <div data-hf-id="hf-z92j" id="frame-05-deny-proof-ground" class="clip" data-start="0" data-duration="23" data-track-index="0">
+      <span data-hf-id="hf-xuzj" id="frame-05-deny-proof-glow-left"></span>
+      <span data-hf-id="hf-lw2a" id="frame-05-deny-proof-glow-right"></span>
+    </div>
+    <div data-hf-id="hf-7s86" id="frame-05-deny-proof-content" class="clip" data-start="0" data-duration="23" data-track-index="1">
+      <div data-hf-id="hf-k4d0" id="frame-05-deny-proof-meta"><span data-hf-id="hf-m3hx">DENY · PAYMENTS INCIDENT</span><span data-hf-id="hf-jjei">ADMISSION / 05</span></div>
+      <h1 data-hf-id="hf-dd9x" id="frame-05-deny-proof-title">Bypass the picker. The boundary <em data-hf-id="hf-sash">still holds.</em></h1>
+      <div data-hf-id="hf-fu1h" id="frame-05-deny-proof-split">
+        <div data-hf-id="hf-a22c" id="frame-05-deny-proof-panel-left" data-panel="left">
+          <div data-hf-id="hf-5rvc" data-panel-title=""><span data-hf-id="hf-mpua">GUIDANCE · ADVISOR</span><span data-hf-id="hf-fd5l" data-panel-number="">01</span></div>
+          <div data-hf-id="hf-ufjj" data-capture="">
+            <div data-hf-id="hf-nyj9" id="frame-05-deny-proof-advisor">
+              <div data-hf-id="hf-w3ql" id="frame-05-deny-proof-advisor-bar"><span data-hf-id="hf-czq2">POLICY AGENT</span><span data-hf-id="hf-czr5">ENTITLED RESOURCES</span></div>
+              <div data-hf-id="hf-ojzs" id="frame-05-deny-proof-advisor-query">SCREEN STUDIO INSERT · No Payments suggestion and no protected metadata.</div>
+              <div data-hf-id="hf-e3d4" id="frame-05-deny-proof-advisor-result">Payments<br data-hf-id="hf-x5px">no match</div>
+            </div>
+          </div>
+          <div data-hf-id="hf-xkpy" data-panel-result="">No entitled Resource match</div>
+        </div>
+        <div data-hf-id="hf-fz2e" id="frame-05-deny-proof-panel-right" data-panel="right">
+          <div data-hf-id="hf-gcds" data-panel-title=""><span data-hf-id="hf-q1x5">ENFORCEMENT · DIRECT API</span><span data-hf-id="hf-gk2o" data-panel-number="">02</span></div>
+          <div data-hf-id="hf-poi7" data-capture="">
+            <div data-hf-id="hf-186n" id="frame-05-deny-proof-terminal">
+              <div data-hf-id="hf-3tyo" id="frame-05-deny-proof-terminal-inner">
+                <div data-hf-id="hf-hx6a" id="frame-05-deny-proof-http">HTTP 403</div>
+                <div data-hf-id="hf-bllp" id="frame-05-deny-proof-hacker-wrap" data-target="ENTITLEMENT_MISSING"><span data-hf-id="hf-q7gw" id="frame-05-deny-proof-hacker-ghost">ENTITLEMENT_MISSING</span></div>
+              </div>
+            </div>
+          </div>
+          <div data-hf-id="hf-06mv" data-panel-result="">HTTP 403 · entitlement_missing</div>
+        </div>
+      </div>
+      <div data-hf-id="hf-w6fb" id="frame-05-deny-proof-never">
+        <span data-hf-id="hf-w27x" data-glow-word="gate">SUPPORTING HTTP GATE</span>
+        <span data-hf-id="hf-7c8d" data-glow-word="runner">RUNNER CALL COUNT: 0</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/vendor/gsap.min.js"></script>
+  <script>
+    (() => {
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const hackerWrap = document.getElementById("frame-05-deny-proof-hacker-wrap");
+      const target = hackerWrap.dataset.target;
+      const glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*";
+      const pseudoGlyph = (seed) => {
+        const hash = ((seed * 9301 + 49297) % 233280) / 233280;
+        return glyphs[Math.floor(hash * glyphs.length)];
+      };
+      const characters = [...target].map((character) => {
+        const span = document.createElement("span");
+        span.dataset.hackerChar = "";
+        span.dataset.target = character;
+        span.textContent = character;
+        span.style.opacity = "0";
+        span.style.transform = "rotateX(90deg)";
+        hackerWrap.appendChild(span);
+        return span;
+      });
+
+      tl.fromTo("#frame-05-deny-proof-meta", { opacity: 0, y: -22 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 0);
+      tl.fromTo("#frame-05-deny-proof-title", { opacity: 0, y: -48 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 0.1);
+      tl.fromTo("#frame-05-deny-proof-panel-left", { opacity: 0, x: -340, rotateY: 24, scale: 0.86 }, { opacity: 1, x: 0, rotateY: 13, scale: 1, duration: 1.15, ease: "power3.out" }, 1.8);
+      tl.fromTo("#frame-05-deny-proof-panel-right", { opacity: 0, x: 340, rotateY: -24, scale: 0.86 }, { opacity: 1, x: 0, rotateY: -13, scale: 1, duration: 1.15, ease: "power3.out" }, 2.02);
+      tl.fromTo("#frame-05-deny-proof-panel-left [data-panel-title], #frame-05-deny-proof-panel-left [data-panel-result]", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65, stagger: 0.14, ease: "power2.out" }, 2.45);
+      tl.fromTo("#frame-05-deny-proof-panel-right [data-panel-title], #frame-05-deny-proof-panel-right [data-panel-result]", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65, stagger: 0.14, ease: "power2.out" }, 2.7);
+      tl.fromTo("#frame-05-deny-proof-advisor-bar", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 4.25);
+      tl.fromTo("#frame-05-deny-proof-advisor-query", { opacity: 0, x: -28 }, { opacity: 1, x: 0, duration: 0.65, ease: "power3.out" }, 5.0);
+      tl.fromTo("#frame-05-deny-proof-advisor-result", { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.75, ease: "power3.out" }, 7.0);
+      tl.fromTo("#frame-05-deny-proof-http", { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 9.0);
+
+      characters.forEach((element, index) => {
+        const state = { progress: 0 };
+        tl.to(state, {
+          progress: 1,
+          duration: 0.72,
+          ease: "power3.out",
+          onUpdate: () => {
+            const progress = state.progress;
+            if (progress < 0.62) {
+              const quantized = Math.floor(progress * 18);
+              element.textContent = pseudoGlyph(index * 1000 + quantized);
+            } else {
+              element.textContent = element.dataset.target;
+            }
+            element.style.transform = `rotateX(${90 - progress * 90}deg)`;
+            element.style.opacity = `${Math.min(1, progress * 2)}`;
+          }
+        }, 10.5 + index * 0.055);
+      });
+
+      tl.fromTo("#frame-05-deny-proof-panel-right [data-panel-result]", { color: "#9baea7" }, { color: "#ff5c57", duration: 0.55, ease: "power1.out" }, 12.7);
+      tl.fromTo("#frame-05-deny-proof-never", { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.75, ease: "power3.out" }, 15.2);
+
+      const glowWords = Array.from(document.querySelectorAll("#frame-05-deny-proof-never [data-glow-word]"));
+      const timings = {
+        gate: { start: 0.0, end: 1.6 },
+        runner: { start: 2.0, end: 4.7 }
+      };
+      const glowDriver = { t: 0 };
+      const envelope = (time, start, end) => {
+        if (time < start) return 0;
+        if (time < end) return Math.min((time - start) / 0.18, 1);
+        if (time < end + 0.42) return 1 - ((time - end) / 0.42) * 0.86;
+        return 0.14;
+      };
+      const lerp = (from, to, amount) => Math.round(from + (to - from) * amount);
+      tl.to(glowDriver, {
+        t: 6.3,
+        duration: 6.3,
+        ease: "none",
+        onUpdate: () => {
+          glowWords.forEach((element) => {
+            const timing = timings[element.dataset.glowWord];
+            const env = envelope(glowDriver.t, timing.start, timing.end);
+            element.style.color = `rgb(${lerp(116, 255, env)}, ${lerp(132, 92, env)}, ${lerp(126, 87, env)})`;
+            element.style.textShadow = `0 0 ${36 * env}px rgba(255, 92, 87, ${0.62 * env})`;
+            element.style.transform = `scale(${1 + 0.13 * env})`;
+          });
+        }
+      }, 15.2);
+      window.__timelines["05-deny-proof"] = tl;
+    })();
+  </script>
+</template>

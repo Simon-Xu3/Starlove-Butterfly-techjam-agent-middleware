@@ -1,0 +1,1 @@
+{"duration":20,"assertions":[{"kind":"appearsBy","selector":"#frame-06-revoke-card-earlier","bySec":3},{"kind":"appearsBy","selector":"#frame-06-revoke-blocked","bySec":13},{"kind":"staysInFrame","selector":"#frame-06-revoke-rail"}]}

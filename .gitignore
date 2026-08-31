@@ -13,6 +13,11 @@ coverage/
 !fixtures/resources/**/*.log
 *.tsbuildinfo
 .DS_Store
+.codegraph/
+videos/scopedrun-demo/.thumbnails/
+videos/scopedrun-demo/.waveform-cache/
+videos/scopedrun-demo/.media/
+videos/scopedrun-demo/renders/work-*/
 deploy/volcengine/.terraform/
 deploy/volcengine/*.tfstate*
 deploy/volcengine/terraform.tfvars

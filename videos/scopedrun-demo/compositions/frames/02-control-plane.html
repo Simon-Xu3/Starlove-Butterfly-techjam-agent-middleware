@@ -1,0 +1,83 @@
+<template>
+  <style>
+    @font-face { font-family: "Oswald"; src: url("assets/fonts/oswald-700.ttf") format("truetype"); font-weight: 700; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-400.ttf") format("truetype"); font-weight: 400; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-700.ttf") format("truetype"); font-weight: 700; }
+    #frame-02-root { width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden; color: #F4F7F5; font-family: "IBM Plex Mono", monospace; padding: 72px 88px 184px; display: grid; grid-template-rows: auto auto 1fr; gap: 42px; position: relative; isolation: isolate; }
+    [class~="02-control-plane-bg"] { position: absolute; inset: 0; z-index: -2; background-color: #07110F; background-image: radial-gradient(circle at 66% 52%, rgba(242,184,75,.06), transparent 32%), linear-gradient(rgba(41,65,57,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(41,65,57,.16) 1px, transparent 1px); background-size: auto, 96px 96px, 96px 96px; }
+    [class~="02-control-plane-bg"]::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 38%, rgba(0,0,0,.50)); }
+    [class~="02-control-plane-meta"] { display: flex; justify-content: space-between; color: #9BAEA7; font-size: 22px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    [class~="02-control-plane-title"] { margin: 0; font-family: "Oswald", sans-serif; font-size: 84px; line-height: 1; letter-spacing: .01em; text-transform: uppercase; max-width: 1250px; }
+    [class~="02-control-plane-viewport"] { overflow: hidden; min-height: 0; border-top: 2px solid #294139; padding-top: 28px; }
+    [class~="02-control-plane-world"] { width: 100%; height: 100%; transform-origin: 50% 50%; will-change: transform; }
+    [class~="02-control-plane-route"] { height: 100%; display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: 1fr auto; gap: 18px; align-items: center; position: relative; }
+    [class~="02-control-plane-rail"] { position: absolute; left: 0; right: 0; top: 116px; width: 100%; height: 84px; overflow: visible; z-index: 0; pointer-events: none; }
+    [class~="02-control-plane-rail"] path { fill: none; stroke: #F2B84B; stroke-width: 4; stroke-linecap: square; opacity: .72; }
+    [class~="02-control-plane-station"] { min-height: 280px; box-sizing: border-box; border: 2px solid #294139; padding: 26px 24px; display: flex; flex-direction: column; justify-content: space-between; position: relative; z-index: 1; background: rgba(16,28,25,.95); box-shadow: 0 24px 56px rgba(0,0,0,.28); }
+    [class~="02-control-plane-station"]::before { content: ""; width: 12px; height: 12px; position: absolute; top: -7px; left: 50%; margin-left: -6px; background: #F2B84B; box-shadow: 0 0 0 5px #07110F; }
+    [class~="02-control-plane-station"]:not(:last-of-type)::after { content: "→"; position: absolute; right: -29px; top: 116px; color: #F2B84B; font-size: 34px; z-index: 3; }
+    [class~="02-control-plane-index"] { color: #9BAEA7; font-size: 20px; font-variant-numeric: tabular-nums; }
+    [class~="02-control-plane-station-title"] { display: inline-block; font-size: 29px; font-weight: 700; transform-origin: 50% 50%; }
+    [class~="02-control-plane-detail"] { color: #9BAEA7; font-size: 20px; line-height: 1.45; }
+    [class~="02-control-plane-focal"] { border: 3px solid #2FC8A0; color: #2FC8A0; box-shadow: 0 28px 80px rgba(0,0,0,.48), inset 0 0 42px rgba(47,200,160,.05); }
+    [class~="02-control-plane-focal"]::before { background: #2FC8A0; }
+    [class~="02-control-plane-caption"] { grid-column: 1 / -1; border-top: 2px solid #294139; padding-top: 24px; font-size: 28px; color: #9BAEA7; display: flex; justify-content: space-between; }
+    [class~="02-control-plane-caption"]::after { content: "ADMISSION / JUST-IN-TIME"; color: #F2B84B; font-size: 18px; font-weight: 700; letter-spacing: .12em; align-self: center; }
+  </style>
+  <div data-hf-id="hf-uzry" id="frame-02-root" data-composition-id="02-control-plane" data-width="1920" data-height="1080" data-duration="20">
+    <div data-hf-id="hf-j7wo" id="frame-02-control-plane-bg" class="clip 02-control-plane-bg" data-start="0" data-duration="20" data-track-index="0" aria-hidden="true"></div>
+    <div data-hf-id="hf-puvz" class="02-control-plane-meta"><span data-hf-id="hf-tdxh">TRUSTED SEQUENCE</span><span data-hf-id="hf-yypx">CONTROL PLANE / 02</span></div>
+    <h1 data-hf-id="hf-wt3j" class="02-control-plane-title">Standing permission is not Run scope.</h1>
+    <div data-hf-id="hf-171i" class="02-control-plane-viewport">
+      <div data-hf-id="hf-bvat" class="02-control-plane-world" data-layout-allow-overflow="">
+        <div data-hf-id="hf-dvh3" class="02-control-plane-route">
+          <svg data-hf-id="hf-rnnn" class="02-control-plane-rail" viewBox="0 0 1744 84" preserveAspectRatio="none" aria-hidden="true">
+            <path data-hf-id="hf-ji8a" d="M145 42 H306" /><path data-hf-id="hf-nw6t" d="M436 42 H597" /><path data-hf-id="hf-56uh" d="M727 42 H888" /><path data-hf-id="hf-kpxt" d="M1018 42 H1179" /><path data-hf-id="hf-c0jq" d="M1309 42 H1470" />
+          </svg>
+          <div data-hf-id="hf-xtt0" class="02-control-plane-station"><span data-hf-id="hf-5znw" class="02-control-plane-index">01</span><span data-hf-id="hf-sqx6" class="02-control-plane-station-title" data-word="human">Human</span><span data-hf-id="hf-k3be" class="02-control-plane-detail">owns Agent</span></div>
+          <div data-hf-id="hf-odlo" class="02-control-plane-station"><span data-hf-id="hf-4sqt" class="02-control-plane-index">02</span><span data-hf-id="hf-fcuo" class="02-control-plane-station-title" data-word="entitlement">Entitlement</span><span data-hf-id="hf-1vgq" class="02-control-plane-detail">may delegate</span></div>
+          <div data-hf-id="hf-n6ol" class="02-control-plane-station"><span data-hf-id="hf-571u" class="02-control-plane-index">03</span><span data-hf-id="hf-vqr3" class="02-control-plane-station-title" data-word="delegation">Delegation</span><span data-hf-id="hf-n8m3" class="02-control-plane-detail">this Run receives</span></div>
+          <div data-hf-id="hf-nkzm" class="02-control-plane-station"><span data-hf-id="hf-76kz" class="02-control-plane-index">04</span><span data-hf-id="hf-8ks6" class="02-control-plane-station-title" data-word="admission">Admission</span><span data-hf-id="hf-6mz0" class="02-control-plane-detail">identity · owner · generation · path · runtime</span></div>
+          <div data-hf-id="hf-whw7" class="02-control-plane-station 02-control-plane-focal"><span data-hf-id="hf-7kw0" class="02-control-plane-index">05</span><span data-hf-id="hf-ji6n" class="02-control-plane-station-title" data-word="mount">Read-only mount</span><span data-hf-id="hf-khgm" class="02-control-plane-detail">one Resource</span></div>
+          <div data-hf-id="hf-pkir" class="02-control-plane-station"><span data-hf-id="hf-6dyx" class="02-control-plane-index">06</span><span data-hf-id="hf-z577" class="02-control-plane-station-title" data-word="receipt">Receipt</span><span data-hf-id="hf-7iu4" class="02-control-plane-detail">Delegated → Decided → Executed</span></div>
+          <div data-hf-id="hf-61sv" class="02-control-plane-caption"><span data-hf-id="hf-zpwk">Every check runs again immediately before the Runner is invoked.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="assets/vendor/gsap.min.js"></script>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const stations = gsap.utils.toArray('[class~="02-control-plane-station"]');
+      const paths = gsap.utils.toArray('[class~="02-control-plane-rail"] path');
+      const world = document.querySelector('[class~="02-control-plane-world"]');
+      const cam = { x: 420 };
+      const applyCamera = () => { world.style.transform = `translate(${cam.x}px, 0px) scale(1)`; };
+      applyCamera();
+      paths.forEach((path) => { const len = path.getTotalLength(); path.style.strokeDasharray = `${len}`; path.style.strokeDashoffset = `${len}`; });
+      const BEATS = [0.35, 3.0, 5.8, 8.7, 12.2, 16.2];
+      tl.fromTo('[class~="02-control-plane-meta"]', { opacity: 0 }, { opacity: 1, duration: .4, ease: 'power1.out' }, 0);
+      tl.fromTo('[class~="02-control-plane-title"]', { y: 46, opacity: 0 }, { y: 0, opacity: 1, duration: .55, ease: 'power3.out' }, .08);
+      stations.forEach((station, i) => {
+        tl.fromTo(station, { y: 48, opacity: 0 }, { y: 0, opacity: 1, duration: .55, ease: 'power3.out' }, BEATS[i]);
+        if (paths[i]) tl.to(paths[i], { strokeDashoffset: 0, duration: .75, ease: 'power2.out' }, BEATS[i] + .62);
+      });
+      tl.to(cam, { x: 300, duration: 1.4, ease: 'power2.inOut', onUpdate: applyCamera }, 1.1);
+      tl.to(cam, { x: 205, duration: 1.5, ease: 'power2.inOut', onUpdate: applyCamera }, 4.0);
+      tl.to(cam, { x: 120, duration: 1.5, ease: 'power2.inOut', onUpdate: applyCamera }, 6.8);
+      tl.to(cam, { x: 50, duration: 1.5, ease: 'power2.inOut', onUpdate: applyCamera }, 9.7);
+      tl.to(cam, { x: 0, duration: 1.6, ease: 'power2.inOut', onUpdate: applyCamera }, 13.5);
+      tl.fromTo('[class~="02-control-plane-caption"]', { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: .55, ease: 'power3.out' }, 18.0);
+      tl.to('[class~="02-control-plane-focal"]', { boxShadow: '0 28px 80px rgba(0,0,0,.48), inset 0 0 54px rgba(47,200,160,.16)', duration: .8, ease: 'power1.out' }, 16.7);
+
+      const timings = { human: { start: .35, end: 1.0 }, entitlement: { start: 3.0, end: 4.0 }, delegation: { start: 5.8, end: 6.9 }, admission: { start: 8.7, end: 10.2 }, mount: { start: 12.2, end: 14.4 }, receipt: { start: 16.2, end: 18.2 } };
+      const words = gsap.utils.toArray('[class~="02-control-plane-station-title"]');
+      const glow = { t: 0 };
+      const envelope = (t, start, end) => t < start ? 0 : t < end ? Math.min((t - start) / .18, 1) : t < end + .4 ? 1 - ((t - end) / .4) * .84 : .16;
+      tl.to(glow, { t: 20, duration: 20, ease: 'none', onUpdate: () => { words.forEach((el) => { const e = envelope(glow.t, timings[el.dataset.word].start, timings[el.dataset.word].end); el.style.textShadow = `0 0 ${24 * e}px rgba(47,200,160,${.52 * e})`; el.style.transform = `scale(${1 + .08 * e})`; }); } }, 0);
+      window.__timelines = window.__timelines || {};
+      window.__timelines['02-control-plane'] = tl;
+    })();
+  </script>
+</template>

@@ -1,0 +1,1 @@
+{"duration":20,"assertions":[{"kind":"appearsBy","selector":".02-control-plane-track","bySec":2.5},{"kind":"appearsBy","selector":".02-control-plane-receipt","bySec":18},{"kind":"staysInFrame","selector":".02-control-plane-stage"}]}

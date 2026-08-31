@@ -1,0 +1,456 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "ScopedRun Oswald";
+      src: url("assets/fonts/oswald-700.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "ScopedRun Plex Mono";
+      src: url("assets/fonts/ibm-plex-mono-400.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "ScopedRun Plex Mono";
+      src: url("assets/fonts/ibm-plex-mono-700.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    #frame-04-root {
+      width: 1920px;
+      height: 1080px;
+      box-sizing: border-box;
+      overflow: hidden;
+      position: relative;
+      color: #f4f7f5;
+      font-family: "ScopedRun Plex Mono";
+    }
+    #frame-04-root > .clip {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    [id="frame-04-allow-proof-ground"] {
+      background-color: #07110f;
+      overflow: hidden;
+    }
+    [id="frame-04-allow-proof-ground"]::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.46;
+      background-image:
+        linear-gradient(rgba(41, 65, 57, 0.32) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(41, 65, 57, 0.28) 1px, transparent 1px);
+      background-size: 88px 88px;
+      mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.58) 58%, transparent 88%);
+    }
+    [id="frame-04-allow-proof-ground"]::after {
+      content: "";
+      position: absolute;
+      width: 920px;
+      height: 540px;
+      left: 145px;
+      top: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(47, 200, 160, 0.12), rgba(47, 200, 160, 0) 68%);
+      filter: blur(48px);
+    }
+    [id="frame-04-allow-proof-content"] {
+      padding: 72px 88px 190px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 42px;
+      perspective: 1500px;
+    }
+    [id="frame-04-allow-proof-meta"] {
+      display: flex;
+      justify-content: space-between;
+      color: #9baea7;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      position: relative;
+    }
+    [id="frame-04-allow-proof-meta"]::before,
+    [id="frame-04-allow-proof-meta"]::after {
+      content: "";
+      position: absolute;
+      top: -17px;
+      width: 28px;
+      height: 2px;
+      background: #294139;
+    }
+    [id="frame-04-allow-proof-meta"]::before { left: 0; }
+    [id="frame-04-allow-proof-meta"]::after { right: 0; }
+    [id="frame-04-allow-proof-layout"] {
+      display: grid;
+      grid-template-columns: 62% 38%;
+      gap: 34px;
+      min-height: 0;
+    }
+    [id="frame-04-allow-proof-zoom-outer"],
+    [id="frame-04-allow-proof-zoom-inner"] {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      transform-origin: 50% 50%;
+      will-change: transform;
+    }
+    [id="frame-04-allow-proof-capture"] {
+      border: 3px solid #294139;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      padding: 34px;
+      gap: 24px;
+      background: rgba(16, 28, 25, 0.94);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+      position: relative;
+      min-width: 0;
+      height: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    [id="frame-04-allow-proof-capture"]::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: #2fc8a0;
+    }
+    [id="frame-04-allow-proof-capture-label"] {
+      color: #9baea7;
+      font-size: 20px;
+      letter-spacing: 0.1em;
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: center;
+    }
+    [id="frame-04-allow-proof-live-chip"] {
+      color: #2fc8a0;
+      border: 2px solid #2fc8a0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    [id="frame-04-allow-proof-browser"] {
+      border: 2px solid #294139;
+      background: #0b1513;
+      display: grid;
+      grid-template-rows: 54px 1fr 66px;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+    }
+    [id="frame-04-allow-proof-browser-bar"] {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 2px solid #294139;
+      color: #9baea7;
+      font-size: 18px;
+      letter-spacing: 0.08em;
+    }
+    [id="frame-04-allow-proof-browser-dots"] {
+      display: flex;
+      gap: 8px;
+    }
+    [id="frame-04-allow-proof-browser-dots"] i {
+      display: block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #294139;
+    }
+    [id="frame-04-allow-proof-browser-body"] {
+      min-height: 0;
+      padding: 24px 28px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 24px;
+    }
+    [id="frame-04-allow-proof-answer"] {
+      border-left: 3px solid #2fc8a0;
+      padding: 20px 24px;
+      background: #101c19;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+      transform-origin: 50% 50%;
+    }
+    [id="frame-04-allow-proof-answer-kicker"] {
+      color: #2fc8a0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+    [id="frame-04-allow-proof-answer-copy"] {
+      color: #f4f7f5;
+      font-size: 26px;
+      line-height: 1.42;
+      margin: 0;
+    }
+    [id="frame-04-allow-proof-file-list"] {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+    }
+    [id="frame-04-allow-proof-file-list"] span {
+      display: block;
+      border: 1px solid #294139;
+      border-radius: 6px;
+      padding: 13px 14px;
+      color: #9baea7;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    [id="frame-04-allow-proof-file-list"] b {
+      display: block;
+      color: #2fc8a0;
+      font-size: 14px;
+      margin-bottom: 5px;
+      letter-spacing: 0.1em;
+    }
+    [id="frame-04-allow-proof-browser-status"] {
+      border-top: 2px solid #294139;
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      align-items: center;
+      gap: 18px;
+      padding: 0 24px;
+      color: #9baea7;
+      font-size: 17px;
+      min-height: 66px;
+    }
+    [id="frame-04-allow-proof-status-copy"] {
+      color: #f4f7f5;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    [id="frame-04-allow-proof-progress-track"] {
+      height: 8px;
+      width: 100%;
+      background: #172622;
+      overflow: hidden;
+      border-radius: 6px;
+    }
+    [id="frame-04-allow-proof-progress-fill"] {
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: #2fc8a0;
+      transform-origin: left center;
+    }
+    [id="frame-04-allow-proof-chain"] {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+      min-width: 0;
+      position: relative;
+    }
+    [id="frame-04-allow-proof-route"] {
+      position: absolute;
+      left: 25px;
+      top: 92px;
+      bottom: 182px;
+      width: 2px;
+      background: #294139;
+    }
+    [id="frame-04-allow-proof-chain"] [data-proof-stage] {
+      border: 2px solid #294139;
+      padding: 22px 26px;
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: 13px 16px;
+      align-items: center;
+      background: rgba(16, 28, 25, 0.96);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.26);
+      position: relative;
+      transform-origin: left center;
+    }
+    [id="frame-04-allow-proof-chain"] [data-proof-stage]::before {
+      content: "";
+      position: absolute;
+      left: -12px;
+      top: 50%;
+      width: 10px;
+      height: 10px;
+      margin-top: -5px;
+      border-radius: 50%;
+      background: #294139;
+      box-shadow: 0 0 0 6px #07110f;
+    }
+    [id="frame-04-allow-proof-chain"] [data-proof-stage="executed"] {
+      border: 3px solid #2fc8a0;
+      color: #2fc8a0;
+    }
+    [id="frame-04-allow-proof-chain"] [data-proof-stage="executed"]::before {
+      background: #2fc8a0;
+    }
+    [data-proof-index] {
+      color: #9baea7;
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+    [data-proof-title] {
+      font-family: "ScopedRun Oswald";
+      font-size: 48px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+    [data-proof-detail] {
+      grid-column: 2;
+      color: #9baea7;
+      font-size: 20px;
+      line-height: 1.25;
+    }
+    [id="frame-04-allow-proof-promise"] {
+      margin-top: 12px;
+      padding-left: 2px;
+      font-size: 23px;
+      line-height: 1.42;
+      color: #9baea7;
+      max-width: 600px;
+    }
+  </style>
+
+  <div data-hf-id="hf-qo3g" id="frame-04-root" data-composition-id="04-allow-proof" data-width="1920" data-height="1080" data-duration="28">
+    <div data-hf-id="hf-82yh" id="frame-04-allow-proof-ground" class="clip" data-start="0" data-duration="28" data-track-index="0"></div>
+    <div data-hf-id="hf-r2pi" id="frame-04-allow-proof-content" class="clip" data-start="0" data-duration="28" data-track-index="1">
+      <div data-hf-id="hf-dwke" id="frame-04-allow-proof-meta"><span data-hf-id="hf-cqqv">ALLOW · INVENTORY INCIDENT</span><span data-hf-id="hf-2rof">PROOF CHAIN / 04</span></div>
+      <div data-hf-id="hf-79on" id="frame-04-allow-proof-layout">
+        <div data-hf-id="hf-9k1y" id="frame-04-allow-proof-zoom-outer">
+          <div data-hf-id="hf-zz4r" id="frame-04-allow-proof-zoom-inner">
+        <div data-hf-id="hf-lbrx" id="frame-04-allow-proof-capture">
+          <div data-hf-id="hf-fr78" id="frame-04-allow-proof-capture-label">
+            <span data-hf-id="hf-z9j8">SCREEN STUDIO INSERT · CLIP 02</span>
+            <span data-hf-id="hf-jj7x" id="frame-04-allow-proof-live-chip">RUN COMPLETE</span>
+          </div>
+          <div data-hf-id="hf-aqyf" id="frame-04-allow-proof-browser">
+            <div data-hf-id="hf-m793" id="frame-04-allow-proof-browser-bar">
+              <span data-hf-id="hf-pei9" id="frame-04-allow-proof-browser-dots"><i data-hf-id="hf-wt6k"></i><i data-hf-id="hf-zeb8"></i><i data-hf-id="hf-y7e5"></i></span>
+              <span data-hf-id="hf-7hhn">AGENT / INVENTORY</span>
+            </div>
+            <div data-hf-id="hf-ma4k" id="frame-04-allow-proof-browser-body">
+              <div data-hf-id="hf-6t3n" id="frame-04-allow-proof-answer">
+                <span data-hf-id="hf-ac8j" id="frame-04-allow-proof-answer-kicker">AGENT ANSWER · COMPLETE</span>
+                <p data-hf-id="hf-1dyd" id="frame-04-allow-proof-answer-copy">Completed Agent answer citing files from the delegated Inventory Resource.</p>
+              </div>
+              <div data-hf-id="hf-tfys" id="frame-04-allow-proof-file-list">
+                <span data-hf-id="hf-whfy"><b data-hf-id="hf-z1up">READ ONLY</b>/Resource/inventory/stock.csv</span>
+                <span data-hf-id="hf-ed6f"><b data-hf-id="hf-xnat">READ ONLY</b>/Resource/inventory/vendors.csv</span>
+                <span data-hf-id="hf-axwi"><b data-hf-id="hf-yu7w">READ ONLY</b>/Resource/inventory/notes.md</span>
+              </div>
+            </div>
+            <div data-hf-id="hf-hlly" id="frame-04-allow-proof-browser-status">
+              <span data-hf-id="hf-eyaw" id="frame-04-allow-proof-status-copy">ADMISSION · CHECKING</span>
+              <span data-hf-id="hf-5mpn" id="frame-04-allow-proof-progress-track"><span data-hf-id="hf-suqt" id="frame-04-allow-proof-progress-fill"></span></span>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+        <div data-hf-id="hf-5mf8" id="frame-04-allow-proof-chain">
+          <span data-hf-id="hf-2fun" id="frame-04-allow-proof-route"></span>
+          <div data-hf-id="hf-xj4p" id="frame-04-allow-proof-stage-delegated" data-proof-stage="delegated"><span data-hf-id="hf-2mly" data-proof-index="">01</span><span data-hf-id="hf-0rnk" data-proof-title="">Delegated</span><span data-hf-id="hf-jdt9" data-proof-detail="">Inventory · generation recorded</span></div>
+          <div data-hf-id="hf-g8bp" id="frame-04-allow-proof-stage-decided" data-proof-stage="decided"><span data-hf-id="hf-30wz" data-proof-index="">02</span><span data-hf-id="hf-gmod" data-proof-title="">Decided</span><span data-hf-id="hf-f6sr" data-proof-detail="">Admission allowed</span></div>
+          <div data-hf-id="hf-bv59" id="frame-04-allow-proof-stage-executed" data-proof-stage="executed"><span data-hf-id="hf-3f80" data-proof-index="">03</span><span data-hf-id="hf-e9ie" data-proof-title="">Executed</span><span data-hf-id="hf-agwc" data-proof-detail="">Runner started · read-only mount</span></div>
+          <div data-hf-id="hf-rcoo" id="frame-04-allow-proof-promise">What was requested, what was authorized, and what actually ran remain separate facts.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/vendor/gsap.min.js"></script>
+  <script>
+    (() => {
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const statusEl = document.getElementById("frame-04-allow-proof-status-copy");
+      const progressEl = document.getElementById("frame-04-allow-proof-progress-fill");
+      const zoomOuter = document.getElementById("frame-04-allow-proof-zoom-outer");
+      const zoomInner = document.getElementById("frame-04-allow-proof-zoom-inner");
+      const zoomTarget = document.getElementById("frame-04-allow-proof-answer");
+      const outerRect = zoomOuter.getBoundingClientRect();
+      const targetRect = zoomTarget.getBoundingClientRect();
+      const targetOffsetX = targetRect.left + targetRect.width / 2 - (outerRect.left + outerRect.width / 2);
+      const targetOffsetY = targetRect.top + targetRect.height / 2 - (outerRect.top + outerRect.height / 2);
+      const statusContent = [
+        { title: "ADMISSION · CHECKING", body: "entitlement generation", hold: 0.9 },
+        { title: "ADMISSION · ALLOWED", body: "decision persisted", hold: 1.1 },
+        { title: "RUNNER · STARTED", body: "container accepted", hold: 1.15 },
+        { title: "RESOURCE · MOUNTED", body: "read only", hold: 1.35 },
+        { title: "AGENT · COMPLETE", body: "answer ready", hold: 1.7 }
+      ];
+      const baseDuration = 0.55;
+      const secondsPerCharacter = 0.012;
+      let cumulative = 0;
+      const statusTimeline = statusContent.map((entry) => {
+        const duration = baseDuration + entry.body.length * secondsPerCharacter + entry.hold;
+        const start = cumulative;
+        cumulative += duration;
+        return { ...entry, start, end: cumulative };
+      });
+      const statusAt = (time) => {
+        for (let i = statusTimeline.length - 1; i >= 0; i -= 1) {
+          if (time >= statusTimeline[i].start) return statusTimeline[i];
+        }
+        return statusTimeline[0];
+      };
+      const statusDriver = { t: 0 };
+      let lastStatus = "";
+
+      tl.fromTo("#frame-04-allow-proof-meta", { opacity: 0, y: -22 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 0);
+      tl.fromTo("#frame-04-allow-proof-capture", { opacity: 0, x: -110, scale: 0.975 }, { opacity: 1, x: 0, scale: 1, duration: 1.15, ease: "power3.out" }, 0.15);
+      tl.fromTo("#frame-04-allow-proof-live-chip", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" }, 0.45);
+      tl.fromTo("#frame-04-allow-proof-browser", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 0.7);
+      tl.fromTo("#frame-04-allow-proof-answer", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.75, ease: "power3.out" }, 2.4);
+      tl.fromTo("#frame-04-allow-proof-answer-kicker", { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" }, 3.15);
+      tl.fromTo("#frame-04-allow-proof-answer-copy", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.75, ease: "power3.out" }, 3.8);
+      tl.fromTo("#frame-04-allow-proof-file-list span", { opacity: 0, x: 28 }, { opacity: 1, x: 0, duration: 0.58, stagger: 0.42, ease: "power3.out" }, 6.0);
+      tl.fromTo(progressEl, { scaleX: 0 }, { scaleX: 1, duration: 9.2, ease: "power2.out" }, 1.25);
+      tl.to(statusDriver, {
+        t: cumulative,
+        duration: cumulative,
+        ease: "none",
+        onUpdate: () => {
+          const current = statusAt(statusDriver.t);
+          if (current.title !== lastStatus) {
+            statusEl.textContent = current.title;
+            lastStatus = current.title;
+          }
+        }
+      }, 1.25);
+      tl.to(zoomOuter, { scale: 1.12, duration: 1.35, ease: "power3.inOut" }, 10.6);
+      tl.to(zoomInner, { x: -targetOffsetX, y: -targetOffsetY, duration: 1.35, ease: "power3.inOut" }, 10.6);
+      tl.to("#frame-04-allow-proof-answer", { boxShadow: "0 0 42px rgba(47, 200, 160, 0.25)", duration: 0.6, ease: "power1.out" }, 11.0);
+      tl.to(zoomOuter, { scale: 1, duration: 1.2, ease: "power3.inOut" }, 13.0);
+      tl.to(zoomInner, { x: 0, y: 0, duration: 1.2, ease: "power3.inOut" }, 13.0);
+      tl.to("#frame-04-allow-proof-answer", { boxShadow: "0 0 0 rgba(47, 200, 160, 0)", duration: 1.2, ease: "power3.inOut" }, 13.0);
+      tl.fromTo("#frame-04-allow-proof-route", { scaleY: 0, transformOrigin: "top center" }, { scaleY: 1, duration: 1.0, ease: "power2.out" }, 14.4);
+      tl.fromTo("#frame-04-allow-proof-stage-delegated", { opacity: 0, x: 74, scale: 0.96 }, { opacity: 1, x: 0, scale: 1, duration: 0.75, ease: "power3.out" }, 15.0);
+      tl.fromTo("#frame-04-allow-proof-stage-decided", { opacity: 0, x: 74, scale: 0.96 }, { opacity: 1, x: 0, scale: 1, duration: 0.75, ease: "power3.out" }, 18.0);
+      tl.fromTo("#frame-04-allow-proof-stage-executed", { opacity: 0, x: 74, scale: 0.96 }, { opacity: 1, x: 0, scale: 1, duration: 0.78, ease: "power3.out" }, 21.0);
+      tl.fromTo("#frame-04-allow-proof-stage-executed", { boxShadow: "0 0 0 rgba(47, 200, 160, 0)" }, { boxShadow: "0 0 44px rgba(47, 200, 160, 0.24)", duration: 1.0, ease: "power2.out" }, 22.0);
+      tl.fromTo("#frame-04-allow-proof-promise", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 24.2);
+      window.__timelines["04-allow-proof"] = tl;
+    })();
+  </script>
+</template>

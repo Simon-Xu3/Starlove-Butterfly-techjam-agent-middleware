@@ -1,0 +1,1 @@
+{"duration":14,"assertions":[{"kind":"appearsBy","selector":".01-boundary-question","bySec":1.5},{"kind":"appearsBy","selector":".01-boundary-mounts","bySec":12.8},{"kind":"staysInFrame","selector":".01-boundary-stage"}]}

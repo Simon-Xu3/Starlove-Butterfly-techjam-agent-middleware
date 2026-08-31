@@ -1,0 +1,73 @@
+<template>
+  <style>
+    @font-face { font-family: "Oswald"; src: url("assets/fonts/oswald-700.ttf") format("truetype"); font-weight: 700; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-400.ttf") format("truetype"); font-weight: 400; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("assets/fonts/ibm-plex-mono-700.ttf") format("truetype"); font-weight: 700; }
+    #frame-01-root { width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden; color: #F4F7F5; font-family: "IBM Plex Mono", monospace; padding: 76px 88px 184px; display: grid; grid-template-rows: auto 1fr; gap: 58px; position: relative; isolation: isolate; }
+    [class~="01-boundary-bg"] { position: absolute; inset: 0; z-index: -2; overflow: hidden; background-color: #07110F; background-image: radial-gradient(circle at 69% 42%, rgba(47, 200, 160, .075), transparent 31%), linear-gradient(rgba(41, 65, 57, .20) 1px, transparent 1px), linear-gradient(90deg, rgba(41, 65, 57, .20) 1px, transparent 1px); background-size: auto, 80px 80px, 80px 80px; }
+    [class~="01-boundary-bg"]::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, .50) 100%); pointer-events: none; }
+    [class~="01-boundary-meta"] { display: flex; justify-content: space-between; align-items: center; color: #9BAEA7; font-size: 22px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; position: relative; z-index: 3; }
+    [class~="01-boundary-meta"]::before, [class~="01-boundary-meta"]::after { content: ""; width: 16px; height: 16px; border-color: #294139; border-style: solid; position: absolute; top: 34px; }
+    [class~="01-boundary-meta"]::before { left: 0; border-width: 2px 0 0 2px; }
+    [class~="01-boundary-meta"]::after { right: 0; border-width: 2px 2px 0 0; }
+    [class~="01-boundary-stage"] { display: grid; grid-template-columns: 38% 4% 58%; align-items: stretch; min-height: 0; position: relative; z-index: 2; }
+    [class~="01-boundary-weak"] { display: flex; flex-direction: column; justify-content: center; gap: 26px; padding-right: 60px; }
+    [class~="01-boundary-weak-line"] { border: 2px solid #294139; padding: 24px 28px; color: #9BAEA7; font-size: 28px; line-height: 1.25; text-decoration: line-through; text-decoration-color: #FF5C57; text-decoration-thickness: 2px; background: rgba(16, 28, 25, .88); box-shadow: 0 18px 44px rgba(0, 0, 0, .22); position: relative; }
+    [class~="01-boundary-weak-line"]::after { content: "REQUEST / NOT A BOUNDARY"; display: block; margin-top: 12px; color: #FF5C57; font-size: 15px; font-weight: 700; letter-spacing: .12em; text-decoration: none; }
+    [class~="01-boundary-aperture-wrap"] { display: flex; justify-content: center; padding: 2px 0; overflow: hidden; }
+    [class~="01-boundary-aperture"] { width: 4px; height: 100%; background: #2FC8A0; box-shadow: 0 0 34px rgba(47, 200, 160, .34), 0 0 0 1px rgba(47, 200, 160, .15); transform-origin: 50% 0%; }
+    [class~="01-boundary-thesis"] { display: flex; flex-direction: column; justify-content: center; padding-left: 70px; position: relative; }
+    [class~="01-boundary-thesis"]::before { content: "ENFORCEMENT PLANE"; color: #2FC8A0; font-size: 18px; font-weight: 700; letter-spacing: .14em; margin-bottom: 24px; }
+    [class~="01-boundary-ask"], [class~="01-boundary-enforce"] { font-family: "Oswald", sans-serif; font-size: 116px; font-weight: 700; line-height: .95; letter-spacing: .01em; text-transform: uppercase; transform-origin: 0 50%; will-change: transform, filter, opacity; }
+    [class~="01-boundary-ask"] { color: #9BAEA7; }
+    [class~="01-boundary-enforce"] { color: #2FC8A0; margin-top: 24px; text-shadow: 0 0 30px rgba(47, 200, 160, .18); }
+    [class~="01-boundary-support"] { margin-top: 42px; max-width: 770px; color: #9BAEA7; font-size: 30px; line-height: 1.5; border-top: 2px solid #294139; padding-top: 24px; }
+    [class~="01-boundary-meter"] { position: absolute; right: 0; top: 18px; display: flex; gap: 8px; }
+    [class~="01-boundary-meter"] i { width: 5px; height: 24px; background: #2FC8A0; opacity: .22; }
+  </style>
+  <div data-hf-id="hf-dhdw" id="frame-01-root" data-composition-id="01-boundary" data-width="1920" data-height="1080" data-duration="10.4">
+    <div data-hf-id="hf-8mys" id="frame-01-boundary-bg" class="clip 01-boundary-bg" data-start="0" data-duration="10.4" data-track-index="0" aria-hidden="true"></div>
+    <div data-hf-id="hf-puvz" class="01-boundary-meta"><span data-hf-id="hf-7wh4">SLB / SCOPEDRUN</span><span data-hf-id="hf-se3d" class="01-boundary-state">BOUNDARY / 01</span></div>
+    <div data-hf-id="hf-tan6" class="01-boundary-stage">
+      <div data-hf-id="hf-waoo" class="01-boundary-weak">
+        <div data-hf-id="hf-7qby" class="01-boundary-weak-line">Hide the resource in the picker</div>
+        <div data-hf-id="hf-d7qn" class="01-boundary-weak-line">Tell the Agent not to look</div>
+        <div data-hf-id="hf-d1qv" class="01-boundary-weak-line">Trust the model's behavior</div>
+      </div>
+      <div data-hf-id="hf-z5l6" class="01-boundary-aperture-wrap"><div data-hf-id="hf-j6k0" class="01-boundary-aperture"></div></div>
+      <div data-hf-id="hf-sceo" class="01-boundary-thesis">
+        <div data-hf-id="hf-k5q7" class="01-boundary-meter" aria-hidden="true"><i data-hf-id="hf-wt6k"></i><i data-hf-id="hf-zeb8"></i><i data-hf-id="hf-y7e5"></i><i data-hf-id="hf-ylp6"></i><i data-hf-id="hf-0l8b"></i></div>
+        <div data-hf-id="hf-k4sr" class="01-boundary-ask">Prompts ask.</div>
+        <div data-hf-id="hf-rtls" class="01-boundary-enforce">Mounts enforce.</div>
+        <div data-hf-id="hf-ab85" class="01-boundary-support">A shell can look past instructions. A namespace cannot see what was never mounted.</div>
+      </div>
+    </div>
+  </div>
+  <script src="assets/vendor/gsap.min.js"></script>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const PULSE = 0.4;
+      const BEATS = [0.4, 2, 4, 6, 8, 9.05];
+      const weak = gsap.utils.toArray('[class~="01-boundary-weak-line"]');
+      const meter = gsap.utils.toArray('[class~="01-boundary-meter"] i');
+      const stateEl = document.querySelector('[class~="01-boundary-state"]');
+      const stateDriver = { t: 0 };
+      const STATES = [{ t: 0, text: 'BOUNDARY / 01' }, { t: 2, text: 'REQUEST / 01' }, { t: 6, text: 'ENFORCEMENT / 01' }, { t: 9.7, text: 'BOUNDARY / 01' }];
+      tl.fromTo('[class~="01-boundary-meta"]', { opacity: 0 }, { opacity: 1, duration: .4, ease: 'power1.out' }, 0);
+      tl.fromTo(weak[0], { scale: 1.32, filter: 'blur(10px)', opacity: 0 }, { scale: 1, filter: 'blur(0px)', opacity: 1, duration: .55, ease: 'power4.out' }, BEATS[0]);
+      tl.fromTo(weak[1], { x: -260, opacity: 0 }, { x: 0, opacity: 1, duration: .5, ease: 'expo.out' }, BEATS[1]);
+      tl.fromTo(weak[2], { y: 82, rotation: 2.5, opacity: 0 }, { y: 0, rotation: 0, opacity: 1, duration: .55, ease: 'circ.out' }, BEATS[2]);
+      tl.fromTo('[class~="01-boundary-aperture"]', { scaleY: 0, opacity: .3 }, { scaleY: 1, opacity: 1, duration: 1.2, ease: 'power3.out' }, BEATS[3]);
+      weak.forEach((el, i) => { tl.to(el, { x: -110 - i * 36, scaleX: .82, opacity: .16, filter: 'blur(6px)', duration: .42, ease: 'power4.in' }, BEATS[3] + .42 + i * .10); });
+      tl.fromTo('[class~="01-boundary-ask"]', { x: 250, opacity: 0 }, { x: 0, opacity: 1, duration: .5, ease: 'expo.out' }, BEATS[4]);
+      tl.fromTo('[class~="01-boundary-enforce"]', { y: 78, rotation: 1.8, opacity: 0 }, { y: 0, rotation: 0, opacity: 1, duration: .55, ease: 'circ.out' }, BEATS[5]);
+      tl.fromTo('[class~="01-boundary-support"]', { y: 34, opacity: 0 }, { y: 0, opacity: 1, duration: .55, ease: 'power3.out' }, 9.45);
+      meter.forEach((tick, i) => { tl.to(tick, { opacity: 1, y: -5, duration: .10, ease: 'none' }, 8 + i * .18); tl.to(tick, { opacity: .35, y: 0, duration: .12, ease: 'none' }, 8.1 + i * .18); });
+      tl.to(stateDriver, { t: 10.4, duration: 10.4, ease: 'none', onUpdate: () => { for (let i = STATES.length - 1; i >= 0; i--) { if (stateDriver.t >= STATES[i].t) { stateEl.textContent = STATES[i].text; break; } } } }, 0);
+      tl.to('[class~="01-boundary-aperture"]', { boxShadow: '0 0 58px rgba(47, 200, 160, .52), 0 0 0 1px rgba(47, 200, 160, .22)', duration: .6, ease: 'power1.out' }, 9.5);
+      window.__timelines = window.__timelines || {};
+      window.__timelines['01-boundary'] = tl;
+    })();
+  </script>
+</template>
