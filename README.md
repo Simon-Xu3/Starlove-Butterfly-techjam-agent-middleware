@@ -33,6 +33,7 @@ suggestions never authorize or submit a delegation.
 - [Architecture decision](docs/adr/001-run-scoped-resource-capsule.md)
 - [Day 2 feature-freeze evidence](docs/evidence/day2-feature-freeze-2026-08-29.md)
 - [Three-minute demo runbook](docs/SCOPEDRUN_DEMO.md)
+- [Video-production handoff](videos/scopedrun-demo/README.md)
 - [Current final-submission audit](docs/evidence/issue-33-final-audit-2026-08-31.md)
 - [Issue #10 delivery evidence](docs/evidence/issue-10-final-delivery-2026-08-30.md)
 
