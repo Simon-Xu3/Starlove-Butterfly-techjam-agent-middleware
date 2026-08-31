@@ -158,6 +158,7 @@ model wording and service quota.
 - Node.js 22+
 - npm 10+
 - Docker, Colima, or Podman
+- Git for Windows (Windows only; provides the Bash used by `npm run poc`)
 - A Volcengine Ark API key and endpoint that supports the Responses API
 
 Codex CLI is included in the Runtime image and is not required on the host.

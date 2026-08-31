@@ -127,6 +127,32 @@ describe("active Run polling", () => {
     expect(onTerminal).toHaveBeenCalledOnce();
   });
 
+  it("retries a temporary terminal refresh failure without dropping the Run", async () => {
+    const getRun = vi.fn(async () => ({ run: makeRun("completed") }));
+    const onRun = vi.fn();
+    const onTerminal = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("temporary message refresh failure"))
+      .mockResolvedValue(undefined);
+
+    await pollActiveRun({
+      runId,
+      wait: async () => undefined,
+      shouldContinue: () => true,
+      getRun,
+      onRun,
+      refreshReceipt: vi.fn(async () => undefined),
+      onTerminal,
+    });
+
+    expect(getRun).toHaveBeenCalledTimes(2);
+    expect(onRun.mock.calls.map(([run]) => run.status)).toEqual([
+      "completed",
+      "completed",
+    ]);
+    expect(onTerminal).toHaveBeenCalledTimes(2);
+  });
+
   it("stops quietly when the selected Agent changes during a failed request", async () => {
     let selectedAgentMatches = true;
     const getRun = vi.fn(async () => {
