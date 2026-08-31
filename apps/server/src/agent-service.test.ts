@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
 } from "node:fs/promises";
@@ -17,6 +18,7 @@ import {
 } from "./agent-service.js";
 import {
   makeFakeAuthorizer,
+  makeFakeCapsuleRunner,
   makeFakeEntitlementReader,
   makeFakeMountPlanCompiler,
 } from "./capsule-test-support.js";
@@ -28,6 +30,7 @@ import {
 } from "./receipt-repository.js";
 import { DecisionReceiptService } from "./receipt-service.js";
 import { JsonStore } from "./store.js";
+import { InMemoryReceiptStore } from "./receipt-store.js";
 import type {
   AgentRunner,
   DatabaseV2,
@@ -73,6 +76,7 @@ async function makeService(
   logger?: AgentServiceLogger,
   options: {
     arkConfigured?: boolean;
+    runtimeProvider?: "local-process" | "container";
     storeFactory?: (filePath: string) => JsonStore;
     workspaceFactory?: (root: string) => WorkspaceManager;
   } = {},
@@ -84,6 +88,7 @@ async function makeService(
     APP_DATA_DIR: path.join(root, "data"),
     AGENT_WORKSPACE_ROOT: path.join(root, "workspaces"),
     CODEX_HOME: path.join(root, "codex"),
+    RUNTIME_PROVIDER: options.runtimeProvider,
     ARK_API_KEY: options.arkConfigured === false ? "" : "test-key",
     ARK_MODEL: options.arkConfigured === false ? "" : "ep-test",
   });
@@ -638,6 +643,62 @@ describe("Agent lifecycle", () => {
     const { run } = await sendBaseline(service, agent.id, "must fail closed");
     await expect.poll(() => service.getRun(run.id, "user-a").status).toBe("failed");
     expect(calls).toHaveLength(0);
+  });
+
+  it("revalidates a Capsule workspace after the final Receipt write", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "launchpad-capsule-race-"));
+    temporaryDirectories.push(root);
+    const outsideDirectory = path.join(root, "outside");
+    await mkdir(outsideDirectory);
+    let runnerCalls = 0;
+    const runner = {
+      supportsMountPlans: true as const,
+      async run(request: RunnerRequest) {
+        runnerCalls += 1;
+        await realpath(request.workspacePath);
+        return { output: "unexpected", threadId: null, usage: null };
+      },
+      cancel: async () => false,
+      isAvailable: async () => true,
+    };
+    class WorkspaceSwappingReceipts extends InMemoryReceiptStore {
+      constructor(private readonly swapWorkspace: () => Promise<void>) {
+        super();
+      }
+
+      override async replace(...args: Parameters<InMemoryReceiptStore["replace"]>) {
+        await super.replace(...args);
+        if (args[0].runnerStarted && !args[1]) await this.swapWorkspace();
+      }
+    }
+
+    let workspacePath = "";
+    const receipts = new WorkspaceSwappingReceipts(async () => {
+      await rm(workspacePath, { recursive: true });
+      await symlink(outsideDirectory, workspacePath);
+    });
+    const service = await makeService(
+      runner,
+      { receipts },
+      undefined,
+      { runtimeProvider: "container" },
+    );
+    const agent = await service.createAgent({ name: "Capsule path" }, "user-a");
+    workspacePath = agent.workspacePath;
+
+    const result = await service.sendMessage(agent.id, userA, {
+      content: "must not follow an external workspace",
+      resourceIds: ["orders-incident"],
+    });
+    if (!result.admitted) throw new Error("expected an admitted Capsule Run");
+
+    await expect.poll(() => service.getRun(result.response.run.id, "user-a").status).toBe(
+      "failed",
+    );
+    expect(runnerCalls).toBe(0);
+    expect(receipts.getReceiptsForRun(result.response.run.id)).toMatchObject([
+      { runnerStarted: false },
+    ]);
   });
 
   it("scopes every Agent operation to the owning principal", async () => {

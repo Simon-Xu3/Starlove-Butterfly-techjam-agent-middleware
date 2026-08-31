@@ -60,15 +60,28 @@ export function containerName(agentId: string, instanceId = "default"): string {
   return "launchpad-" + safeInstance + "-" + safeAgent;
 }
 
+function quotedMountSource(sourcePath: string): string {
+  // Docker parses --mount as CSV. Quote the complete key=value field (rather
+  // than only its value) so commas in a host pathname stay within src.
+  return '"src=' + sourcePath.replaceAll('"', '""') + '"';
+}
+
+function buildBindMount(sourcePath: string, targetPath: string, readonly = false): string {
+  return [
+    "type=bind",
+    quotedMountSource(sourcePath),
+    "dst=" + targetPath,
+    ...(readonly ? ["readonly"] : []),
+  ].join(",");
+}
+
 export function buildReadonlyResourceMount(
   validatedMountPlan: ValidatedRunMountPlan,
 ): string {
-  return (
-    "type=bind,src=" +
-    validatedMountPlan.sourcePath +
-    ",dst=" +
-    validatedMountPlan.targetPath +
-    ",readonly"
+  return buildBindMount(
+    validatedMountPlan.sourcePath,
+    validatedMountPlan.targetPath,
+    true,
   );
 }
 
@@ -115,9 +128,9 @@ export function buildContainerRunArgs(
     "--env",
     "NO_COLOR=1",
     "--mount",
-    "type=bind,src=" + request.workspacePath + ",dst=/workspace",
+    buildBindMount(request.workspacePath, "/workspace"),
     "--mount",
-    "type=bind,src=" + request.codexHomePath + ",dst=/codex-home",
+    buildBindMount(request.codexHomePath, "/codex-home"),
     ...(validatedMountPlan
       ? ["--mount", buildReadonlyResourceMount(validatedMountPlan)]
       : []),

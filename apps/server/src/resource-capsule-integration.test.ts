@@ -95,9 +95,9 @@ describe("P2/P3/P4 Resource Capsule integration", () => {
       grantGeneration: 1,
     });
     expect(buildReadonlyResourceMount(compiled.plan)).toBe(
-      "type=bind,src=" +
+      'type=bind,"src=' +
         compiled.plan.sourcePath +
-        ",dst=/resources/orders-incident,readonly",
+        '",dst=/resources/orders-incident,readonly',
     );
 
     await entitlements.revoke("user-a", "orders-incident");

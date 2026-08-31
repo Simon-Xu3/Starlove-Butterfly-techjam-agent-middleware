@@ -6,6 +6,7 @@ import {
 import type { AppConfig } from "./config.js";
 import { isArkConfigured } from "./config.js";
 import { HttpError, RunCancelledError } from "./errors.js";
+import { SAFE_ERROR_NAMES } from "./safe-error-types.js";
 import type { ReceiptSink } from "./receipt-store.js";
 import { JsonStore } from "./store.js";
 import { isCapsuleCapableRunner } from "./types.js";
@@ -51,16 +52,6 @@ export interface AgentServiceLogger {
 }
 
 const silentLogger: AgentServiceLogger = { error: () => undefined };
-const SAFE_RUNTIME_ERROR_NAMES = new Set([
-  "Error",
-  "TypeError",
-  "RangeError",
-  "ReferenceError",
-  "SyntaxError",
-  "URIError",
-  "AggregateError",
-]);
-
 // Admission outcome for POST /api/agents/:id/messages: 202 when admitted,
 // 403 with the safe denied body otherwise.
 export type AdmissionResult =
@@ -802,7 +793,7 @@ export class AgentService {
         agentId,
         runId,
         error: {
-          name: SAFE_RUNTIME_ERROR_NAMES.has(candidateName)
+          name: SAFE_ERROR_NAMES.has(candidateName)
             ? candidateName
             : "RuntimeError",
           // Runtime stderr can contain credentials, Resource contents, or
@@ -839,9 +830,6 @@ export class AgentService {
       if (this.cancellationRequests.has(agentAtStart.id)) {
         throw new RunCancelledError();
       }
-      const workspacePath = await this.workspaces.runtimeWorkspacePath(
-        agentAtStart,
-      );
       const codexHomePath = await prepareAgentCodexHome(
         this.config,
         agentAtStart.id,
@@ -849,13 +837,6 @@ export class AgentService {
       if (this.cancellationRequests.has(agentAtStart.id)) {
         throw new RunCancelledError();
       }
-      const request = {
-        agentId: agentAtStart.id,
-        workspacePath,
-        codexHomePath,
-        prompt: run.prompt,
-        threadId: agentAtStart.codexThreadId,
-      };
       let result: RunnerResult;
       if (capsuleExecution) {
         if (!this.currentCapsuleEntitlement(capsuleExecution)) {
@@ -885,12 +866,50 @@ export class AgentService {
           );
           return;
         }
+        // The workspace is derived only after every awaited pre-Runner step.
+        // There is no await between this canonical check and the handoff.
+        const workspacePath = await this.workspaces.runtimeWorkspacePath(
+          agentAtStart,
+        );
+        if (this.cancellationRequests.has(agentAtStart.id)) {
+          await this.capsule.receipts.replace(capsuleExecution.receipt);
+          throw new RunCancelledError();
+        }
+        if (!this.currentCapsuleEntitlement(capsuleExecution)) {
+          await this.finalizeLateCapsuleDenial(
+            agentAtStart.id,
+            run.id,
+            capsuleExecution,
+          );
+          return;
+        }
+        const request = {
+          agentId: agentAtStart.id,
+          workspacePath,
+          codexHomePath,
+          prompt: run.prompt,
+          threadId: agentAtStart.codexThreadId,
+        };
         runnerAttempted = true;
         result = await capsuleExecution.runner.run(
           request,
           capsuleExecution.plan,
         );
       } else {
+        const workspacePath = await this.workspaces.runtimeWorkspacePath(
+          agentAtStart,
+        );
+        if (this.cancellationRequests.has(agentAtStart.id)) {
+          throw new RunCancelledError();
+        }
+        const request = {
+          agentId: agentAtStart.id,
+          workspacePath,
+          codexHomePath,
+          prompt: run.prompt,
+          threadId: agentAtStart.codexThreadId,
+        };
+        runnerAttempted = true;
         result = await this.runner.run(request);
       }
       const completedAt = now();
