@@ -8,6 +8,12 @@ Fastify control plane. Its security promise is deliberately narrow:
 
 ## Trusted sequence
 
+Submission-ready exports of this architecture are available as a
+[one-page PDF](assets/architecture-trusted-sequence.pdf) and a
+[2560 x 1440 PNG](assets/architecture-trusted-sequence.png). Both are generated
+from `scripts/generate-architecture-diagram.py` so the review artifact remains
+reproducible and synchronized.
+
 ```mermaid
 flowchart LR
     subgraph Client["Browser · untrusted request input"]
@@ -19,7 +25,7 @@ flowchart LR
     subgraph Control["Fastify control plane · trusted policy boundary"]
         SuggestAPI["Bounded transient<br/>suggest request"]
         Advisor["Deterministic Resource Advisor<br/>no persistence or side effects"]
-        Request["Outer bearer guard<br/>+ request validation"]
+        Request["Optional demo bearer guard<br/>+ request validation"]
         Principal["Resolve mock principal<br/>from X-Demo-Session"]
         Ownership["Ownership-scoped<br/>Agent lookup"]
         Authorize{"Current Entitlement<br/>∩ explicit Run Delegation"}
@@ -29,8 +35,8 @@ flowchart LR
         Path["realpath + root containment<br/>+ overlap/collision checks"]
         Plan["Immutable readonly<br/>ValidatedRunMountPlan"]
         Admission["Atomic admission commit<br/>allow Receipt starts with<br/>runnerStarted: false"]
-        FinalCheck{"Final Entitlement generation<br/>+ cancellation check"}
-        Store[("Atomic JSON store<br/>Run · Message · Receipt")]
+        FinalCheck{"Rechecks after awaited steps:<br/>generation + cancellation"}
+        Store[("Atomic JSON store<br/>Run · Message · Agent state · Receipt")]
     end
 
     subgraph Runtime["Disposable local container · hackathon-grade boundary"]
@@ -65,7 +71,7 @@ flowchart LR
     Admission --> FinalCheck
     FinalCheck -->|"stale or cancelled:<br/>no Runner call"| Store
     FinalCheck -->|allow| Runner --> Namespace --> Codex --> Ark
-    Runner -->|"set runnerStarted: true<br/>when invocation is attempted"| Store
+    Runner -. "settled runnerStarted: true<br/>means handoff was attempted" .-> Store
 ```
 
 The Advisor feature is built in, but invoking it is optional. The browser sends
@@ -103,11 +109,11 @@ whose mode is always read-only.
 | Allowed current delegation | Exactly one read-only Resource mount; Receipt records the generation and whether invocation was attempted. |
 
 Run admission persists the initial Capsule Run, user Message, Agent transition,
-and allow Receipt with `runnerStarted: false` atomically. Immediately before
-invocation, the service rechecks the Entitlement generation and any pending
-cancellation. `runnerStarted` is execution evidence, not a second authorization
-decision: the Receipt is updated to true when the authorized Runner invocation
-is attempted.
+and allow Receipt with `runnerStarted: false` atomically. Before invocation,
+the service rechecks the Entitlement generation and any pending cancellation.
+`runnerStarted` is execution evidence, not a second authorization decision:
+its final stored value is true only when the authorized Runner handoff was
+attempted; a pre-Runner failure reconciles it to false.
 
 The Web UI projects these persisted facts as a three-stage Decision Proof
 Chain: `Delegated`, `Decided`, and `Executed`. The projection does not create a

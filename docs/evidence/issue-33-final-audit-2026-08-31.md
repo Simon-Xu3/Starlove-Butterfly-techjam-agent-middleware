@@ -102,9 +102,12 @@ executed evidence.
   production identity.
 - Terraform was not installed on this workstation, so this audit does not claim
   a fresh local `terraform fmt`, `validate`, or `plan` result.
-- The Docker and browser checks used placeholder Ark configuration and did not
-  submit a model request. A successful live answer still depends on valid Ark
-  credentials, endpoint access, and provider quota.
+- The Docker and browser checks executed for this Issue #33 audit used
+  placeholder Ark configuration and did not submit a model request. They are
+  distinct from the separately recorded successful
+  [real ModelArk live allow-path test](p3-resource-capsule-live-e2e-test-2026-08-30.md),
+  which is evidence for its named revision rather than a claim that this audit
+  itself called Ark.
 
 ## Merge safety
 
