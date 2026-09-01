@@ -122,8 +122,11 @@
       overflow: hidden;
     }
     [id="frame-06-revoke-recording"] {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      left: 28px;
+      top: 24px;
+      width: calc(100% - 56px);
+      height: calc(100% - 48px);
       object-fit: contain;
       object-position: 50% 50%;
       background: #0b0d0d;
@@ -266,7 +269,7 @@
       <h1 data-hf-id="hf-mx3v" id="frame-06-revoke-title">Future admission <em data-hf-id="hf-9g56">fails closed.</em> History stays.</h1>
       <div data-hf-id="hf-nlqr" id="frame-06-revoke-rail">
         <div data-hf-id="hf-dyox" id="frame-06-revoke-recording-shell">
-          <video data-hf-id="hf-2yrw" id="frame-06-revoke-recording" class="clip" src="assets/recordings/04-revoke-retry.mp4" data-start="0.8" data-duration="12.1" data-media-start="0" data-track-index="2" muted playsinline></video>
+          <video data-hf-id="hf-2yrw" id="frame-06-revoke-recording" class="clip" src="assets/recordings/04-revoke-retry-cropped.mp4" data-start="0.8" data-duration="12.1" data-media-start="0" data-playback-rate="0.85" data-track-index="2" muted playsinline></video>
         </div>
         <svg data-hf-id="hf-kx6f" id="frame-06-revoke-route-svg" viewBox="0 0 1744 500" preserveAspectRatio="none" aria-hidden="true">
           <path data-hf-id="hf-op9m" id="frame-06-revoke-route-earlier" d="M 260 250 C 430 250, 470 250, 608 250" />
@@ -338,10 +341,10 @@
       tl.fromTo("#frame-06-revoke-title", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" }, 0.1);
       tl.fromTo("#frame-06-revoke-recording-shell", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.45);
       tl.to("#frame-06-revoke-recording-shell", { opacity: 0, duration: 0.75, ease: "power2.inOut" }, 12.55);
-      tl.fromTo("#frame-06-revoke-card-earlier", { opacity: 0, x: -110 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, 1.25);
-      tl.to(routeEarlier, { strokeDashoffset: 0, duration: 0.72, ease: "power2.out" }, 2.5);
-      tl.fromTo("#frame-06-revoke-card-entitlement", { opacity: 0, y: 54 }, { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" }, 3.0);
-      tl.to(routeNext, { strokeDashoffset: 0, duration: 0.78, ease: "power2.out" }, 4.8);
+      tl.fromTo("#frame-06-revoke-card-earlier", { opacity: 0, x: -110 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, 13.3);
+      tl.to(routeEarlier, { strokeDashoffset: 0, duration: 0.72, ease: "power2.out" }, 14.0);
+      tl.fromTo("#frame-06-revoke-card-entitlement", { opacity: 0, y: 54 }, { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" }, 14.2);
+      tl.to(routeNext, { strokeDashoffset: 0, duration: 0.78, ease: "power2.out" }, 15.0);
 
       tl.to("#frame-06-revoke-card-entitlement", {
         scale: 1.035,
@@ -350,10 +353,10 @@
         boxShadow: "0 0 52px rgba(255, 92, 87, 0.22)",
         duration: 1.0,
         ease: "power2.inOut"
-      }, 6.3);
-      tl.to("#frame-06-revoke-entitlement-old", { opacity: 0, duration: 0.4, ease: "power1.in" }, 6.3);
-      tl.to("#frame-06-revoke-entitlement-new", { opacity: 1, duration: 0.4, ease: "power1.out" }, 6.9);
-      tl.to("#frame-06-revoke-card-entitlement", { borderColor: "#ff5c57", color: "#ff5c57", duration: 0.45, ease: "power1.out" }, 6.85);
+      }, 15.2);
+      tl.to("#frame-06-revoke-entitlement-old", { opacity: 0, duration: 0.4, ease: "power1.in" }, 15.2);
+      tl.to("#frame-06-revoke-entitlement-new", { opacity: 1, duration: 0.4, ease: "power1.out" }, 15.6);
+      tl.to("#frame-06-revoke-card-entitlement", { borderColor: "#ff5c57", color: "#ff5c57", duration: 0.45, ease: "power1.out" }, 15.55);
 
       tl.to(generationDriver, {
         t: 2.2,
@@ -366,7 +369,7 @@
             lastGeneration = value;
           }
         }
-      }, 6.75);
+      }, 15.55);
       tl.to(cursorDriver, {
         phase: Math.PI * 8,
         duration: 2.2,
@@ -374,15 +377,15 @@
         onUpdate: () => {
           cursorEl.style.opacity = Math.sin(cursorDriver.phase) > 0 ? "1" : "0";
         }
-      }, 6.75);
-      tl.to(gatePath, { strokeDashoffset: 0, duration: 0.62, ease: "power2.out" }, 8.15);
-      tl.to(routeNext, { opacity: 0.24, stroke: "#ff5c57", duration: 0.4, ease: "power1.out" }, 8.35);
-      tl.fromTo("#frame-06-revoke-card-next", { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, 9.1);
-      tl.fromTo("#frame-06-revoke-card-next [data-card-title]", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 10.2);
-      tl.fromTo("#frame-06-revoke-blocked", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.72, ease: "power3.out" }, 11.6);
-      tl.fromTo("#frame-06-revoke-foot", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 14.3);
-      tl.fromTo("#frame-06-revoke-card-earlier", { boxShadow: "0 0 0 rgba(47, 200, 160, 0)" }, { boxShadow: "0 0 44px rgba(47, 200, 160, 0.18)", duration: 0.9, ease: "power2.out" }, 15.3);
-      tl.to("#frame-06-revoke-card-entitlement", { scale: 1, duration: 0.8, ease: "power2.out" }, 16.2);
+      }, 15.55);
+      tl.to(gatePath, { strokeDashoffset: 0, duration: 0.62, ease: "power2.out" }, 16.9);
+      tl.to(routeNext, { opacity: 0.24, stroke: "#ff5c57", duration: 0.4, ease: "power1.out" }, 17.05);
+      tl.fromTo("#frame-06-revoke-card-next", { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, 17.15);
+      tl.fromTo("#frame-06-revoke-card-next [data-card-title]", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 17.7);
+      tl.fromTo("#frame-06-revoke-blocked", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.72, ease: "power3.out" }, 18.25);
+      tl.fromTo("#frame-06-revoke-foot", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 18.65);
+      tl.fromTo("#frame-06-revoke-card-earlier", { boxShadow: "0 0 0 rgba(47, 200, 160, 0)" }, { boxShadow: "0 0 44px rgba(47, 200, 160, 0.18)", duration: 0.9, ease: "power2.out" }, 18.8);
+      tl.to("#frame-06-revoke-card-entitlement", { scale: 1, duration: 0.8, ease: "power2.out" }, 19.0);
       window.__timelines["06-revoke"] = tl;
     })();
   </script>
