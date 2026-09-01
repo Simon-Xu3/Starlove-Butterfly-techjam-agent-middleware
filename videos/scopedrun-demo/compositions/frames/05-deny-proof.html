@@ -146,7 +146,7 @@
       gap: 16px;
     }
     [data-panel-number] {
-      color: #294139;
+      color: #576a64;
       font-weight: 700;
     }
     [data-capture] {
@@ -172,17 +172,18 @@
     }
     [id="frame-05-deny-proof-terminal-recording"] {
       position: absolute;
-      left: calc(-100% - 34px);
-      width: calc(200% + 68px);
-      top: 50%;
+      left: 24px;
+      width: calc(100% - 48px);
+      top: 24px;
       height: auto;
-      transform: translateY(-50%);
+      max-height: 44%;
+      object-fit: contain;
       z-index: 3;
       background: #0b0d0d;
       border: 2px solid rgba(255, 92, 87, 0.62);
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.52);
     }
-    [id="frame-05-deny-proof-panel-right"] [data-capture] { overflow: visible; }
+    [id="frame-05-deny-proof-panel-right"] [data-capture] { overflow: hidden; }
     [data-live-evidence] {
       position: absolute;
       left: 18px;
