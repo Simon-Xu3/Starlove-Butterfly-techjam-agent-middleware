@@ -17,6 +17,7 @@ coverage/
 videos/scopedrun-demo/.thumbnails/
 videos/scopedrun-demo/.waveform-cache/
 videos/scopedrun-demo/.media/
+videos/scopedrun-demo/snapshots/
 videos/scopedrun-demo/renders/work-*/
 deploy/volcengine/.terraform/
 deploy/volcengine/*.tfstate*

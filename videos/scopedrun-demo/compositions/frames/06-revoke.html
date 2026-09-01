@@ -109,6 +109,36 @@
       align-items: stretch;
       min-height: 0;
     }
+    [id="frame-06-revoke-recording-shell"] {
+      position: absolute;
+      inset: 8px 0;
+      z-index: 6;
+      display: grid;
+      align-items: center;
+      padding: 24px 28px;
+      border: 3px solid #ff5c57;
+      background: #0b0d0d;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.52);
+      overflow: hidden;
+    }
+    [id="frame-06-revoke-recording"] {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: 50% 50%;
+      background: #0b0d0d;
+    }
+    [id="frame-06-revoke-recording-label"] {
+      position: absolute;
+      left: 28px;
+      top: 22px;
+      z-index: 2;
+      color: #ff5c57;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
     [id="frame-06-revoke-route-svg"] {
       position: absolute;
       inset: 0;
@@ -235,6 +265,9 @@
       <div data-hf-id="hf-ldo0" id="frame-06-revoke-meta"><span data-hf-id="hf-kvss">ENTITLEMENT CHANGE</span><span data-hf-id="hf-3xfk">REVOKE / 06</span></div>
       <h1 data-hf-id="hf-mx3v" id="frame-06-revoke-title">Future admission <em data-hf-id="hf-9g56">fails closed.</em> History stays.</h1>
       <div data-hf-id="hf-nlqr" id="frame-06-revoke-rail">
+        <div data-hf-id="hf-dyox" id="frame-06-revoke-recording-shell">
+          <video data-hf-id="hf-2yrw" id="frame-06-revoke-recording" class="clip" src="assets/recordings/04-revoke-retry.mp4" data-start="0.8" data-duration="12.1" data-media-start="0" data-track-index="2" muted playsinline></video>
+        </div>
         <svg data-hf-id="hf-kx6f" id="frame-06-revoke-route-svg" viewBox="0 0 1744 500" preserveAspectRatio="none" aria-hidden="true">
           <path data-hf-id="hf-op9m" id="frame-06-revoke-route-earlier" d="M 260 250 C 430 250, 470 250, 608 250" />
           <path data-hf-id="hf-e03g" id="frame-06-revoke-route-next" d="M 1125 250 C 1260 250, 1320 250, 1482 250" />
@@ -303,6 +336,8 @@
 
       tl.fromTo("#frame-06-revoke-meta", { opacity: 0, y: -22 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 0);
       tl.fromTo("#frame-06-revoke-title", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" }, 0.1);
+      tl.fromTo("#frame-06-revoke-recording-shell", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.45);
+      tl.to("#frame-06-revoke-recording-shell", { opacity: 0, duration: 0.75, ease: "power2.inOut" }, 12.55);
       tl.fromTo("#frame-06-revoke-card-earlier", { opacity: 0, x: -110 }, { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" }, 1.25);
       tl.to(routeEarlier, { strokeDashoffset: 0, duration: 0.72, ease: "power2.out" }, 2.5);
       tl.fromTo("#frame-06-revoke-card-entitlement", { opacity: 0, y: 54 }, { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" }, 3.0);

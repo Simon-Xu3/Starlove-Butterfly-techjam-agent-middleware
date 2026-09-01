@@ -99,6 +99,32 @@
       position: relative;
       overflow: hidden;
     }
+    .f08-recording {
+      position: absolute;
+      left: 26px;
+      right: 26px;
+      top: 50%;
+      width: calc(100% - 52px);
+      height: auto;
+      transform: translateY(-50%);
+      z-index: 4;
+      background: #0b0d0d;
+      border: 2px solid #ff5c57;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
+    }
+    .f08-recording-label {
+      position: absolute;
+      left: 30px;
+      bottom: 16px;
+      z-index: 5;
+      color: #ff5c57;
+      background: rgba(7, 17, 15, 0.94);
+      border: 2px solid #ff5c57;
+      padding: 8px 11px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+    }
     .f08-proof::before {
       content: "";
       position: absolute;
@@ -206,6 +232,7 @@
         <div data-hf-id="hf-klhc" class="f08-anchor"><span data-hf-id="hf-emmb">No silent</span><span data-hf-id="hf-p5sj">fallback.</span></div>
         <div data-hf-id="hf-i7vj" class="f08-right">
           <div data-hf-id="hf-s1hn" class="f08-proof">
+            <video data-hf-id="hf-31n2" id="frame-08-runtime-recording" class="clip f08-recording" src="assets/recordings/06-unsupported-runtime.mp4" data-start="0.5" data-duration="6" data-media-start="0" data-track-index="2" muted playsinline></video>
             <div data-hf-id="hf-lryr" class="f08-proof-source">
               <div data-hf-id="hf-rdn3">SCREEN STUDIO INSERT · CLIP 06 · LOCAL-PROCESS CAPSULE REQUEST</div>
               <div data-hf-id="hf-5qyy" class="f08-trace"><span data-hf-id="hf-4ys0" id="f08-trace-text"></span></div>

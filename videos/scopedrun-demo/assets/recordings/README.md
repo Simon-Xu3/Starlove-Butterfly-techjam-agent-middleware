@@ -1,5 +1,10 @@
 # Recording drop zone
 
+The seven canonical files below are now edited, render-safe derivatives of the
+anonymous raw captures delivered in `/Users/marcus/Desktop/video`. The raw
+captures remain untouched. See [`INGEST.md`](INGEST.md) for the exact source
+mapping, selected time ranges, and QA notes.
+
 Place untrimmed Screen Studio exports here with these names:
 
 - `01-delegate-inventory.mp4`
@@ -21,5 +26,7 @@ Place narration under `assets/voice/` as:
 - `07-namespace-proof.wav`
 - `08-honest-close.wav`
 
-Raw captures are preferred. Leave two seconds of stillness at the beginning and
-end, and do not expose `.env`, API keys, absolute host paths, or shell history.
+For a new take, raw captures are preferred. Leave two seconds of stillness at
+the beginning and end, and do not expose `.env`, API keys, absolute host paths,
+or shell history. Do not overwrite the edited canonical files without updating
+`INGEST.md`.

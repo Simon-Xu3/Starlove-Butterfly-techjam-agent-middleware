@@ -91,7 +91,7 @@
     [id="frame-04-allow-proof-meta"]::after { right: 0; }
     [id="frame-04-allow-proof-layout"] {
       display: grid;
-      grid-template-columns: 62% 38%;
+      grid-template-columns: 70% 30%;
       gap: 34px;
       min-height: 0;
     }
@@ -152,6 +152,16 @@
       min-height: 0;
       overflow: hidden;
       position: relative;
+    }
+    [id="frame-04-allow-proof-recording"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 50% 50%;
+      z-index: 4;
+      background: #0b1513;
     }
     [id="frame-04-allow-proof-browser-bar"] {
       display: flex;
@@ -311,14 +321,14 @@
     }
     [data-proof-title] {
       font-family: "ScopedRun Oswald";
-      font-size: 48px;
+      font-size: 40px;
       line-height: 1;
       text-transform: uppercase;
     }
     [data-proof-detail] {
       grid-column: 2;
       color: #9baea7;
-      font-size: 20px;
+      font-size: 17px;
       line-height: 1.25;
     }
     [id="frame-04-allow-proof-promise"] {
@@ -344,6 +354,7 @@
             <span data-hf-id="hf-jj7x" id="frame-04-allow-proof-live-chip">RUN COMPLETE</span>
           </div>
           <div data-hf-id="hf-aqyf" id="frame-04-allow-proof-browser">
+            <video data-hf-id="hf-oxaq" id="frame-04-allow-proof-recording" class="clip" src="assets/recordings/02-allow-run.mp4" data-start="0" data-duration="21.3" data-media-start="0" data-track-index="2" muted playsinline></video>
             <div data-hf-id="hf-m793" id="frame-04-allow-proof-browser-bar">
               <span data-hf-id="hf-pei9" id="frame-04-allow-proof-browser-dots"><i data-hf-id="hf-wt6k"></i><i data-hf-id="hf-zeb8"></i><i data-hf-id="hf-y7e5"></i></span>
               <span data-hf-id="hf-7hhn">AGENT / INVENTORY</span>

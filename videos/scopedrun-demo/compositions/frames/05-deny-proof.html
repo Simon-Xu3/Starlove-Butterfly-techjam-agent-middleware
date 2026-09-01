@@ -160,6 +160,43 @@
       text-align: center;
       padding: 32px;
     }
+    [id="frame-05-deny-proof-advisor-recording"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 50% 47%;
+      z-index: 3;
+      background: #0b1513;
+    }
+    [id="frame-05-deny-proof-terminal-recording"] {
+      position: absolute;
+      left: calc(-100% - 34px);
+      width: calc(200% + 68px);
+      top: 50%;
+      height: auto;
+      transform: translateY(-50%);
+      z-index: 3;
+      background: #0b0d0d;
+      border: 2px solid rgba(255, 92, 87, 0.62);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.52);
+    }
+    [id="frame-05-deny-proof-panel-right"] [data-capture] { overflow: visible; }
+    [data-live-evidence] {
+      position: absolute;
+      left: 18px;
+      bottom: 16px;
+      z-index: 4;
+      padding: 9px 12px;
+      background: rgba(7, 17, 15, 0.94);
+      border: 2px solid currentColor;
+      color: #f2b84b;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+    }
+    [id="frame-05-deny-proof-panel-right"] [data-live-evidence] { color: #ff5c57; }
     [id="frame-05-deny-proof-panel-right"] [data-capture] {
       border-color: rgba(255, 92, 87, 0.48);
     }
@@ -278,10 +315,12 @@
         <div data-hf-id="hf-a22c" id="frame-05-deny-proof-panel-left" data-panel="left">
           <div data-hf-id="hf-5rvc" data-panel-title=""><span data-hf-id="hf-mpua">GUIDANCE · ADVISOR</span><span data-hf-id="hf-fd5l" data-panel-number="">01</span></div>
           <div data-hf-id="hf-ufjj" data-capture="">
+            <video data-hf-id="hf-jdy6" id="frame-05-deny-proof-advisor-recording" class="clip" src="assets/recordings/03a-advisor-no-match.mp4" data-start="2.4" data-duration="5.5" data-media-start="0" data-track-index="2" muted playsinline></video>
+            <span data-hf-id="hf-i6xk" id="frame-05-advisor-evidence-label" class="clip" data-live-evidence="" data-start="2.4" data-duration="5.5" data-track-index="3">NO ENTITLED MATCH</span>
             <div data-hf-id="hf-nyj9" id="frame-05-deny-proof-advisor">
               <div data-hf-id="hf-w3ql" id="frame-05-deny-proof-advisor-bar"><span data-hf-id="hf-czq2">POLICY AGENT</span><span data-hf-id="hf-czr5">ENTITLED RESOURCES</span></div>
               <div data-hf-id="hf-ojzs" id="frame-05-deny-proof-advisor-query">SCREEN STUDIO INSERT · No Payments suggestion and no protected metadata.</div>
-              <div data-hf-id="hf-e3d4" id="frame-05-deny-proof-advisor-result">Payments<br data-hf-id="hf-x5px">no match</div>
+              <div data-hf-id="hf-e3d4" id="frame-05-deny-proof-advisor-result">Payments — no match</div>
             </div>
           </div>
           <div data-hf-id="hf-xkpy" data-panel-result="">No entitled Resource match</div>
@@ -289,6 +328,8 @@
         <div data-hf-id="hf-fz2e" id="frame-05-deny-proof-panel-right" data-panel="right">
           <div data-hf-id="hf-gcds" data-panel-title=""><span data-hf-id="hf-q1x5">ENFORCEMENT · DIRECT API</span><span data-hf-id="hf-gk2o" data-panel-number="">02</span></div>
           <div data-hf-id="hf-poi7" data-capture="">
+            <video data-hf-id="hf-haiu" id="frame-05-deny-proof-terminal-recording" class="clip" src="assets/recordings/03b-deny-payments.mp4" data-start="8.4" data-duration="7.2" data-media-start="0" data-track-index="2" muted playsinline></video>
+            <span data-hf-id="hf-rkt7" id="frame-05-terminal-evidence-label" class="clip" data-live-evidence="" data-start="8.4" data-duration="7.2" data-track-index="3">DIRECT REQUEST · DENIED BEFORE RUNNER</span>
             <div data-hf-id="hf-186n" id="frame-05-deny-proof-terminal">
               <div data-hf-id="hf-3tyo" id="frame-05-deny-proof-terminal-inner">
                 <div data-hf-id="hf-hx6a" id="frame-05-deny-proof-http">HTTP 403</div>
