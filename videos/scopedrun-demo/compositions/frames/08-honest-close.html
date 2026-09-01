@@ -83,7 +83,7 @@
     }
     .f08-right {
       display: grid;
-      grid-template-rows: 190px 1fr;
+      grid-template-rows: 228px 1fr;
       gap: 24px;
       min-width: 0;
     }
@@ -232,7 +232,7 @@
         <div data-hf-id="hf-klhc" class="f08-anchor"><span data-hf-id="hf-emmb">No silent</span><span data-hf-id="hf-p5sj">fallback.</span></div>
         <div data-hf-id="hf-i7vj" class="f08-right">
           <div data-hf-id="hf-s1hn" class="f08-proof">
-            <video data-hf-id="hf-31n2" id="frame-08-runtime-recording" class="clip f08-recording" src="assets/recordings/06-unsupported-runtime.mp4" data-start="0.5" data-duration="6" data-media-start="0" data-track-index="2" muted playsinline></video>
+            <video data-hf-id="hf-31n2" id="frame-08-runtime-recording" class="clip f08-recording" src="assets/recordings/06-unsupported-runtime-cropped.mp4" data-start="0.5" data-duration="6" data-media-start="0" data-track-index="2" muted playsinline></video>
             <div data-hf-id="hf-lryr" class="f08-proof-source">
               <div data-hf-id="hf-rdn3">SCREEN STUDIO INSERT · CLIP 06 · LOCAL-PROCESS CAPSULE REQUEST</div>
               <div data-hf-id="hf-5qyy" class="f08-trace"><span data-hf-id="hf-4ys0" id="f08-trace-text"></span></div>
@@ -315,7 +315,8 @@
         }
       }
     }, 1.1);
-    f08Timeline.fromTo(".f08-proof-result", { opacity: 0.15 }, { opacity: 1, duration: 0.45, ease: "power2.out" }, 6.1);
+    f08Timeline.fromTo(".f08-proof-source", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.out" }, 6.55);
+    f08Timeline.fromTo(".f08-proof-result", { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.out" }, 6.55);
     f08Timeline.fromTo(".f08-limit", { opacity: 0, x: 34 }, { opacity: 1, x: 0, duration: 0.65, ease: "power3.out", stagger: 2.55 }, 8.4);
     f08Timeline.fromTo(".f08-next", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 13.75);
     f08Timeline.to(".f08-right", { opacity: 0.14, duration: 0.75, ease: "power2.out" }, 16.1);
